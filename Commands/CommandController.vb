@@ -18,7 +18,7 @@
     Private Function HeaderDetailsAreRequired() As Boolean
 
         ' Temporary until the real header validation is implemented.
-        Return False
+        Return True
 
     End Function
 
@@ -49,7 +49,44 @@
 
     Private Sub HeaderForm_FormClosed(sender As Object, e As FormClosedEventArgs)
 
-        ExitThread()
+        Dim headerForm As HeaderForm = DirectCast(sender, HeaderForm)
+
+        If headerForm.DialogResult <> DialogResult.OK Then
+            DebugLog.WriteAlways("[STARTUP] Header form cancelled.")
+            ExitThread()
+            Return
+        End If
+
+        LogHeaderDetails()
+
+        ShowTranscriptionForms()
+
+    End Sub
+    Private Sub LogHeaderDetails()
+
+        DebugLog.WriteAlways("========== HEADER ACCEPTED ==========")
+
+        DebugLog.WriteAlways($"Batch Type    : '{ProjectValues.BatchType}'")
+        DebugLog.WriteAlways($"Year          : {ProjectValues.Year}")
+        DebugLog.WriteAlways($"Quarter       : {ProjectValues.Quarter}")
+        DebugLog.WriteAlways($"Month         : {ProjectValues.Month}")
+
+        DebugLog.WriteAlways($"Page          : {ProjectValues.Page}")
+        DebugLog.WriteAlways($"Page Source   : {ProjectValues.PageSource}")
+        DebugLog.WriteAlways($"Page Letter   : '{ProjectValues.PageLetter}'")
+        DebugLog.WriteAlways($"Page Suffix   : '{ProjectValues.PageSuffix}'")
+
+        DebugLog.WriteAlways($"VNF           : '{ProjectValues.VNF}'")
+        DebugLog.WriteAlways($"Source Ref    : '{ProjectValues.SourceRef}'")
+
+        DebugLog.WriteAlways($"Creator       : '{ProjectValues.Creator}'")
+        DebugLog.WriteAlways($"Creator Email : '{ProjectValues.CreatorEmail}'")
+        DebugLog.WriteAlways($"Syndicate     : '{ProjectValues.Syndicate}'")
+
+        DebugLog.WriteAlways($"User Name     : '{ProjectValues.UserName}'")
+        DebugLog.WriteAlways($"Comments      : '{ProjectValues.Comments}'")
+
+        DebugLog.WriteAlways("=====================================")
 
     End Sub
 

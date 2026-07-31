@@ -1,13 +1,819 @@
-﻿Imports WinBMD2.My.Resources
+﻿Imports System.Net.Mail
+Imports WinBMD2.My.Resources
 
 Public Class HeaderForm
 
-    Public Sub New()
+    Private Const FirstYearWithoutQuarters As Integer = 1984
+    Private Const FirstAllowedYear As Integer = 1837
+    Private Const LastAllowedYear As Integer = 2000
 
+    Private ReadOnly _toolTip As New ToolTip()
+    Private _loadingValues As Boolean
+
+    Public Sub New()
         InitializeComponent()
 
         Icon = WinBMDResources.WinBMD2Icon
         Text = "WinBMD2 Header"
+
+        ConfigureControls()
+        ConfigureToolTips()
+        LoadFromProjectValues()
+        HookValidationEvents()
+
+        UpdateQuarterVisibility()
+        SuggestVolumeFormat()
+        ValidateForm()
+    End Sub
+
+    Private Sub ConfigureControls()
+
+        If pageSourceComboBox.Items.Count > 0 AndAlso pageSourceComboBox.SelectedIndex < 0 Then
+            pageSourceComboBox.SelectedIndex = 0
+        End If
+
+        userPasswordTextBox.UseSystemPasswordChar = True
+
+        btnStart.Enabled = False
+
+        AddHandler showPasswordButton.Click, AddressOf ShowPasswordButton_Click
+        AddHandler btnStart.Click, AddressOf btnStart_Click
+        AddHandler btnCancel.Click, AddressOf btnCancel_Click
+
+    End Sub
+
+    Private Sub ConfigureToolTips()
+
+        _toolTip.SetToolTip(
+            birthsRadioButton,
+            "Select this for a Births batch.")
+
+        _toolTip.SetToolTip(
+            marriagesRadioButton,
+            "Select this for a Marriages batch.")
+
+        _toolTip.SetToolTip(
+            deathsRadioButton,
+            "Select this for a Deaths batch.")
+
+        _toolTip.SetToolTip(
+            yearTextBox,
+            "Enter the registration year for this batch." &
+            Environment.NewLine &
+            "Years before 1984 require a quarter.")
+
+        _toolTip.SetToolTip(
+            quarterComboBox,
+            "Select the registration quarter." &
+            Environment.NewLine &
+            "Quarter is only used for years before 1984.")
+
+        _toolTip.SetToolTip(
+            pageSourceComboBox,
+            "Select where the page image came from." &
+            Environment.NewLine &
+            "This will normally be Scan.")
+
+        _toolTip.SetToolTip(
+            pageTextBox,
+            "Enter the FreeBMD page number for this batch.")
+
+        _toolTip.SetToolTip(
+            suffixTextBox,
+            "Enter the page suffix when one exists." &
+            Environment.NewLine &
+            "For example, enter A when the page is shown as 123A.")
+
+        _toolTip.SetToolTip(
+            pageLetterTextBox,
+            "Enter the first letter of the first surname on the page." &
+            Environment.NewLine &
+            "This is used when building the batch filename.")
+
+        _toolTip.SetToolTip(
+            vnfComboBox,
+            "The volume format is suggested automatically from the record type, year and quarter.")
+
+        _toolTip.SetToolTip(
+            sourceRefTextBox,
+            "Optional source reference used to locate the corresponding scan.")
+
+        _toolTip.SetToolTip(
+            commentsTextBox,
+            "Optional notes saved in the batch header.")
+
+        _toolTip.SetToolTip(
+            creatorTextBox,
+            "The FreeBMD User ID of the person who originally created this file.")
+
+        _toolTip.SetToolTip(
+            creatorEmailTextBox,
+            "The email address of the person who originally created this file.")
+
+        _toolTip.SetToolTip(
+            syndicateTextBox,
+            "The FreeBMD syndicate associated with the original creator.")
+
+        _toolTip.SetToolTip(
+            userNameTextBox,
+            "The current FreeBMD User ID used when uploading this file.")
+
+        _toolTip.SetToolTip(
+            userPasswordTextBox,
+            "The password belonging to the current FreeBMD User ID.")
+
+        _toolTip.SetToolTip(
+            showPasswordButton,
+            "Show or hide the current user's password.")
+
+        _toolTip.SetToolTip(
+            creditNameTextBox,
+            "Credit details are optional." &
+            Environment.NewLine &
+            "When one credit field is entered, all three credit fields are required.")
+
+        _toolTip.SetToolTip(
+            creditEmailTextBox,
+            "Credit details are optional." &
+            Environment.NewLine &
+            "When one credit field is entered, all three credit fields are required.")
+
+        _toolTip.SetToolTip(
+            creditTypeTextBox,
+            "Credit details are optional." &
+            Environment.NewLine &
+            "When one credit field is entered, all three credit fields are required.")
+
+    End Sub
+
+    Private Sub LoadFromProjectValues()
+
+        _loadingValues = True
+
+        Try
+            yearTextBox.Text =
+                If(ProjectValues.Year > 0,
+                   ProjectValues.Year.ToString(),
+                   "")
+
+            pageTextBox.Text =
+                If(ProjectValues.Page > 0,
+                   ProjectValues.Page.ToString(),
+                   "")
+
+            If ProjectValues.PageSource >= 0 AndAlso
+               ProjectValues.PageSource < pageSourceComboBox.Items.Count Then
+
+                pageSourceComboBox.SelectedIndex = ProjectValues.PageSource
+
+            ElseIf pageSourceComboBox.Items.Count > 0 Then
+                pageSourceComboBox.SelectedIndex = 0
+            End If
+
+            suffixTextBox.Text = ProjectValues.PageSuffix
+            pageLetterTextBox.Text = ProjectValues.PageLetter
+            sourceRefTextBox.Text = ProjectValues.SourceRef
+            commentsTextBox.Text = ProjectValues.Comments
+
+            creatorTextBox.Text = ProjectValues.Creator
+            creatorEmailTextBox.Text = ProjectValues.CreatorEmail
+            syndicateTextBox.Text = ProjectValues.Syndicate
+
+            userNameTextBox.Text = ProjectValues.UserName
+            userPasswordTextBox.Text = ProjectValues.UserPW
+
+            birthsRadioButton.Checked = ProjectValues.BatchType = "B"
+            marriagesRadioButton.Checked = ProjectValues.BatchType = "M"
+            deathsRadioButton.Checked = ProjectValues.BatchType = "D"
+
+            If Not birthsRadioButton.Checked AndAlso
+               Not marriagesRadioButton.Checked AndAlso
+               Not deathsRadioButton.Checked Then
+
+                birthsRadioButton.Checked = True
+            End If
+
+            If ProjectValues.Quarter >= 1 AndAlso
+               ProjectValues.Quarter <= 4 Then
+
+                quarterComboBox.SelectedIndex =
+                    ProjectValues.Quarter - 1
+            Else
+                quarterComboBox.SelectedIndex = -1
+            End If
+
+            If Not String.IsNullOrWhiteSpace(ProjectValues.VNF) Then
+                vnfComboBox.SelectedItem = ProjectValues.VNF
+            Else
+                vnfComboBox.SelectedIndex = -1
+            End If
+
+        Finally
+            _loadingValues = False
+        End Try
+
+    End Sub
+
+    Private Sub HookValidationEvents()
+
+        AddHandler yearTextBox.TextChanged, AddressOf YearTextBox_TextChanged
+
+        AddHandler pageTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler suffixTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler pageLetterTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler sourceRefTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler commentsTextBox.TextChanged, AddressOf HeaderValueChanged
+
+        AddHandler creatorTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler creatorEmailTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler syndicateTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler userNameTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler userPasswordTextBox.TextChanged, AddressOf HeaderValueChanged
+
+        AddHandler creditNameTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler creditEmailTextBox.TextChanged, AddressOf HeaderValueChanged
+        AddHandler creditTypeTextBox.TextChanged, AddressOf HeaderValueChanged
+
+        AddHandler quarterComboBox.SelectedIndexChanged, AddressOf QuarterChanged
+        AddHandler pageSourceComboBox.SelectedIndexChanged, AddressOf HeaderValueChanged
+        AddHandler vnfComboBox.SelectedIndexChanged, AddressOf HeaderValueChanged
+
+        AddHandler birthsRadioButton.CheckedChanged, AddressOf RecordTypeChanged
+        AddHandler marriagesRadioButton.CheckedChanged, AddressOf RecordTypeChanged
+        AddHandler deathsRadioButton.CheckedChanged, AddressOf RecordTypeChanged
+
+    End Sub
+
+    Private Sub YearTextBox_TextChanged(
+        sender As Object,
+        e As EventArgs)
+
+        If _loadingValues Then
+            Return
+        End If
+
+        sourceRefTextBox.Clear()
+
+        UpdateQuarterVisibility()
+        SuggestVolumeFormat()
+        ValidateForm()
+
+    End Sub
+
+    Private Sub QuarterChanged(
+        sender As Object,
+        e As EventArgs)
+
+        If _loadingValues Then
+            Return
+        End If
+
+        sourceRefTextBox.Clear()
+
+        SuggestVolumeFormat()
+        ValidateForm()
+
+    End Sub
+
+    Private Sub RecordTypeChanged(
+        sender As Object,
+        e As EventArgs)
+
+        If _loadingValues Then
+            Return
+        End If
+
+        sourceRefTextBox.Clear()
+
+        SuggestVolumeFormat()
+        ValidateForm()
+
+    End Sub
+
+    Private Sub HeaderValueChanged(
+        sender As Object,
+        e As EventArgs)
+
+        If _loadingValues Then
+            Return
+        End If
+
+        ValidateForm()
+
+    End Sub
+
+    Private Sub UpdateQuarterVisibility()
+
+        Dim year As Integer
+
+        If Not Integer.TryParse(yearTextBox.Text.Trim(), year) Then
+            quarterPanel.Visible = True
+            Return
+        End If
+
+        Dim quarterRequired As Boolean =
+            year < FirstYearWithoutQuarters
+
+        quarterPanel.Visible = quarterRequired
+
+        If Not quarterRequired Then
+            quarterComboBox.SelectedIndex = -1
+        End If
+
+    End Sub
+
+    Private Sub SuggestVolumeFormat()
+
+        Dim year As Integer
+
+        If Not Integer.TryParse(yearTextBox.Text.Trim(), year) Then
+            Return
+        End If
+
+        Dim quarter As Integer =
+            If(quarterComboBox.SelectedIndex >= 0,
+               quarterComboBox.SelectedIndex + 1,
+               0)
+
+        Dim batchType As String = GetSelectedBatchType()
+
+        Dim suggestedFormat As String
+
+        If year < 1852 Then
+            suggestedFormat = "XX"
+
+        ElseIf year < 1946 OrElse
+               (year = 1946 AndAlso quarter <= 2) Then
+
+            suggestedFormat = "9Z"
+
+        ElseIf year < 1965 OrElse
+               (year = 1965 AndAlso quarter <= 1) Then
+
+            suggestedFormat = "9Z"
+
+        ElseIf year < 1974 OrElse
+               (year = 1974 AndAlso quarter <= 1) Then
+
+            suggestedFormat = "9Z"
+
+        ElseIf batchType = "M" Then
+            suggestedFormat =
+                If(year >= 1994, "999", "99")
+
+        Else
+            suggestedFormat =
+                If(year >= 1993, "999", "99")
+        End If
+
+        vnfComboBox.SelectedItem = suggestedFormat
+
+    End Sub
+
+    Private Sub ValidateForm()
+
+        Dim problems As New List(Of String)
+
+        ValidateIdentityFields(problems)
+        ValidateCreditFields(problems)
+        ValidateBatchFields(problems)
+
+        Dim ready As Boolean =
+            problems.Count = 0
+
+        btnStart.Enabled = ready
+
+        If ready Then
+            validationSummaryLabel.ForeColor =
+                Color.FromArgb(40, 120, 60)
+
+            validationSummaryLabel.Text =
+                "Ready to start transcribing."
+
+            btnStart.Text =
+                "Start batch"
+        Else
+            validationSummaryLabel.ForeColor =
+                Color.FromArgb(130, 75, 20)
+
+            validationSummaryLabel.Text =
+                "Still required: " &
+                String.Join(", ", problems)
+
+            btnStart.Text =
+                "Start batch"
+        End If
+
+        ApplyRequiredFieldColours(problems)
+
+    End Sub
+
+    Private Sub ValidateIdentityFields(
+        problems As List(Of String))
+
+        Dim creator As String =
+            creatorTextBox.Text.Trim()
+
+        Dim creatorEmail As String =
+            creatorEmailTextBox.Text.Trim()
+
+        Dim userName As String =
+            userNameTextBox.Text.Trim()
+
+        Dim userPassword As String =
+            userPasswordTextBox.Text
+
+        If creator.Length = 0 Then
+            problems.Add("Original creator")
+        End If
+
+        If creatorEmail.Length = 0 Then
+            problems.Add("Creator email")
+        ElseIf Not IsValidEmailAddress(creatorEmail) Then
+            problems.Add("Valid creator email")
+        End If
+
+        If syndicateTextBox.Text.Trim().Length = 0 Then
+            problems.Add("Syndicate")
+        End If
+
+        If userName.Length = 0 Then
+            problems.Add("Current FreeBMD User ID")
+        End If
+
+        If userPassword.Length = 0 Then
+            problems.Add("Current user password")
+        End If
+
+    End Sub
+
+    Private Sub ValidateCreditFields(
+        problems As List(Of String))
+
+        Dim creditName As String =
+            creditNameTextBox.Text.Trim()
+
+        Dim creditEmail As String =
+            creditEmailTextBox.Text.Trim()
+
+        Dim creditType As String =
+            creditTypeTextBox.Text.Trim()
+
+        Dim anyCreditEntered As Boolean =
+            creditName.Length > 0 OrElse
+            creditEmail.Length > 0 OrElse
+            creditType.Length > 0
+
+        If Not anyCreditEntered Then
+            Return
+        End If
+
+        If creditName.Length = 0 Then
+            problems.Add("Credit name")
+        End If
+
+        If creditEmail.Length = 0 Then
+            problems.Add("Credit email")
+        ElseIf Not IsValidEmailAddress(creditEmail) Then
+            problems.Add("Valid credit email")
+        End If
+
+        If creditType.Length = 0 Then
+            problems.Add("Credit type")
+        End If
+
+    End Sub
+
+    Private Sub ValidateBatchFields(
+        problems As List(Of String))
+
+        If Not birthsRadioButton.Checked AndAlso
+           Not marriagesRadioButton.Checked AndAlso
+           Not deathsRadioButton.Checked Then
+
+            problems.Add("Record type")
+        End If
+
+        Dim year As Integer
+
+        If yearTextBox.Text.Trim().Length <> 4 OrElse
+           Not Integer.TryParse(yearTextBox.Text.Trim(), year) Then
+
+            problems.Add("Valid 4-digit year")
+        Else
+            If year < FirstAllowedYear OrElse
+               year > LastAllowedYear Then
+
+                problems.Add(
+                    $"Year between {FirstAllowedYear} and {LastAllowedYear}")
+            End If
+
+            If year < FirstYearWithoutQuarters AndAlso
+               quarterComboBox.SelectedIndex < 0 Then
+
+                problems.Add("Quarter")
+            End If
+        End If
+
+        If pageSourceComboBox.SelectedIndex < 0 Then
+            problems.Add("Page source")
+        End If
+
+        Dim page As Integer
+
+        If Not Integer.TryParse(
+            pageTextBox.Text.Trim(),
+            page) OrElse page <= 0 Then
+
+            problems.Add("Valid page number")
+        End If
+
+        If vnfComboBox.SelectedIndex < 0 OrElse
+           String.IsNullOrWhiteSpace(vnfComboBox.Text) Then
+
+            problems.Add("Volume format")
+        End If
+
+        ValidatePageLetter(problems)
+        ValidateSuffix(problems)
+
+    End Sub
+
+    Private Sub ValidatePageLetter(
+        problems As List(Of String))
+
+        Dim value As String =
+            pageLetterTextBox.Text.Trim().ToUpperInvariant()
+
+        If pageLetterTextBox.Text <> value Then
+            pageLetterTextBox.Text = value
+            pageLetterTextBox.SelectionStart =
+                pageLetterTextBox.TextLength
+        End If
+
+        If value.Length = 0 Then
+            problems.Add("Page letter")
+
+        ElseIf value.Length <> 1 OrElse
+               value(0) < "A"c OrElse
+               value(0) > "Z"c Then
+
+            problems.Add("Page letter must be A–Z")
+        End If
+
+    End Sub
+
+    Private Sub ValidateSuffix(
+        problems As List(Of String))
+
+        Dim value As String =
+            suffixTextBox.Text.Trim().ToUpperInvariant()
+
+        If suffixTextBox.Text <> value Then
+            suffixTextBox.Text = value
+            suffixTextBox.SelectionStart =
+                suffixTextBox.TextLength
+        End If
+
+        If value.Length = 0 Then
+            Return
+        End If
+
+        If value.Length <> 1 OrElse
+           value(0) < "A"c OrElse
+           value(0) > "Z"c Then
+
+            problems.Add("Suffix must be A–Z")
+        End If
+
+    End Sub
+
+    Private Sub ApplyRequiredFieldColours(
+        problems As List(Of String))
+
+        Dim requiredColour As Color =
+            Color.FromArgb(255, 249, 220)
+
+        Dim normalColour As Color =
+            SystemColors.Window
+
+        creatorTextBox.BackColor =
+            If(String.IsNullOrWhiteSpace(creatorTextBox.Text),
+               requiredColour,
+               normalColour)
+
+        creatorEmailTextBox.BackColor =
+            If(String.IsNullOrWhiteSpace(creatorEmailTextBox.Text),
+               requiredColour,
+               normalColour)
+
+        syndicateTextBox.BackColor =
+            If(String.IsNullOrWhiteSpace(syndicateTextBox.Text),
+               requiredColour,
+               normalColour)
+
+        userNameTextBox.BackColor =
+            If(String.IsNullOrWhiteSpace(userNameTextBox.Text),
+               requiredColour,
+               normalColour)
+
+        userPasswordTextBox.BackColor =
+            If(userPasswordTextBox.Text.Length = 0,
+               requiredColour,
+               normalColour)
+
+        yearTextBox.BackColor =
+            If(String.IsNullOrWhiteSpace(yearTextBox.Text),
+               requiredColour,
+               normalColour)
+
+        pageTextBox.BackColor =
+            If(String.IsNullOrWhiteSpace(pageTextBox.Text),
+               requiredColour,
+               normalColour)
+
+        pageLetterTextBox.BackColor =
+            If(String.IsNullOrWhiteSpace(pageLetterTextBox.Text),
+               requiredColour,
+               normalColour)
+
+    End Sub
+
+    Private Shared Function IsValidEmailAddress(
+        value As String) As Boolean
+
+        If String.IsNullOrWhiteSpace(value) Then
+            Return False
+        End If
+
+        value = value.Trim()
+
+        Try
+            Dim address As New MailAddress(value)
+
+            If Not String.Equals(
+                address.Address,
+                value,
+                StringComparison.OrdinalIgnoreCase) Then
+
+                Return False
+            End If
+
+            Dim host As String =
+                address.Host
+
+            If Not host.Contains("."c) Then
+                Return False
+            End If
+
+            Dim parts() As String =
+                host.Split("."c)
+
+            If parts.Any(
+                Function(part)
+                    Return String.IsNullOrWhiteSpace(part)
+                End Function) Then
+
+                Return False
+            End If
+
+            If parts(parts.Length - 1).Length < 2 Then
+                Return False
+            End If
+
+            Return True
+
+        Catch
+            Return False
+        End Try
+
+    End Function
+
+    Private Function GetSelectedBatchType() As String
+
+        If birthsRadioButton.Checked Then
+            Return "B"
+        End If
+
+        If marriagesRadioButton.Checked Then
+            Return "M"
+        End If
+
+        If deathsRadioButton.Checked Then
+            Return "D"
+        End If
+
+        Return ""
+
+    End Function
+
+    Private Sub SaveToProjectValues()
+
+        ProjectValues.BatchType =
+            GetSelectedBatchType()
+
+        Dim year As Integer
+        Integer.TryParse(
+            yearTextBox.Text.Trim(),
+            year)
+
+        ProjectValues.Year =
+            year
+
+        ProjectValues.Quarter =
+            If(quarterComboBox.SelectedIndex >= 0,
+               quarterComboBox.SelectedIndex + 1,
+               0)
+
+        ProjectValues.PageSource =
+            pageSourceComboBox.SelectedIndex
+
+        Dim page As Integer
+        Integer.TryParse(
+            pageTextBox.Text.Trim(),
+            page)
+
+        ProjectValues.Page =
+            page
+
+        ProjectValues.PageSuffix =
+            suffixTextBox.Text.Trim().ToUpperInvariant()
+
+        ProjectValues.PageLetter =
+            pageLetterTextBox.Text.Trim().ToUpperInvariant()
+
+        ProjectValues.VNF =
+            vnfComboBox.Text.Trim()
+
+        ProjectValues.SourceRef =
+            sourceRefTextBox.Text.Trim()
+
+        ProjectValues.Comments =
+            commentsTextBox.Text.Trim()
+
+        ProjectValues.Creator =
+            creatorTextBox.Text.Trim()
+
+        ProjectValues.CreatorEmail =
+            creatorEmailTextBox.Text.Trim()
+
+        ProjectValues.Syndicate =
+            syndicateTextBox.Text.Trim()
+
+        ProjectValues.UserName =
+            userNameTextBox.Text.Trim()
+
+        ProjectValues.UserPW =
+            userPasswordTextBox.Text
+
+        ProjectValuesStore.Save()
+
+        DebugLog.Write(
+            $"[HEADER] Accepted. Year={ProjectValues.Year}, " &
+            $"Quarter={ProjectValues.Quarter}, " &
+            $"BatchType={ProjectValues.BatchType}, " &
+            $"Page={ProjectValues.Page}, " &
+            $"PageLetter='{ProjectValues.PageLetter}', " &
+            $"PageSuffix='{ProjectValues.PageSuffix}'")
+
+    End Sub
+
+    Private Sub ShowPasswordButton_Click(
+        sender As Object,
+        e As EventArgs)
+
+        userPasswordTextBox.UseSystemPasswordChar =
+            Not userPasswordTextBox.UseSystemPasswordChar
+
+    End Sub
+
+    Private Sub btnStart_Click(
+        sender As Object,
+        e As EventArgs)
+
+        ValidateForm()
+
+        If Not btnStart.Enabled Then
+            Return
+        End If
+
+        SaveToProjectValues()
+
+        DialogResult =
+            DialogResult.OK
+
+        Close()
+
+    End Sub
+
+    Private Sub btnCancel_Click(
+        sender As Object,
+        e As EventArgs)
+
+        DialogResult =
+            DialogResult.Cancel
+
+        Close()
 
     End Sub
 

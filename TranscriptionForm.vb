@@ -13,6 +13,15 @@ Public Class TranscriptionForm
 
         Icon = WinBMDResources.WinBMD2Icon
         Text = "WinBMD2"
+
+        DebugLog.WriteAlways("======= TRANSCRIPTION FORM OPENED =======")
+        DebugLog.WriteAlways($"Batch Type  : '{ProjectValues.BatchType}'")
+        DebugLog.WriteAlways($"Year        : {ProjectValues.Year}")
+        DebugLog.WriteAlways($"Quarter     : {ProjectValues.Quarter}")
+        DebugLog.WriteAlways($"Page        : {ProjectValues.Page}")
+        DebugLog.WriteAlways($"Page Letter : '{ProjectValues.PageLetter}'")
+        DebugLog.WriteAlways($"Source Ref  : '{ProjectValues.SourceRef}'")
+        DebugLog.WriteAlways("=========================================")
     End Sub
 
     Private Sub filePanel_ExpandedChanged(sender As Object, e As EventArgs) Handles filePanel.ExpandedChanged
