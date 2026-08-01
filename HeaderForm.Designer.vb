@@ -1127,14 +1127,14 @@ Partial Class HeaderForm
         AutoScaleMode = AutoScaleMode.Font
         BackColor = Color.FromArgb(CByte(239), CByte(243), CByte(248))
         ClientSize = New Size(964, 681)
-        ControlBox = False
+        ControlBox = True
         Controls.Add(rootLayout)
         Font = New Font("Segoe UI", 9.0F)
-        MaximizeBox = False
-        MinimizeBox = False
+        MaximizeBox = True
+        MinimizeBox = True
         MinimumSize = New Size(880, 640)
         Name = "HeaderForm"
-        StartPosition = FormStartPosition.CenterScreen
+        StartPosition = FormStartPosition.Manual
         Text = "New Batch"
         rootLayout.ResumeLayout(False)
         headerPanel.ResumeLayout(False)

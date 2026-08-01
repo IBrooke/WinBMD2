@@ -58,6 +58,7 @@
         End If
 
         LogHeaderDetails()
+        LogVisibleGridFields()
 
         ShowTranscriptionForms()
 
@@ -89,7 +90,36 @@
         DebugLog.WriteAlways("=====================================")
 
     End Sub
+    Private Sub LogVisibleGridFields()
 
+        Dim fields() As GridField = GridLayout.GetVisibleFields()
+
+        DebugLog.WriteAlways("========== VISIBLE GRID FIELDS ==========")
+
+        For index As Integer = 0 To fields.Length - 1
+
+            Dim field As GridField = fields(index)
+            Dim fieldInformation As FieldMeta = FieldMetaData.Meta(field)
+
+            DebugLog.WriteAlways(
+            $"Column {index}: " &
+            $"Field={field}, " &
+            $"Header='{fieldInformation.Header}', " &
+            $"PreferredWidth={fieldInformation.PreferredWidth}, " &
+            $"MinWidth={fieldInformation.MinWidth}, " &
+            $"Align={fieldInformation.Align}, " &
+            $"Picklist={fieldInformation.UsesPicklist}, " &
+            $"VolumeField={fieldInformation.IsVolumeField}, " &
+            $"DataColumn={fieldInformation.IsDataColumn}")
+
+        Next
+
+        DebugLog.WriteAlways(
+        $"Last data column index: {FieldMetaData.GetLastDataColumn()}")
+
+        DebugLog.WriteAlways("=========================================")
+
+    End Sub
     Private Sub TranscriptionForm_FormClosed(sender As Object, e As FormClosedEventArgs)
 
         If _scanView IsNot Nothing AndAlso Not _scanView.IsDisposed Then

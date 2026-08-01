@@ -30,7 +30,21 @@ Public Module ProjectValuesStore
             End If
 
             ProjectValues.FilePanelExpanded = values.FilePanelExpanded
-
+            ProjectValues.TranscriptionFormLeft = values.TranscriptionFormLeft
+            ProjectValues.TranscriptionFormTop = values.TranscriptionFormTop
+            ProjectValues.TranscriptionFormWidth = values.TranscriptionFormWidth
+            ProjectValues.TranscriptionFormHeight = values.TranscriptionFormHeight
+            ProjectValues.TranscriptionFormMaximized = values.TranscriptionFormMaximized
+            ProjectValues.ScanViewLeft = values.ScanViewLeft
+            ProjectValues.ScanViewTop = values.ScanViewTop
+            ProjectValues.ScanViewWidth = values.ScanViewWidth
+            ProjectValues.ScanViewHeight = values.ScanViewHeight
+            ProjectValues.ScanViewMaximized = values.ScanViewMaximized
+            ProjectValues.HeaderFormLeft = values.HeaderFormLeft
+            ProjectValues.HeaderFormTop = values.HeaderFormTop
+            ProjectValues.HeaderFormWidth = values.HeaderFormWidth
+            ProjectValues.HeaderFormHeight = values.HeaderFormHeight
+            ProjectValues.HeaderFormMaximized = values.HeaderFormMaximized
             ProjectValues.UserName = If(values.UserName, "")
             ProjectValues.UserEmail = If(values.UserEmail, "")
             ProjectValues.UserPW = If(values.UserPW, "")
@@ -54,7 +68,7 @@ Public Module ProjectValuesStore
             ProjectValues.SourceRef = If(values.SourceRef, "")
             ProjectValues.Syndicate = If(values.Syndicate, "")
             ProjectValues.Comments = If(values.Comments, "")
-
+            ProjectValues.ColourScheme = values.ColourScheme
         Catch ex As Exception
             Save()
         End Try
@@ -66,6 +80,22 @@ Public Module ProjectValuesStore
 
             Dim values As New ProjectValuesData With {
                 .FilePanelExpanded = ProjectValues.FilePanelExpanded,
+                .TranscriptionFormLeft = ProjectValues.TranscriptionFormLeft,
+                .TranscriptionFormTop = ProjectValues.TranscriptionFormTop,
+                .TranscriptionFormWidth = ProjectValues.TranscriptionFormWidth,
+                .TranscriptionFormHeight = ProjectValues.TranscriptionFormHeight,
+                .TranscriptionFormMaximized = ProjectValues.TranscriptionFormMaximized,
+                .ScanViewLeft = ProjectValues.ScanViewLeft,
+                .ScanViewTop = ProjectValues.ScanViewTop,
+                .ScanViewWidth = ProjectValues.ScanViewWidth,
+                .ScanViewHeight = ProjectValues.ScanViewHeight,
+                .ScanViewMaximized = ProjectValues.ScanViewMaximized,
+                .HeaderFormLeft = ProjectValues.HeaderFormLeft,
+                .HeaderFormTop = ProjectValues.HeaderFormTop,
+                .HeaderFormWidth = ProjectValues.HeaderFormWidth,
+                .HeaderFormHeight = ProjectValues.HeaderFormHeight,
+                .HeaderFormMaximized = ProjectValues.HeaderFormMaximized,
+                .ColourScheme = ProjectValues.ColourScheme,
                 .UserName = ProjectValues.UserName,
                 .UserEmail = ProjectValues.UserEmail,
                 .UserPW = ProjectValues.UserPW,
@@ -101,7 +131,21 @@ Public Module ProjectValuesStore
     Private Class ProjectValuesData
 
         Public Property FilePanelExpanded As Boolean = True
-
+        Public Property TranscriptionFormLeft As Integer = -1
+        Public Property TranscriptionFormTop As Integer = -1
+        Public Property TranscriptionFormWidth As Integer = 900
+        Public Property TranscriptionFormHeight As Integer = 600
+        Public Property TranscriptionFormMaximized As Boolean
+        Public Property ScanViewLeft As Integer = -1
+        Public Property ScanViewTop As Integer = -1
+        Public Property ScanViewWidth As Integer = 900
+        Public Property ScanViewHeight As Integer = 650
+        Public Property ScanViewMaximized As Boolean
+        Public Property HeaderFormLeft As Integer = -1
+        Public Property HeaderFormTop As Integer = -1
+        Public Property HeaderFormWidth As Integer = 964
+        Public Property HeaderFormHeight As Integer = 681
+        Public Property HeaderFormMaximized As Boolean
         Public Property UserName As String = ""
         Public Property UserEmail As String = ""
         Public Property UserPW As String = ""
@@ -125,7 +169,7 @@ Public Module ProjectValuesStore
         Public Property SourceRef As String = ""
         Public Property Syndicate As String = ""
         Public Property Comments As String = ""
-
+        Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
     End Class
 
 End Module

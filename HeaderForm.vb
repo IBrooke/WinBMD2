@@ -12,6 +12,7 @@ Public Class HeaderForm
 
     Public Sub New()
         InitializeComponent()
+        RestoreFormBounds()
 
         Icon = WinBMDResources.WinBMD2Icon
         Text = "WinBMD2 Header"
@@ -25,7 +26,51 @@ Public Class HeaderForm
         SuggestVolumeFormat()
         ValidateForm()
     End Sub
+    Private Sub RestoreFormBounds()
 
+        FormBoundsHelper.RestoreForm(
+        Me,
+        ProjectValues.HeaderFormLeft,
+        ProjectValues.HeaderFormTop,
+        ProjectValues.HeaderFormWidth,
+        ProjectValues.HeaderFormHeight,
+        ProjectValues.HeaderFormMaximized)
+
+    End Sub
+
+    Private Sub SaveFormBounds()
+
+        Dim boundsToSave As Rectangle =
+        FormBoundsHelper.GetBoundsToSave(Me)
+
+        ProjectValues.HeaderFormLeft = boundsToSave.Left
+        ProjectValues.HeaderFormTop = boundsToSave.Top
+        ProjectValues.HeaderFormWidth = boundsToSave.Width
+        ProjectValues.HeaderFormHeight = boundsToSave.Height
+
+        ProjectValues.HeaderFormMaximized =
+        FormBoundsHelper.ShouldRestoreMaximized(Me)
+
+        ProjectValuesStore.Save()
+
+        DebugLog.Write(
+        "[FORM] HeaderForm bounds saved: " &
+        "Left=" & boundsToSave.Left.ToString() &
+        ", Top=" & boundsToSave.Top.ToString() &
+        ", Width=" & boundsToSave.Width.ToString() &
+        ", Height=" & boundsToSave.Height.ToString() &
+        ", Maximized=" &
+        ProjectValues.HeaderFormMaximized.ToString())
+
+    End Sub
+
+    Private Sub HeaderForm_FormClosing(
+    sender As Object,
+    e As FormClosingEventArgs) Handles Me.FormClosing
+
+        SaveFormBounds()
+
+    End Sub
     Private Sub ConfigureControls()
 
         If pageSourceComboBox.Items.Count > 0 AndAlso pageSourceComboBox.SelectedIndex < 0 Then

@@ -6,6 +6,36 @@
 
 #End Region
 
+#Region "Transcription Form"
+
+    Public Property TranscriptionFormLeft As Integer = -1
+    Public Property TranscriptionFormTop As Integer = -1
+    Public Property TranscriptionFormWidth As Integer = 900
+    Public Property TranscriptionFormHeight As Integer = 600
+    Public Property TranscriptionFormMaximized As Boolean
+
+#End Region
+
+#Region "Scan View Form"
+
+    Public Property ScanViewLeft As Integer = -1
+    Public Property ScanViewTop As Integer = -1
+    Public Property ScanViewWidth As Integer = 900
+    Public Property ScanViewHeight As Integer = 650
+    Public Property ScanViewMaximized As Boolean
+
+#End Region
+
+#Region "Header Form"
+
+    Public Property HeaderFormLeft As Integer = -1
+    Public Property HeaderFormTop As Integer = -1
+    Public Property HeaderFormWidth As Integer = 964
+    Public Property HeaderFormHeight As Integer = 681
+    Public Property HeaderFormMaximized As Boolean
+
+#End Region
+
 #Region "Current User"
 
     ' Current FreeBMD account used for uploading.
@@ -49,4 +79,9 @@
 
 #End Region
 
+#Region "Appearance"
+
+    Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
+
+#End Region
 End Module
