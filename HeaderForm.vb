@@ -14,6 +14,20 @@ Public Class HeaderForm
         InitializeComponent()
         RestoreFormBounds()
 
+        ThemeManager.Apply(Me)
+
+        ThemeManager.ApplyApplicationBackground(rootLayout)
+        ThemeManager.ApplyApplicationBackground(bodyLayout)
+        ThemeManager.ApplyApplicationBackground(sideLayout)
+
+        ThemeManager.ApplyCardPanel(headerPanel)
+        ThemeManager.ApplyCardPanel(batchPanel)
+        ThemeManager.ApplyCardPanel(contributorPanel)
+        ThemeManager.ApplyCardPanel(footerPanel)
+
+        ThemeManager.ApplyPrimaryButton(btnStart)
+        ThemeManager.ApplyInformationPanel(rulesPanel)
+
         Icon = WinBMDResources.WinBMD2Icon
         Text = "WinBMD2 Header"
 

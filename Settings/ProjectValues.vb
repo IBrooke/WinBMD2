@@ -1,4 +1,5 @@
-﻿Public Module ProjectValues
+﻿Imports System.Collections.Generic
+Public Module ProjectValues
 
 #Region "Command Panels"
 
@@ -8,11 +9,7 @@
 
 #Region "Transcription Form"
 
-    Public Property TranscriptionFormLeft As Integer = -1
-    Public Property TranscriptionFormTop As Integer = -1
-    Public Property TranscriptionFormWidth As Integer = 900
-    Public Property TranscriptionFormHeight As Integer = 600
-    Public Property TranscriptionFormMaximized As Boolean
+    Public Property TranscriptionFormBounds As New Dictionary(Of String, FormBoundsData)
 
 #End Region
 
@@ -33,6 +30,12 @@
     Public Property HeaderFormWidth As Integer = 964
     Public Property HeaderFormHeight As Integer = 681
     Public Property HeaderFormMaximized As Boolean
+
+#End Region
+
+#Region "Grid"
+
+    Public Property GridColumnWidths As New Dictionary(Of String, Dictionary(Of String, Integer))
 
 #End Region
 

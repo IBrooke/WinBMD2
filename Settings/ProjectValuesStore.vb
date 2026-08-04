@@ -30,11 +30,10 @@ Public Module ProjectValuesStore
             End If
 
             ProjectValues.FilePanelExpanded = values.FilePanelExpanded
-            ProjectValues.TranscriptionFormLeft = values.TranscriptionFormLeft
-            ProjectValues.TranscriptionFormTop = values.TranscriptionFormTop
-            ProjectValues.TranscriptionFormWidth = values.TranscriptionFormWidth
-            ProjectValues.TranscriptionFormHeight = values.TranscriptionFormHeight
-            ProjectValues.TranscriptionFormMaximized = values.TranscriptionFormMaximized
+            ProjectValues.TranscriptionFormBounds =
+            If(
+                values.TranscriptionFormBounds,
+                New Dictionary(Of String, FormBoundsData))
             ProjectValues.ScanViewLeft = values.ScanViewLeft
             ProjectValues.ScanViewTop = values.ScanViewTop
             ProjectValues.ScanViewWidth = values.ScanViewWidth
@@ -69,6 +68,10 @@ Public Module ProjectValuesStore
             ProjectValues.Syndicate = If(values.Syndicate, "")
             ProjectValues.Comments = If(values.Comments, "")
             ProjectValues.ColourScheme = values.ColourScheme
+            ProjectValues.GridColumnWidths =
+            If(
+                values.GridColumnWidths,
+                New Dictionary(Of String, Dictionary(Of String, Integer)))
         Catch ex As Exception
             Save()
         End Try
@@ -79,12 +82,7 @@ Public Module ProjectValuesStore
             AppPaths.EnsureFoldersExist()
 
             Dim values As New ProjectValuesData With {
-                .FilePanelExpanded = ProjectValues.FilePanelExpanded,
-                .TranscriptionFormLeft = ProjectValues.TranscriptionFormLeft,
-                .TranscriptionFormTop = ProjectValues.TranscriptionFormTop,
-                .TranscriptionFormWidth = ProjectValues.TranscriptionFormWidth,
-                .TranscriptionFormHeight = ProjectValues.TranscriptionFormHeight,
-                .TranscriptionFormMaximized = ProjectValues.TranscriptionFormMaximized,
+                .FilePanelExpanded = ProjectValues.FilePanelExpanded, .TranscriptionFormBounds = ProjectValues.TranscriptionFormBounds,
                 .ScanViewLeft = ProjectValues.ScanViewLeft,
                 .ScanViewTop = ProjectValues.ScanViewTop,
                 .ScanViewWidth = ProjectValues.ScanViewWidth,
@@ -95,6 +93,7 @@ Public Module ProjectValuesStore
                 .HeaderFormWidth = ProjectValues.HeaderFormWidth,
                 .HeaderFormHeight = ProjectValues.HeaderFormHeight,
                 .HeaderFormMaximized = ProjectValues.HeaderFormMaximized,
+                .GridColumnWidths = ProjectValues.GridColumnWidths,
                 .ColourScheme = ProjectValues.ColourScheme,
                 .UserName = ProjectValues.UserName,
                 .UserEmail = ProjectValues.UserEmail,
@@ -131,11 +130,7 @@ Public Module ProjectValuesStore
     Private Class ProjectValuesData
 
         Public Property FilePanelExpanded As Boolean = True
-        Public Property TranscriptionFormLeft As Integer = -1
-        Public Property TranscriptionFormTop As Integer = -1
-        Public Property TranscriptionFormWidth As Integer = 900
-        Public Property TranscriptionFormHeight As Integer = 600
-        Public Property TranscriptionFormMaximized As Boolean
+        Public Property TranscriptionFormBounds As New Dictionary(Of String, FormBoundsData)
         Public Property ScanViewLeft As Integer = -1
         Public Property ScanViewTop As Integer = -1
         Public Property ScanViewWidth As Integer = 900
@@ -146,6 +141,7 @@ Public Module ProjectValuesStore
         Public Property HeaderFormWidth As Integer = 964
         Public Property HeaderFormHeight As Integer = 681
         Public Property HeaderFormMaximized As Boolean
+        Public Property GridColumnWidths As New Dictionary(Of String, Dictionary(Of String, Integer))
         Public Property UserName As String = ""
         Public Property UserEmail As String = ""
         Public Property UserPW As String = ""

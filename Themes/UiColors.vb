@@ -84,6 +84,11 @@ Public Module UiColors
         End Get
     End Property
 
+    Public ReadOnly Property EditBackground As Color
+        Get
+            Return Color.White
+        End Get
+    End Property
 #End Region
 
 #Region "Backgrounds"
