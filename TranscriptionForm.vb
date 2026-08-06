@@ -6,12 +6,14 @@ Public Class TranscriptionForm
     Private _configuringGrid As Boolean
     Private ReadOnly _document As New TranscriptionDocument
     Private _refreshingGrid As Boolean
+    Private ReadOnly _pickListPopup As New PickListPopup()
+    Private ReadOnly _navigationManager As NavigationManager
 
     Public Sub New(commandExecutor As ICommandExecutor)
 
         InitializeComponent()
-
-        ThemeManager.Apply(Me)
+        _navigationManager = New NavigationManager(Me)
+        ApplyTranscriptionAppearance()
         ThemeManager.ApplyNavigationButton(btnOptionsTest)
         _commandExecutor = commandExecutor
 
@@ -307,6 +309,7 @@ Public Class TranscriptionForm
     sender As Object,
     e As EventArgs) Handles transcriptionGrid.CurrentCellChanged
 
+        _pickListPopup.Hide()
         UpdateStatusPosition()
 
     End Sub
@@ -493,42 +496,8 @@ Public Class TranscriptionForm
         Return FieldMetaData.Meta(field).IsDataColumn
 
     End Function
-    Private Sub MoveToPreviousDataCell()
 
-        If transcriptionGrid.CurrentCell Is Nothing Then
-            Return
-        End If
-
-        Dim currentRow As Integer =
-        transcriptionGrid.CurrentCell.RowIndex
-
-        Dim currentColumn As Integer =
-        transcriptionGrid.CurrentCell.ColumnIndex
-
-        For columnIndex As Integer =
-        currentColumn - 1 To 0 Step -1
-
-            If IsDataColumn(columnIndex) Then
-
-                transcriptionGrid.CurrentCell =
-                transcriptionGrid.Rows(currentRow).
-                Cells(columnIndex)
-
-                Return
-            End If
-
-        Next
-
-        If currentRow > 0 Then
-
-            transcriptionGrid.CurrentCell =
-            transcriptionGrid.Rows(currentRow - 1).
-            Cells(GetLastDataColumn())
-
-        End If
-
-    End Sub
-    Public Function GetFirstDataColumn() As Integer
+    Private Function GetFirstDataColumn() As Integer
 
         For Each column As DataGridViewColumn In transcriptionGrid.Columns
 
@@ -548,7 +517,7 @@ Public Class TranscriptionForm
         Return 0
 
     End Function
-    Public Function GetLastDataColumn() As Integer
+    Private Function GetLastDataColumn() As Integer
 
         For columnIndex As Integer =
         transcriptionGrid.Columns.Count - 1 To 0 Step -1
@@ -572,12 +541,81 @@ Public Class TranscriptionForm
         Return 0
 
     End Function
+    ' The DataGridView routes some navigation keys differently depending on
+    ' the caret position inside the editing TextBox.
+    '
+    ' - Left/Right within the text are received via the editor's KeyDown.
+    ' - Left at the beginning and Right at the end bypass KeyDown and arrive
+    '   here via ProcessCmdKey.
+    '
+    ' We forward these keys to NavigationManager so navigation behaviour
+    ' remains consistent.
+    Protected Overrides Function ProcessCmdKey(
+    ByRef msg As Message,
+    keyData As Keys) As Boolean
+
+        Dim keyCode As Keys =
+        keyData And Keys.KeyCode
+
+        If transcriptionGrid.ContainsFocus Then
+
+            Dim editor As TextBox =
+            TryCast(
+                transcriptionGrid.EditingControl,
+                TextBox)
+
+            Select Case keyCode
+
+                Case Keys.Tab, Keys.Enter
+
+                    Dim e As New KeyEventArgs(keyData)
+
+                    If _navigationManager.HandleKey(editor, e) Then
+                        Return True
+                    End If
+
+                Case Keys.Right
+
+                    If editor IsNot Nothing AndAlso
+                   editor.SelectionLength = 0 AndAlso
+                   editor.SelectionStart = editor.TextLength Then
+
+                        Dim e As New KeyEventArgs(keyData)
+
+                        If _navigationManager.HandleKey(editor, e) Then
+                            Return True
+                        End If
+
+                    End If
+
+                Case Keys.Left
+
+                    If editor IsNot Nothing AndAlso
+                   editor.SelectionLength = 0 AndAlso
+                   editor.SelectionStart = 0 Then
+
+                        Dim e As New KeyEventArgs(keyData)
+
+                        If _navigationManager.HandleKey(editor, e) Then
+                            Return True
+                        End If
+
+                    End If
+
+            End Select
+
+        End If
+
+        Return MyBase.ProcessCmdKey(msg, keyData)
+
+    End Function
     Private Sub transcriptionGrid_EditingControlShowing(
     sender As Object,
     e As DataGridViewEditingControlShowingEventArgs) _
     Handles transcriptionGrid.EditingControlShowing
 
-        Dim editor As TextBox = TryCast(e.Control, TextBox)
+        Dim editor As TextBox =
+        TryCast(e.Control, TextBox)
 
         If editor Is Nothing Then
             Return
@@ -586,30 +624,327 @@ Public Class TranscriptionForm
         RemoveHandler editor.KeyDown, AddressOf NavigationKeyDown
         AddHandler editor.KeyDown, AddressOf NavigationKeyDown
 
+        RemoveHandler editor.TextChanged, AddressOf ForenameEditor_TextChanged
+        AddHandler editor.TextChanged, AddressOf ForenameEditor_TextChanged
+
+        editor.BackColor = UiColors.EditBackground
+        editor.ForeColor = UiColors.UserText
+
+        If editor.Parent IsNot Nothing Then
+            editor.Parent.BackColor = UiColors.EditBackground
+        End If
+
+        RefreshPickList(editor)
+
+    End Sub
+    Private Sub transcriptionGrid_CellEnter(
+    sender As Object,
+    e As DataGridViewCellEventArgs) _
+    Handles transcriptionGrid.CellEnter
+
+        If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then
+            Return
+        End If
+
+        If Not IsDataColumn(e.ColumnIndex) Then
+            _pickListPopup.Hide()
+            Return
+        End If
+
+        ' CellEnter also fires while the form is being constructed.
+        If Not IsHandleCreated OrElse IsDisposed OrElse Disposing Then
+            Return
+        End If
+
         BeginInvoke(
         Sub()
-            editor.BackColor = UiColors.EditBackground
-            editor.ForeColor = UiColors.UserText
 
-            If editor.Parent IsNot Nothing Then
-                editor.Parent.BackColor = UiColors.EditBackground
+            If IsDisposed OrElse Disposing Then
+                Return
             End If
+
+            If transcriptionGrid.CurrentCell Is Nothing Then
+                Return
+            End If
+
+            If transcriptionGrid.CurrentCell.RowIndex <> e.RowIndex OrElse
+               transcriptionGrid.CurrentCell.ColumnIndex <> e.ColumnIndex Then
+
+                Return
+            End If
+
+            If transcriptionGrid.IsCurrentCellInEditMode Then
+                Return
+            End If
+
+            transcriptionGrid.BeginEdit(selectAll:=False)
+
         End Sub)
 
     End Sub
+    Private Sub ForenameEditor_TextChanged(
+    sender As Object,
+    e As EventArgs)
+
+        Dim editor As TextBox =
+        TryCast(sender, TextBox)
+
+        If editor Is Nothing Then
+            Return
+        End If
+
+        RefreshPickList(editor)
+
+    End Sub
+    Private Sub RefreshPickList(
+    editor As TextBox)
+
+        If transcriptionGrid.CurrentCell Is Nothing Then
+            _pickListPopup.Hide()
+            Return
+        End If
+
+        Dim column As DataGridViewColumn =
+        transcriptionGrid.Columns(
+            transcriptionGrid.CurrentCell.ColumnIndex)
+
+        If column.Tag Is Nothing Then
+            _pickListPopup.Hide()
+            Return
+        End If
+
+        Dim field As GridField =
+        DirectCast(column.Tag, GridField)
+
+        If Not FieldMetaData.Meta(field).UsesPicklist Then
+            _pickListPopup.Hide()
+            Return
+        End If
+
+        Dim items As List(Of PickListItem)
+
+        Select Case field
+
+            Case GridField.Forename
+
+                items =
+                ForenameData.
+                    GetMatches(editor.Text, 9).
+                    Select(
+                        Function(name As String)
+                            Return New PickListItem With {
+                                .Text = name
+                            }
+                        End Function).
+                    ToList()
+
+            Case GridField.District
+
+                items =
+                DistrictData.
+                    GetMatches(editor.Text, 9).
+                    Select(
+                        Function(match As DistrictData.DistrictMatch)
+                            Return New PickListItem With {
+                                .Text = match.Name,
+                                .Volume = match.Volume
+                            }
+                        End Function).
+                    ToList()
+
+            Case Else
+
+                _pickListPopup.Hide()
+                Return
+
+        End Select
+
+        _pickListPopup.SetItems(items)
+
+        If items.Count = 0 Then
+            _pickListPopup.Hide()
+            Return
+        End If
+
+        _pickListPopup.ApplyTheme()
+
+        Dim cellBounds As Rectangle =
+        transcriptionGrid.GetCellDisplayRectangle(
+            transcriptionGrid.CurrentCell.ColumnIndex,
+            transcriptionGrid.CurrentCell.RowIndex,
+            cutOverflow:=True)
+
+        _pickListPopup.Show(
+        transcriptionGrid,
+        cellBounds)
+
+    End Sub
+    Friend Function CopyFromAboveIfBlank(editor As TextBox,
+    Optional allowPickList As Boolean = False) As Boolean
+
+        If transcriptionGrid.CurrentCell Is Nothing Then
+            Return False
+        End If
+
+        Dim currentRow As Integer =
+        transcriptionGrid.CurrentCell.RowIndex
+
+        Dim currentColumn As Integer =
+        transcriptionGrid.CurrentCell.ColumnIndex
+
+        If currentRow <= 0 Then
+            Return False
+        End If
+
+        Dim column As DataGridViewColumn =
+        transcriptionGrid.Columns(currentColumn)
+
+        If column.Tag Is Nothing Then
+            Return False
+        End If
+
+        Dim field As GridField =
+        DirectCast(column.Tag, GridField)
+
+        ' Picklist fields will be handled separately using the
+        ' IgnoreAutoComplete setting.
+        If FieldMetaData.Meta(field).UsesPicklist AndAlso Not allowPickList Then
+
+            Return False
+
+        End If
+
+        Dim currentText As String
+
+        If editor IsNot Nothing Then
+            currentText = editor.Text
+        Else
+            currentText =
+            If(
+                transcriptionGrid.CurrentCell.Value,
+                "").ToString()
+        End If
+
+        If Not String.IsNullOrWhiteSpace(currentText) Then
+            Return False
+        End If
+
+        Dim previousCell As DataGridViewCell =
+        transcriptionGrid.Rows(currentRow - 1).
+        Cells(currentColumn)
+
+        Dim previousText As String =
+        If(previousCell.Value, "").ToString().Trim()
+
+        If String.IsNullOrWhiteSpace(previousText) Then
+            Return False
+        End If
+
+        If previousText.StartsWith("+") OrElse
+       previousText.StartsWith("#") Then
+
+            Return False
+
+        End If
+
+        If editor IsNot Nothing Then
+
+            editor.Text = previousText
+            editor.SelectionStart = editor.TextLength
+            editor.SelectionLength = 0
+
+        Else
+
+            transcriptionGrid.CurrentCell.Value =
+            previousText
+
+        End If
+
+        Return True
+
+    End Function
     Private Sub btnOptionsTest_Click(
     sender As Object,
     e As EventArgs) Handles btnOptionsTest.Click
 
         Using form As New OptionsForm()
-            form.ShowDialog(Me)
+
+            If form.ShowDialog(Me) = DialogResult.OK Then
+                ApplyTranscriptionAppearance()
+            End If
+
         End Using
 
     End Sub
-    Private Sub NavigationKeyDown(sender As Object, e As KeyEventArgs) Handles transcriptionGrid.KeyDown
-        ' This also handles the navigation keys when the user is editing a cell.
-        Dim editor As TextBox =
-        TryCast(sender, TextBox)
+    Private Sub ApplyTranscriptionAppearance()
+
+        ThemeManager.Apply(Me)
+
+        transcriptionGrid.EnableHeadersVisualStyles = False
+
+        transcriptionGrid.BackgroundColor =
+        UiColors.PanelBackground
+
+        transcriptionGrid.GridColor =
+        UiColors.GridLine
+
+        transcriptionGrid.DefaultCellStyle.BackColor =
+        UiColors.PanelBackground
+
+        transcriptionGrid.DefaultCellStyle.ForeColor =
+        UiColors.UserText
+
+        transcriptionGrid.DefaultCellStyle.SelectionBackColor =
+        UiColors.Selected
+
+        transcriptionGrid.DefaultCellStyle.SelectionForeColor =
+        UiColors.UserText
+
+        transcriptionGrid.AlternatingRowsDefaultCellStyle.BackColor =
+        UiColors.AlternateRowBackground
+
+        transcriptionGrid.ColumnHeadersDefaultCellStyle.BackColor =
+        UiColors.ThemeShaded
+
+        transcriptionGrid.ColumnHeadersDefaultCellStyle.ForeColor =
+        UiColors.TextPrimary
+
+        transcriptionGrid.ColumnHeadersDefaultCellStyle.SelectionBackColor =
+        UiColors.ThemeShaded
+
+        transcriptionGrid.ColumnHeadersDefaultCellStyle.SelectionForeColor =
+        UiColors.TextPrimary
+
+        transcriptionGrid.RowHeadersDefaultCellStyle.BackColor =
+        UiColors.ThemeSoft
+
+        transcriptionGrid.RowHeadersDefaultCellStyle.ForeColor =
+        UiColors.TextPrimary
+
+        transcriptionGrid.Invalidate()
+
+    End Sub
+    Private Sub NavigationKeyDown(
+    sender As Object,
+    e As KeyEventArgs) Handles transcriptionGrid.KeyDown
+
+        If _navigationManager.HandleKey(sender, e) Then
+            e.Handled = True
+            e.SuppressKeyPress = True
+        End If
+
+    End Sub
+    Friend ReadOnly Property CurrentGridCell As DataGridViewCell
+        Get
+            Return transcriptionGrid.CurrentCell
+        End Get
+    End Property
+    Friend Sub EndGridEdit()
+
+        transcriptionGrid.EndEdit()
+
+    End Sub
+    Friend Sub MoveToNextDataCell()
 
         If transcriptionGrid.CurrentCell Is Nothing Then
             Return
@@ -621,123 +956,378 @@ Public Class TranscriptionForm
         Dim currentColumn As Integer =
         transcriptionGrid.CurrentCell.ColumnIndex
 
-        Dim firstDataColumn As Integer =
-        GetFirstDataColumn()
+        ' We have just left the District field.
+        '
+        ' If selecting a district automatically filled the associated
+        ' Volume/DistNum field, determine where navigation should go:
+        '
+        '   • If another data field lies between District and the
+        '     Volume/DistNum field, move to that intervening field.
+        '
+        '   • If the linked field is a Volume (or a complete DistNum),
+        '     skip over it because it has already been filled.
+        '
+        '   • If the linked field is a three-character DistNum, move
+        '     into it with the caret at the end so the user can type
+        '     the remaining two characters.
+        Dim currentField As GridField =
+    DirectCast(
+        transcriptionGrid.Columns(currentColumn).Tag,
+        GridField)
 
-        Dim lastDataColumn As Integer =
-        GetLastDataColumn()
+        If currentField = GridField.District Then
 
-        Select Case e.KeyCode
+            Dim nextColumn As Integer =
+        GetNextColumnAfterDistrict(
+            currentRow,
+            currentColumn)
 
-            Case Keys.Left
-
-                ' If we're editing, only leave the cell when the caret
-                ' is already at the beginning.
-                If editor IsNot Nothing Then
-
-                    If editor.SelectionStart <> 0 OrElse
-                   editor.SelectionLength <> 0 Then
-                        Return
-                    End If
-
-                End If
-
-                If currentColumn = firstDataColumn AndAlso
-               currentRow > 0 Then
-
-                    transcriptionGrid.EndEdit()
-
-                    transcriptionGrid.CurrentCell =
-                    transcriptionGrid.Rows(currentRow - 1).
-                    Cells(lastDataColumn)
-
-                    e.Handled = True
-                    e.SuppressKeyPress = True
-
-                End If
-
-            Case Keys.Right
-
-                ' If we're editing, only leave the cell when the caret
-                ' is already at the end.
-                If editor IsNot Nothing Then
-
-                    If editor.SelectionStart <> editor.TextLength OrElse
-                   editor.SelectionLength <> 0 Then
-                        Return
-                    End If
-
-                End If
-
-                If currentColumn = lastDataColumn AndAlso
-               currentRow < transcriptionGrid.Rows.Count - 1 Then
-
-                    transcriptionGrid.EndEdit()
-
-                    transcriptionGrid.CurrentCell =
-                    transcriptionGrid.Rows(currentRow + 1).
-                    Cells(firstDataColumn)
-
-                    e.Handled = True
-                    e.SuppressKeyPress = True
-
-                End If
-            Case Keys.Tab
+            If nextColumn >= 0 Then
 
                 transcriptionGrid.EndEdit()
 
-                If e.Shift Then
-                    MoveToPreviousDataCell()
-                Else
-                    MoveToNextDataCell()
+                transcriptionGrid.CurrentCell =
+            transcriptionGrid.Rows(currentRow).
+            Cells(nextColumn)
+
+                transcriptionGrid.BeginEdit(selectAll:=False)
+
+                If DirectCast(
+            transcriptionGrid.Columns(nextColumn).Tag,
+            GridField) = GridField.DistNum Then
+
+                    BeginInvoke(
+                Sub()
+
+                    Dim editor As TextBox =
+                        TryCast(
+                            transcriptionGrid.EditingControl,
+                            TextBox)
+
+                    If editor Is Nothing Then
+                        Return
+                    End If
+
+                    editor.Focus()
+                    editor.SelectionStart =
+                        editor.TextLength
+                    editor.SelectionLength = 0
+
+                End Sub)
+
                 End If
 
-                e.Handled = True
-                e.SuppressKeyPress = True
-        End Select
+                Return
 
-    End Sub
-    Private Sub MoveToNextDataCell()
+            End If
 
-        If transcriptionGrid.CurrentCell Is Nothing Then
-            Return
         End If
 
-        Dim currentRow As Integer =
-        transcriptionGrid.CurrentCell.RowIndex
+        Dim targetRow As Integer =
+        currentRow
 
-        Dim currentColumn As Integer =
-        transcriptionGrid.CurrentCell.ColumnIndex
+        Dim targetColumn As Integer =
+        -1
 
         For columnIndex As Integer =
         currentColumn + 1 To transcriptionGrid.Columns.Count - 1
 
             If IsDataColumn(columnIndex) Then
-
-                transcriptionGrid.CurrentCell =
-                transcriptionGrid.Rows(currentRow).
-                Cells(columnIndex)
-
-                Return
+                targetColumn = columnIndex
+                Exit For
             End If
 
         Next
 
-        ' No later data column exists, so move to the first data column
-        ' of the following row.
-        If currentRow < transcriptionGrid.Rows.Count - 1 Then
+        If targetColumn < 0 AndAlso
+       currentRow < transcriptionGrid.Rows.Count - 1 Then
 
-            transcriptionGrid.CurrentCell =
-            transcriptionGrid.Rows(currentRow + 1).
-            Cells(GetFirstDataColumn())
+            targetRow = currentRow + 1
+            targetColumn = GetFirstDataColumn()
 
         End If
 
-    End Sub
-    Private Sub TranscriptionForm_FormClosing(
-        sender As Object,
-        e As FormClosingEventArgs) Handles Me.FormClosing
+        If targetColumn < 0 Then
+            Return
+        End If
 
+        transcriptionGrid.EndEdit()
+
+        transcriptionGrid.CurrentCell =
+    transcriptionGrid.Rows(targetRow).Cells(targetColumn)
+
+        If Not IsHandleCreated OrElse IsDisposed OrElse Disposing Then
+            Return
+        End If
+
+        BeginInvoke(
+    Sub()
+
+        If transcriptionGrid.CurrentCell Is Nothing Then
+            Return
+        End If
+
+        If transcriptionGrid.CurrentCell.RowIndex <> targetRow OrElse
+           transcriptionGrid.CurrentCell.ColumnIndex <> targetColumn Then
+
+            Return
+        End If
+
+        If Not transcriptionGrid.IsCurrentCellInEditMode Then
+            transcriptionGrid.BeginEdit(selectAll:=False)
+        End If
+
+        Dim editor As TextBox =
+            TryCast(transcriptionGrid.EditingControl, TextBox)
+
+        If editor Is Nothing Then
+            Return
+        End If
+
+        editor.Focus()
+        editor.Select(0, 0)
+
+    End Sub)
+
+    End Sub
+    Private Function GetNextColumnAfterDistrict(
+    currentRow As Integer,
+    districtColumn As Integer) As Integer
+
+        Dim codeColumn As Integer = -1
+        Dim codeField As GridField
+
+        For Each column As DataGridViewColumn In transcriptionGrid.Columns
+
+            If column.Tag Is Nothing Then
+                Continue For
+            End If
+
+            Dim field As GridField =
+            DirectCast(column.Tag, GridField)
+
+            If field = GridField.Volume Then
+
+                codeColumn = column.Index
+                codeField = GridField.Volume
+                Exit For
+
+            End If
+
+            If field = GridField.DistNum Then
+
+                codeColumn = column.Index
+                codeField = GridField.DistNum
+                Exit For
+
+            End If
+
+        Next
+
+        If codeColumn < 0 Then
+            Return -1
+        End If
+
+        ' If something lies between District and the code field,
+        ' visit that field normally.
+        If codeColumn > districtColumn + 1 Then
+            Return districtColumn + 1
+        End If
+
+        Dim code As String =
+        If(
+            transcriptionGrid.Rows(currentRow).
+                Cells(codeColumn).Value,
+            "").ToString()
+
+        If String.IsNullOrWhiteSpace(code) Then
+            Return codeColumn
+        End If
+
+        ' DistNum may contain only the three-character district
+        ' code supplied by the picklist. The user must then add
+        ' the final two characters manually.
+        If codeField = GridField.DistNum AndAlso
+       code.Length = 3 Then
+
+            Return codeColumn
+
+        End If
+
+        ' The linked code is complete, so skip over it.
+        For columnIndex As Integer =
+        codeColumn + 1 To transcriptionGrid.Columns.Count - 1
+
+            If IsDataColumn(columnIndex) Then
+                Return columnIndex
+            End If
+
+        Next
+
+        Return -1
+
+    End Function
+    Friend Sub MoveToPreviousDataCell()
+
+        If transcriptionGrid.CurrentCell Is Nothing Then
+            Return
+        End If
+
+        Dim currentRow As Integer =
+        transcriptionGrid.CurrentCell.RowIndex
+
+        Dim currentColumn As Integer =
+        transcriptionGrid.CurrentCell.ColumnIndex
+
+        Dim targetRow As Integer =
+        currentRow
+
+        Dim targetColumn As Integer =
+        -1
+
+        For columnIndex As Integer =
+        currentColumn - 1 To 0 Step -1
+
+            If IsDataColumn(columnIndex) Then
+                targetColumn = columnIndex
+                Exit For
+            End If
+
+        Next
+
+        If targetColumn < 0 AndAlso currentRow > 0 Then
+            targetRow = currentRow - 1
+            targetColumn = GetLastDataColumn()
+        End If
+
+        If targetColumn < 0 Then
+            Return
+        End If
+
+        transcriptionGrid.CurrentCell =
+        transcriptionGrid.Rows(targetRow).Cells(targetColumn)
+
+        transcriptionGrid.BeginEdit(selectAll:=False)
+
+        Dim editor As TextBox =
+    TryCast(transcriptionGrid.EditingControl, TextBox)
+
+        If editor Is Nothing Then
+            Return
+        End If
+
+        If Not IsHandleCreated OrElse IsDisposed OrElse Disposing Then
+            Return
+        End If
+
+        editor.BeginInvoke(
+    Sub()
+
+        If editor.IsDisposed Then
+            Return
+        End If
+
+        editor.Focus()
+        editor.Select(editor.TextLength, 0)
+
+    End Sub)
+
+    End Sub
+    Friend ReadOnly Property CurrentFieldUsesPickList As Boolean
+        Get
+
+            If transcriptionGrid.CurrentCell Is Nothing Then
+                Return False
+            End If
+
+            Dim column As DataGridViewColumn =
+            transcriptionGrid.Columns(
+                transcriptionGrid.CurrentCell.ColumnIndex)
+
+            If column.Tag Is Nothing Then
+                Return False
+            End If
+
+            Dim field As GridField =
+            DirectCast(column.Tag, GridField)
+
+            Return FieldMetaData.Meta(field).UsesPicklist
+
+        End Get
+    End Property
+    Friend Function AcceptCurrentPickListSelection(
+    editor As TextBox) As Boolean
+
+        If editor Is Nothing Then
+            Return False
+        End If
+
+        If transcriptionGrid.CurrentCell Is Nothing Then
+            Return False
+        End If
+
+        Dim selectedItem As PickListItem =
+        _pickListPopup.SelectedItem
+
+        If selectedItem Is Nothing Then
+            Return False
+        End If
+
+        Dim currentColumn As DataGridViewColumn =
+        transcriptionGrid.Columns(
+            transcriptionGrid.CurrentCell.ColumnIndex)
+
+        If currentColumn.Tag Is Nothing Then
+            Return False
+        End If
+
+        Dim currentField As GridField =
+        DirectCast(currentColumn.Tag, GridField)
+
+        editor.Text = selectedItem.Text
+        editor.SelectionStart = editor.TextLength
+        editor.SelectionLength = 0
+
+        If currentField = GridField.District AndAlso
+       Not String.IsNullOrWhiteSpace(selectedItem.Volume) Then
+
+            Dim currentRow As Integer =
+            transcriptionGrid.CurrentCell.RowIndex
+
+            For Each column As DataGridViewColumn In transcriptionGrid.Columns
+
+                If column.Tag Is Nothing Then
+                    Continue For
+                End If
+
+                Dim field As GridField =
+                DirectCast(column.Tag, GridField)
+
+                If field = GridField.Volume OrElse
+               field = GridField.DistNum Then
+
+                    transcriptionGrid.Rows(currentRow).
+                    Cells(column.Index).Value =
+                    selectedItem.Volume
+
+                    Exit For
+
+                End If
+
+            Next
+
+        End If
+
+        _pickListPopup.Hide()
+
+        Return True
+
+    End Function
+    Private Sub TranscriptionForm_FormClosing(
+    sender As Object,
+    e As FormClosingEventArgs) Handles Me.FormClosing
+
+        _pickListPopup.Dispose()
         SaveFormBounds()
 
     End Sub

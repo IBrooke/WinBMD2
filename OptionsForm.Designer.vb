@@ -191,7 +191,7 @@ Partial Class OptionsForm
         ' lblPageTitle
         ' 
         lblPageTitle.AutoSize = True
-        lblPageTitle.Location = New Point(24, 20)
+        lblPageTitle.Location = New Point(24, 8)
         lblPageTitle.Name = "lblPageTitle"
         lblPageTitle.Size = New Size(47, 15)
         lblPageTitle.TabIndex = 0
@@ -200,7 +200,7 @@ Partial Class OptionsForm
         ' lblPageDescription
         ' 
         lblPageDescription.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        lblPageDescription.Location = New Point(24, 62)
+        lblPageDescription.Location = New Point(24, 34)
         lblPageDescription.Name = "lblPageDescription"
         lblPageDescription.Size = New Size(480, 60)
         lblPageDescription.TabIndex = 1

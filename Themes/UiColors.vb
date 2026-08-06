@@ -22,21 +22,39 @@ Public Module UiColors
 
                 Case UiColourScheme.Teal
                     Return New UiPalette(
-                        Color.FromArgb(220, 245, 244),
-                        Color.FromArgb(166, 227, 225),
-                        Color.FromArgb(0, 133, 126))
+                    Color.FromArgb(220, 245, 244),
+                    Color.FromArgb(166, 227, 225),
+                    Color.FromArgb(0, 133, 126))
 
                 Case UiColourScheme.Magenta
                     Return New UiPalette(
-                        Color.FromArgb(248, 232, 241),
-                        Color.FromArgb(236, 197, 217),
-                        Color.FromArgb(200, 65, 130))
+                    Color.FromArgb(248, 232, 241),
+                    Color.FromArgb(236, 197, 217),
+                    Color.FromArgb(200, 65, 130))
+
+                Case UiColourScheme.Violet
+                    Return New UiPalette(
+                    Color.FromArgb(245, 240, 252),
+                    Color.FromArgb(220, 205, 245),
+                    Color.FromArgb(110, 70, 180))
+
+                Case UiColourScheme.Gold
+                    Return New UiPalette(
+                    Color.FromArgb(255, 250, 232),
+                    Color.FromArgb(245, 228, 170),
+                    Color.FromArgb(185, 140, 30))
+
+                Case UiColourScheme.Green
+                    Return New UiPalette(
+                    Color.FromArgb(238, 248, 238),
+                    Color.FromArgb(200, 228, 200),
+                    Color.FromArgb(50, 140, 70))
 
                 Case Else
                     Return New UiPalette(
-                        Color.FromArgb(240, 246, 252),
-                        Color.FromArgb(184, 236, 255),
-                        Color.FromArgb(0, 127, 174))
+                    Color.FromArgb(240, 246, 252),
+                    Color.FromArgb(184, 236, 255),
+                    Color.FromArgb(0, 127, 174))
 
             End Select
         End Get

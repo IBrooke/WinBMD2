@@ -1,4 +1,5 @@
 ﻿Imports System.Collections.Generic
+Imports System.Drawing
 Public Module ProjectValues
 
 #Region "Command Panels"
@@ -85,6 +86,15 @@ Public Module ProjectValues
 #Region "Appearance"
 
     Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
+    Public Property UiFontName As String = SystemFonts.MessageBoxFont.FontFamily.Name
+    Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size
+    Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
+    Public Property VerifyFontSize As Single = 12.0F
+
+#End Region
+#Region "Entry"
+
+    Public Property IgnoreAutoComplete As IgnoreAutoCompleteKey = IgnoreAutoCompleteKey.Tab
 
 #End Region
 End Module

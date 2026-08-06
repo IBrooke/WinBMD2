@@ -1,6 +1,6 @@
 ﻿Imports System.IO
 Imports System.Text.Json
-
+Imports System.Drawing
 Public Module ProjectValuesStore
 
     Public Sub Initialise()
@@ -68,6 +68,27 @@ Public Module ProjectValuesStore
             ProjectValues.Syndicate = If(values.Syndicate, "")
             ProjectValues.Comments = If(values.Comments, "")
             ProjectValues.ColourScheme = values.ColourScheme
+            ProjectValues.IgnoreAutoComplete = values.IgnoreAutoComplete
+            ProjectValues.UiFontName =
+            If(
+                String.IsNullOrWhiteSpace(values.UiFontName),
+                SystemFonts.MessageBoxFont.FontFamily.Name,
+                values.UiFontName)
+
+            ProjectValues.UiFontSize =
+            If(
+                values.UiFontSize >= 8.0F,
+                values.UiFontSize,
+                SystemFonts.MessageBoxFont.Size)
+
+            ProjectValues.UiFontColourArgb =
+            values.UiFontColourArgb
+
+            ProjectValues.VerifyFontSize =
+            If(
+                values.VerifyFontSize >= 8.0F,
+                values.VerifyFontSize,
+                12.0F)
             ProjectValues.GridColumnWidths =
             If(
                 values.GridColumnWidths,
@@ -95,12 +116,17 @@ Public Module ProjectValuesStore
                 .HeaderFormMaximized = ProjectValues.HeaderFormMaximized,
                 .GridColumnWidths = ProjectValues.GridColumnWidths,
                 .ColourScheme = ProjectValues.ColourScheme,
+                .UiFontName = ProjectValues.UiFontName,
+                .UiFontSize = ProjectValues.UiFontSize,
+                .UiFontColourArgb = ProjectValues.UiFontColourArgb,
+                .VerifyFontSize = ProjectValues.VerifyFontSize,
                 .UserName = ProjectValues.UserName,
                 .UserEmail = ProjectValues.UserEmail,
                 .UserPW = ProjectValues.UserPW,
                 .Creator = ProjectValues.Creator,
                 .CreatorEmail = ProjectValues.CreatorEmail,
                 .EnableDiagnosticLogging = ProjectValues.EnableDiagnosticLogging,
+                .IgnoreAutoComplete = ProjectValues.IgnoreAutoComplete,
                 .BatchType = ProjectValues.BatchType,
                 .Year = ProjectValues.Year,
                 .Quarter = ProjectValues.Quarter,
@@ -145,27 +171,27 @@ Public Module ProjectValuesStore
         Public Property UserName As String = ""
         Public Property UserEmail As String = ""
         Public Property UserPW As String = ""
-
         Public Property Creator As String = ""
         Public Property CreatorEmail As String = ""
-
         Public Property EnableDiagnosticLogging As Boolean = True
-
+        Public Property IgnoreAutoComplete As IgnoreAutoCompleteKey = IgnoreAutoCompleteKey.Tab
         Public Property BatchType As String = ""
         Public Property Year As Integer
         Public Property Quarter As Integer
         Public Property Month As Integer
-
         Public Property Page As Integer
         Public Property PageSource As Integer = -1
         Public Property PageLetter As String = ""
         Public Property PageSuffix As String = ""
-
         Public Property VNF As String = ""
         Public Property SourceRef As String = ""
         Public Property Syndicate As String = ""
         Public Property Comments As String = ""
         Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
+        Public Property UiFontName As String = SystemFonts.MessageBoxFont.FontFamily.Name
+        Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size
+        Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
+        Public Property VerifyFontSize As Single = 12.0F
     End Class
 
 End Module

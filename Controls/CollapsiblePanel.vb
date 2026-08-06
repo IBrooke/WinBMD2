@@ -186,6 +186,7 @@ Public Class CollapsiblePanel
     End Sub
 
     Private Sub DrawHeader(graphics As Graphics)
+
         Dim headerRectangle As New Rectangle(
         x:=1,
         y:=1,
@@ -193,13 +194,25 @@ Public Class CollapsiblePanel
         height:=Math.Max(0, _headerHeight - 3))
 
         Dim backgroundColor As Color =
-        If(_headerHovered,
-           Theme.PanelHeaderHoverBackColor,
-           Theme.PanelHeaderBackColor)
+        If(
+            _headerHovered,
+            UiColors.ThemeShaded,
+            UiColors.ThemeSoft)
 
         Using headerBrush As New SolidBrush(backgroundColor)
             graphics.FillRectangle(headerBrush, headerRectangle)
         End Using
+
+        ' Draw a 1-pixel accent line along the bottom of the header.
+        Using accentPen As New Pen(UiColors.ThemeSolid)
+            graphics.DrawLine(
+            accentPen,
+            1,
+            _headerHeight - 2,
+            ClientSize.Width - 2,
+            _headerHeight - 2)
+        End Using
+
     End Sub
 
     Private Sub DrawExpandArrow(graphics As Graphics)
