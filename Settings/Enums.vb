@@ -29,5 +29,13 @@ Public Enum IgnoreAutoCompleteKey
     [Return]
     All
 End Enum
-
+Public Enum ValidationState
+    Ok
+    Warning
+    [Error]
+End Enum
+Public Enum ValidationMode
+    Entry
+    Upload
+End Enum
 #End Region

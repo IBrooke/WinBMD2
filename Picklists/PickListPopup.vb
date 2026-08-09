@@ -182,7 +182,51 @@
             Return TryCast(_listBox.SelectedItem, PickListItem)
         End Get
     End Property
+    Public ReadOnly Property ItemCount As Integer
+        Get
+            Return _listBox.Items.Count
+        End Get
+    End Property
 
+    Public Sub MoveSelectionUp()
+
+        If _listBox.Items.Count = 0 Then
+            Return
+        End If
+
+        If _listBox.SelectedIndex > 0 Then
+            _listBox.SelectedIndex -= 1
+        End If
+
+    End Sub
+
+    Public Sub MoveSelectionDown()
+
+        If _listBox.Items.Count = 0 Then
+            Return
+        End If
+
+        If _listBox.SelectedIndex < 0 Then
+            _listBox.SelectedIndex = 0
+        ElseIf _listBox.SelectedIndex < _listBox.Items.Count - 1 Then
+            _listBox.SelectedIndex += 1
+        End If
+
+    End Sub
+
+    Public Function SelectItemByNumber(number As Integer) As Boolean
+
+        Dim index As Integer = number - 1
+
+        If index < 0 OrElse index >= _listBox.Items.Count Then
+            Return False
+        End If
+
+        _listBox.SelectedIndex = index
+
+        Return True
+
+    End Function
     Public Sub SetItems(items As IEnumerable(Of PickListItem))
 
         _listBox.BeginUpdate()

@@ -8,10 +8,23 @@ Public Class TranscriptionForm
     Private _refreshingGrid As Boolean
     Private ReadOnly _pickListPopup As New PickListPopup()
     Private ReadOnly _navigationManager As NavigationManager
+    Private ReadOnly _statusQueue As New Queue(Of (Message As String, Duration As Integer))
+    Private ReadOnly _statusTimer As New Timer()
+    Private _statusMessageShowing As Boolean
+    Private _baseStatusText As String = "Ready"
+    ' Stores the latest validation result for each grid cell.
+    Private ReadOnly _cellValidationResults As New Dictionary(Of (Row As Integer, Column As Integer), ValidationResult)
+
+    ' Stores the overall validation state for each row.
+    Private ReadOnly _rowValidationStates As New Dictionary(Of Integer, ValidationState)
+    Private ReadOnly _validationToolTip As New ToolTip()
 
     Public Sub New(commandExecutor As ICommandExecutor)
 
         InitializeComponent()
+
+        _statusTimer.Interval = 5000
+        AddHandler _statusTimer.Tick, AddressOf StatusTimer_Tick
         _navigationManager = New NavigationManager(Me)
         ApplyTranscriptionAppearance()
         ThemeManager.ApplyNavigationButton(btnOptionsTest)
@@ -60,6 +73,75 @@ Public Class TranscriptionForm
         FormBoundsHelper.RestoreForm(
         Me,
         savedBounds)
+
+    End Sub
+    ' Sets the normal status text shown whenever there is no
+    ' temporary message waiting to be displayed.
+    Private Sub SetBaseStatus(message As String)
+
+        _baseStatusText = message
+
+        If Not _statusMessageShowing Then
+            statusMessageLabel.Text = _baseStatusText
+        End If
+
+    End Sub
+
+    ' Displays a temporary status message.
+    '
+    ' If another temporary message is already being shown, this one
+    ' is queued and will be displayed when the current message expires.
+    Private Sub ShowStatusMessage(
+    message As String,
+    Optional duration As Integer = 5000)
+
+        DebugLog.WriteAlways($"[STATUS] ShowStatusMessage called: '{message}'")
+
+        If String.IsNullOrWhiteSpace(message) Then
+            Return
+        End If
+
+        _statusQueue.Enqueue((message, duration))
+
+        If Not _statusMessageShowing Then
+            ShowNextStatusMessage()
+        End If
+
+    End Sub
+
+    ' Displays the next queued message, or restores the normal
+    ' status text when there are no messages left.
+    Private Sub ShowNextStatusMessage()
+
+        _statusTimer.Stop()
+
+        If _statusQueue.Count = 0 Then
+
+            _statusMessageShowing = False
+            statusMessageLabel.Text = _baseStatusText
+
+            Return
+
+        End If
+
+        Dim item =
+        _statusQueue.Dequeue()
+
+        DebugLog.WriteAlways($"[STATUS] Displaying: '{item.Message}'")
+
+        _statusMessageShowing = True
+        statusMessageLabel.Text = item.Message
+
+        _statusTimer.Interval = item.Duration
+        _statusTimer.Start()
+
+    End Sub
+
+    Private Sub StatusTimer_Tick(
+    sender As Object,
+    e As EventArgs)
+
+        ShowNextStatusMessage()
 
     End Sub
     Private Sub LoadCurrentBatch()
@@ -349,6 +431,73 @@ Public Class TranscriptionForm
         value)
 
     End Sub
+    ' Shows the row validation message when the mouse is over
+    ' the row-number area containing the validation indicator.
+    Private Sub transcriptionGrid_CellMouseEnter(
+    sender As Object,
+    e As DataGridViewCellEventArgs) _
+    Handles transcriptionGrid.CellMouseEnter
+
+        If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then
+            Return
+        End If
+
+        Dim column As DataGridViewColumn =
+        transcriptionGrid.Columns(e.ColumnIndex)
+
+        If column.Name <> "RowNumber" Then
+            Return
+        End If
+
+        Dim worstResult As ValidationResult = Nothing
+
+        For columnIndex As Integer = 0 To transcriptionGrid.Columns.Count - 1
+
+            Dim key = (Row:=e.RowIndex, Column:=columnIndex)
+
+            Dim result As ValidationResult = Nothing
+
+            If Not _cellValidationResults.TryGetValue(key, result) Then
+                Continue For
+            End If
+
+            If result.IsError Then
+                worstResult = result
+                Exit For
+            End If
+
+            If result.IsWarning AndAlso worstResult Is Nothing Then
+                worstResult = result
+            End If
+
+        Next
+
+        If worstResult Is Nothing Then
+            Return
+        End If
+
+        Dim cellRectangle As Rectangle =
+        transcriptionGrid.GetCellDisplayRectangle(
+            e.ColumnIndex,
+            e.RowIndex,
+            cutOverflow:=True)
+
+        _validationToolTip.Show(
+        worstResult.Message,
+        transcriptionGrid,
+        cellRectangle.Right,
+        cellRectangle.Top,
+        5000)
+
+    End Sub
+    Private Sub transcriptionGrid_CellMouseLeave(
+    sender As Object,
+    e As DataGridViewCellEventArgs) _
+    Handles transcriptionGrid.CellMouseLeave
+
+        _validationToolTip.Hide(transcriptionGrid)
+
+    End Sub
     Private Sub UpdateDocumentFromGrid(
     rowIndex As Integer,
     field As GridField,
@@ -451,6 +600,11 @@ Public Class TranscriptionForm
         Return 0
 
     End Function
+    ' Updates the normal status-bar position text.
+    ' If a temporary message is currently being displayed, this
+    ' becomes the text that will be restored when that message ends.
+    ' Updates the row and column position shown at the
+    ' right-hand side of the status bar.
     Private Sub UpdateStatusPosition()
 
         If transcriptionGrid.CurrentCell Is Nothing Then
@@ -473,6 +627,52 @@ Public Class TranscriptionForm
 
         statusPositionLabel.Text =
         $"Row {rowNumber}, {column.HeaderText}"
+
+    End Sub
+    ' Shows the validation message when the mouse is over the
+    ' row indicator area at the left of the grid.
+    Private Sub transcriptionGrid_CellToolTipTextNeeded(
+    sender As Object,
+    e As DataGridViewCellToolTipTextNeededEventArgs) _
+    Handles transcriptionGrid.CellToolTipTextNeeded
+
+        If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then
+            Return
+        End If
+
+        Dim column As DataGridViewColumn =
+        transcriptionGrid.Columns(e.ColumnIndex)
+
+        If column.Name <> "RowNumber" Then
+            Return
+        End If
+
+        Dim worstResult As ValidationResult = Nothing
+
+        For columnIndex As Integer = 0 To transcriptionGrid.Columns.Count - 1
+
+            Dim key = (Row:=e.RowIndex, Column:=columnIndex)
+
+            Dim result As ValidationResult = Nothing
+
+            If Not _cellValidationResults.TryGetValue(key, result) Then
+                Continue For
+            End If
+
+            If result.IsError Then
+                worstResult = result
+                Exit For
+            End If
+
+            If result.IsWarning AndAlso worstResult Is Nothing Then
+                worstResult = result
+            End If
+
+        Next
+
+        If worstResult IsNot Nothing Then
+            e.ToolTipText = worstResult.Message
+        End If
 
     End Sub
     Private Function IsDataColumn(columnIndex As Integer) As Boolean
@@ -565,6 +765,18 @@ Public Class TranscriptionForm
                 TextBox)
 
             Select Case keyCode
+
+                Case Keys.Up, Keys.Down
+
+                    If _pickListPopup.IsOpen Then
+
+                        Dim e As New KeyEventArgs(keyData)
+
+                        If _navigationManager.HandleKey(editor, e) Then
+                            Return True
+                        End If
+
+                    End If
 
                 Case Keys.Tab, Keys.Enter
 
@@ -696,6 +908,117 @@ Public Class TranscriptionForm
         RefreshPickList(editor)
 
     End Sub
+    Friend Function CopyNextWordFromAbove(
+    editor As TextBox) As Boolean
+
+        If editor Is Nothing Then
+            Return False
+        End If
+
+        If transcriptionGrid.CurrentCell Is Nothing Then
+            Return False
+        End If
+
+        Dim currentRow As Integer =
+        transcriptionGrid.CurrentCell.RowIndex
+
+        Dim currentColumn As Integer =
+        transcriptionGrid.CurrentCell.ColumnIndex
+
+        If currentRow <= 0 Then
+            Return False
+        End If
+
+        Dim previousText As String =
+        If(
+            transcriptionGrid.Rows(currentRow - 1).
+                Cells(currentColumn).Value,
+            "").ToString()
+
+        If String.IsNullOrWhiteSpace(previousText) Then
+            Return False
+        End If
+
+        Dim fromWords() As String =
+        previousText.Split(
+            {" "c, "."c},
+            StringSplitOptions.RemoveEmptyEntries)
+
+        If fromWords.Length = 0 Then
+            Return False
+        End If
+
+        Dim currentText As String =
+        editor.Text.Trim()
+
+        If currentText.Length = 0 Then
+
+            editor.Text = fromWords(0)
+
+            If Not editor.Text.EndsWith(" ") AndAlso
+           Not editor.Text.EndsWith(".") Then
+
+                editor.Text &= " "
+
+            End If
+
+        Else
+
+            Dim toWords() As String =
+            currentText.Split(
+                {" "c, "."c},
+                StringSplitOptions.RemoveEmptyEntries)
+
+            Dim wordCopied As Boolean = False
+
+            For Each fromWord As String In fromWords
+
+                Dim alreadyPresent As Boolean = False
+
+                For Each toWord As String In toWords
+
+                    If String.Equals(
+                    toWord.Trim(),
+                    fromWord.Trim(),
+                    StringComparison.OrdinalIgnoreCase) Then
+
+                        alreadyPresent = True
+                        Exit For
+
+                    End If
+
+                Next
+
+                If Not alreadyPresent Then
+
+                    editor.Text &= fromWord
+
+                    If Not editor.Text.EndsWith(" ") AndAlso
+                   Not editor.Text.EndsWith(".") Then
+
+                        editor.Text &= " "
+
+                    End If
+
+                    wordCopied = True
+                    Exit For
+
+                End If
+
+            Next
+
+            If Not wordCopied Then
+                Return False
+            End If
+
+        End If
+
+        editor.SelectionStart = editor.TextLength
+        editor.SelectionLength = 0
+
+        Return True
+
+    End Function
     Private Sub RefreshPickList(
     editor As TextBox)
 
@@ -779,6 +1102,23 @@ Public Class TranscriptionForm
         cellBounds)
 
     End Sub
+    Friend ReadOnly Property PickListIsOpen As Boolean
+        Get
+            Return _pickListPopup.IsOpen
+        End Get
+    End Property
+
+    Friend Sub MovePickListSelectionUp()
+        _pickListPopup.MoveSelectionUp()
+    End Sub
+
+    Friend Sub MovePickListSelectionDown()
+        _pickListPopup.MoveSelectionDown()
+    End Sub
+
+    Friend Function SelectPickListItemByNumber(number As Integer) As Boolean
+        Return _pickListPopup.SelectItemByNumber(number)
+    End Function
     Friend Function CopyFromAboveIfBlank(editor As TextBox,
     Optional allowPickList As Boolean = False) As Boolean
 
@@ -1233,6 +1573,31 @@ Public Class TranscriptionForm
     End Sub)
 
     End Sub
+    ' Returns the logical GridField represented by the current grid column.
+    ' The field itself is stored in the DataGridView column's Tag.
+    Friend ReadOnly Property CurrentField As GridField
+        Get
+
+            If transcriptionGrid.CurrentCell Is Nothing Then
+                Throw New InvalidOperationException(
+                "There is no current grid cell.")
+
+            End If
+
+            Dim column As DataGridViewColumn =
+            transcriptionGrid.Columns(
+                transcriptionGrid.CurrentCell.ColumnIndex)
+
+            If column.Tag Is Nothing Then
+                Throw New InvalidOperationException(
+                "The current grid column has no GridField.")
+
+            End If
+
+            Return DirectCast(column.Tag, GridField)
+
+        End Get
+    End Property
     Friend ReadOnly Property CurrentFieldUsesPickList As Boolean
         Get
 
@@ -1284,7 +1649,31 @@ Public Class TranscriptionForm
         Dim currentField As GridField =
         DirectCast(currentColumn.Tag, GridField)
 
-        editor.Text = selectedItem.Text
+        If currentField = GridField.Forename Then
+
+            ' Replace the partial forename currently being typed with the
+            ' selected picklist entry, while preserving earlier forenames.
+            Dim existingText As String = editor.Text
+            Dim lastSpace As Integer = existingText.LastIndexOf(" "c)
+
+            If lastSpace >= 0 Then
+
+                editor.Text =
+                    existingText.Substring(0, lastSpace + 1) &
+                    selectedItem.Text
+
+            Else
+
+                editor.Text = selectedItem.Text
+
+            End If
+
+        Else
+
+            editor.Text = selectedItem.Text
+
+        End If
+
         editor.SelectionStart = editor.TextLength
         editor.SelectionLength = 0
 
@@ -1323,6 +1712,546 @@ Public Class TranscriptionForm
         Return True
 
     End Function
+    ' Validate a field only after the user has finished editing it.
+    ' This avoids reporting temporary errors while a UCF expression
+    ' or other multi-character field value is still being entered.
+    Private Sub transcriptionGrid_CellEndEdit(
+    sender As Object,
+    e As DataGridViewCellEventArgs) _
+    Handles transcriptionGrid.CellEndEdit
+
+        If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then
+            Return
+        End If
+
+        Dim column As DataGridViewColumn =
+        transcriptionGrid.Columns(e.ColumnIndex)
+
+        If column.Tag Is Nothing Then
+            Return
+        End If
+
+        Dim field As GridField =
+        DirectCast(column.Tag, GridField)
+
+        If Not FieldMetaData.Meta(field).IsDataColumn Then
+            Return
+        End If
+
+        Dim cell As DataGridViewCell =
+        transcriptionGrid.Rows(e.RowIndex).Cells(e.ColumnIndex)
+
+        Dim value As String =
+        If(cell.Value, "").ToString()
+
+        Dim result As ValidationResult =
+    Validator.Validate(field, value)
+
+        If field = GridField.District OrElse
+           field = GridField.Volume OrElse
+           field = GridField.DistNum Then
+
+            ' District and its code are interdependent, so changing either
+            ' one requires both cells to be validated again.
+            ValidateDistrictCodePair(e.RowIndex)
+
+            ' Pick up the final result for the cell which was actually edited.
+            result =
+        _cellValidationResults((e.RowIndex, e.ColumnIndex))
+
+        Else
+
+            ApplyCellValidationResult(
+        e.RowIndex,
+        e.ColumnIndex,
+        result)
+
+        End If
+
+        ' Errors use the DataGridView's built-in error glyph.
+        ' Warnings use the cell tooltip; their yellow indicator is
+        ' drawn separately in CellPainting.
+        If result.IsError Then
+
+            cell.ErrorText = result.Message
+            cell.ToolTipText = ""
+
+        ElseIf result.IsWarning Then
+
+            cell.ErrorText = ""
+            cell.ToolTipText = result.Message
+
+        Else
+
+            cell.ErrorText = ""
+            cell.ToolTipText = ""
+
+        End If
+
+        ' Recalculate the overall warning/error state of the row.
+        UpdateRowValidationState(e.RowIndex)
+
+        If field = GridField.Surname OrElse
+            field = GridField.Forename Then
+
+            ' Changing a name can affect both this row and the row below it.
+            ValidateSequence(e.RowIndex)
+
+            If e.RowIndex + 1 < transcriptionGrid.Rows.Count Then
+                ValidateSequence(e.RowIndex + 1)
+                UpdateRowValidationState(e.RowIndex + 1)
+            End If
+
+        End If
+
+        If Not result.IsOk Then
+
+            DebugLog.WriteAlways(
+                $"[VALIDATION] Row={e.RowIndex + 1}, " &
+                $"Field={field}, " &
+                $"State={result.State}, " &
+                $"Message='{result.Message}'")
+
+            ' Queue the validation message for display in the status bar.
+            ShowStatusMessage(result.Message)
+
+        End If
+
+    End Sub
+    ' Recalculates the overall validation state of a row.
+    ' An Error takes precedence over a Warning.
+    ' The row header tooltip shows the message belonging to
+    ' the most serious validation result on the row.
+    Private Sub UpdateRowValidationState(rowIndex As Integer)
+
+        Dim rowState As ValidationState =
+        ValidationState.Ok
+
+        Dim messages As New List(Of String)
+
+        For columnIndex As Integer = 0 To transcriptionGrid.Columns.Count - 1
+
+            Dim key = (Row:=rowIndex, Column:=columnIndex)
+
+            Dim result As ValidationResult = Nothing
+
+            If Not _cellValidationResults.TryGetValue(key, result) Then
+                Continue For
+            End If
+
+            If result.IsOk Then
+                Continue For
+            End If
+
+            Dim column As DataGridViewColumn =
+            transcriptionGrid.Columns(columnIndex)
+
+            messages.Add(
+            $"{column.HeaderText}: {result.Message}")
+
+            If result.IsError Then
+
+                rowState = ValidationState.Error
+
+            ElseIf result.IsWarning AndAlso
+               rowState = ValidationState.Ok Then
+
+                rowState = ValidationState.Warning
+
+            End If
+
+        Next
+
+        _rowValidationStates(rowIndex) = rowState
+
+        Dim row As DataGridViewRow =
+        transcriptionGrid.Rows(rowIndex)
+
+        row.Cells("RowNumber").ToolTipText =
+        String.Join(Environment.NewLine, messages)
+
+        transcriptionGrid.InvalidateRow(rowIndex)
+
+    End Sub
+    ' Stores a cell's validation result and updates the visual
+    ' error/warning information shown by the DataGridView.
+    Private Sub ApplyCellValidationResult(
+    rowIndex As Integer,
+    columnIndex As Integer,
+    result As ValidationResult)
+
+        Dim cell As DataGridViewCell =
+        transcriptionGrid.Rows(rowIndex).Cells(columnIndex)
+
+        _cellValidationResults((rowIndex, columnIndex)) = result
+
+        If result.IsError Then
+
+            cell.ErrorText = result.Message
+            cell.ToolTipText = ""
+
+        ElseIf result.IsWarning Then
+
+            cell.ErrorText = ""
+            cell.ToolTipText = result.Message
+
+        Else
+
+            cell.ErrorText = ""
+            cell.ToolTipText = ""
+
+        End If
+
+    End Sub
+    ' Checks the alphabetical sequence of Surname and Forename against
+    ' the previous populated row. A Surname warning is produced when
+    ' surnames go backwards; when surnames are equal, Forename order
+    ' is checked instead.
+    Private Sub ValidateSequence(rowIndex As Integer)
+
+        If rowIndex <= 0 Then
+            Return
+        End If
+
+        Dim surnameColumn As Integer = -1
+        Dim forenameColumn As Integer = -1
+
+        For columnIndex As Integer = 0 To transcriptionGrid.Columns.Count - 1
+
+            Dim column As DataGridViewColumn =
+            transcriptionGrid.Columns(columnIndex)
+
+            If column.Tag Is Nothing Then
+                Continue For
+            End If
+
+            Dim field As GridField =
+            DirectCast(column.Tag, GridField)
+
+            If field = GridField.Surname Then
+                surnameColumn = columnIndex
+
+            ElseIf field = GridField.Forename Then
+                forenameColumn = columnIndex
+
+            End If
+
+        Next
+
+        If surnameColumn < 0 OrElse forenameColumn < 0 Then
+            Return
+        End If
+
+        Dim row As DataGridViewRow =
+        transcriptionGrid.Rows(rowIndex)
+
+        Dim surname As String =
+        If(row.Cells(surnameColumn).Value, "").ToString().Trim()
+
+        Dim forename As String =
+        If(row.Cells(forenameColumn).Value, "").ToString().Trim()
+
+        ' Restore the ordinary field validation first.
+        ' This removes any sequence warning left from an earlier value.
+        Dim surnameResult As ValidationResult =
+        Validator.Validate(GridField.Surname, surname)
+
+        Dim forenameResult As ValidationResult =
+        Validator.Validate(GridField.Forename, forename)
+
+        ApplyCellValidationResult(
+        rowIndex,
+        surnameColumn,
+        surnameResult)
+
+        ApplyCellValidationResult(
+        rowIndex,
+        forenameColumn,
+        forenameResult)
+
+        ' Sequence checking is not meaningful until both names exist.
+        If String.IsNullOrWhiteSpace(surname) OrElse
+       String.IsNullOrWhiteSpace(forename) Then
+
+            Return
+        End If
+
+        ' Look backwards for the previous populated surname row.
+        For previousIndex As Integer = rowIndex - 1 To 0 Step -1
+
+            Dim previousRow As DataGridViewRow =
+            transcriptionGrid.Rows(previousIndex)
+
+            Dim previousSurname As String =
+            If(previousRow.Cells(surnameColumn).Value, "").ToString().Trim()
+
+            ' Ignore blank rows and continue looking backwards.
+            If String.IsNullOrWhiteSpace(previousSurname) Then
+                Continue For
+            End If
+
+            Dim surnameCompare As Integer =
+            String.Compare(
+                surname,
+                previousSurname,
+                StringComparison.OrdinalIgnoreCase)
+
+            If surnameCompare < 0 Then
+
+                ApplySequenceWarning(
+                rowIndex,
+                surnameColumn,
+                $"Surname '{surname}' is before previous surname '{previousSurname}'.")
+
+                Return
+
+            End If
+
+            If surnameCompare = 0 Then
+
+                Dim previousForename As String =
+                If(previousRow.Cells(forenameColumn).Value, "").ToString().Trim()
+
+                Dim forenameCompare As Integer =
+                String.Compare(
+                    forename,
+                    previousForename,
+                    StringComparison.OrdinalIgnoreCase)
+
+                If forenameCompare < 0 Then
+
+                    ApplySequenceWarning(
+                    rowIndex,
+                    forenameColumn,
+                    $"Forename '{forename}' is before previous forename '{previousForename}' for surname '{surname}'.")
+
+                    Return
+
+                End If
+
+            End If
+
+            ' We have found and compared against the nearest previous
+            ' populated surname row, so there is nothing further to check.
+            Return
+
+        Next
+
+    End Sub
+    ' Adds a sequence warning without replacing a more serious
+    ' validation result already present on the cell.
+    Private Sub ApplySequenceWarning(
+    rowIndex As Integer,
+    columnIndex As Integer,
+    message As String)
+
+        Dim key = (Row:=rowIndex, Column:=columnIndex)
+
+        Dim existing As ValidationResult = Nothing
+
+        If _cellValidationResults.TryGetValue(key, existing) Then
+
+            If existing.IsError OrElse existing.IsWarning Then
+                Return
+            End If
+
+        End If
+
+        ApplyCellValidationResult(
+        rowIndex,
+        columnIndex,
+        ValidationResult.Warning(message))
+
+    End Sub
+    ' Revalidates District together with its associated Volume or DistNum.
+    '
+    ' In addition to each field's normal validation, a warning is produced
+    ' when one half of the District/code pair is present and the other is blank.
+    Private Sub ValidateDistrictCodePair(rowIndex As Integer)
+
+        Dim districtColumn As Integer = -1
+        Dim codeColumn As Integer = -1
+        Dim codeField As GridField
+
+        ' Find the visible District and Volume/DistNum columns from their metadata.
+        For columnIndex As Integer = 0 To transcriptionGrid.Columns.Count - 1
+
+            Dim column As DataGridViewColumn =
+            transcriptionGrid.Columns(columnIndex)
+
+            If column.Tag Is Nothing Then
+                Continue For
+            End If
+
+            Dim field As GridField =
+            DirectCast(column.Tag, GridField)
+
+            If field = GridField.District Then
+
+                districtColumn = columnIndex
+
+            ElseIf field = GridField.Volume OrElse
+               field = GridField.DistNum Then
+
+                codeColumn = columnIndex
+                codeField = field
+
+            End If
+
+        Next
+
+        If districtColumn < 0 OrElse codeColumn < 0 Then
+            Return
+        End If
+
+        Dim row As DataGridViewRow =
+        transcriptionGrid.Rows(rowIndex)
+
+        Dim districtValue As String =
+        If(row.Cells(districtColumn).Value, "").ToString()
+
+        Dim codeValue As String =
+        If(row.Cells(codeColumn).Value, "").ToString()
+
+        ' First perform the normal independent validation of both cells.
+        Dim districtResult As ValidationResult =
+        Validator.Validate(
+            GridField.District,
+            districtValue)
+
+        Dim codeResult As ValidationResult =
+        Validator.Validate(
+            codeField,
+            codeValue)
+
+        ' Only add the pair warning where normal validation has succeeded.
+        ' A real field error/warning must not be hidden by this check.
+        If districtResult.IsOk AndAlso
+       String.IsNullOrWhiteSpace(districtValue) AndAlso
+       Not String.IsNullOrWhiteSpace(codeValue) Then
+
+            districtResult =
+            ValidationResult.Warning(
+                "District is blank but Volume/DistNum is present.")
+
+        End If
+
+        If codeResult.IsOk AndAlso
+       Not String.IsNullOrWhiteSpace(districtValue) AndAlso
+       String.IsNullOrWhiteSpace(codeValue) Then
+
+            codeResult =
+            ValidationResult.Warning(
+                "Volume/DistNum is blank but District is present.")
+
+        End If
+
+        ApplyCellValidationResult(
+        rowIndex,
+        districtColumn,
+        districtResult)
+
+        ApplyCellValidationResult(
+        rowIndex,
+        codeColumn,
+        codeResult)
+
+    End Sub
+    ' Draws the row-level validation indicator in the row header.
+    ' Error rows show a red circle; warning rows show a yellow circle.
+    Private Sub transcriptionGrid_RowPostPaint(
+    sender As Object,
+    e As DataGridViewRowPostPaintEventArgs) _
+    Handles transcriptionGrid.RowPostPaint
+
+        Dim state As ValidationState
+
+        If Not _rowValidationStates.TryGetValue(e.RowIndex, state) Then
+            Return
+        End If
+
+        If state = ValidationState.Ok Then
+            Return
+        End If
+
+        Dim indicatorColor As Color
+
+        If state = ValidationState.Error Then
+            indicatorColor = UiColors.ValidationError
+        Else
+            indicatorColor = UiColors.ValidationWarning
+        End If
+
+        Dim diameter As Integer = 10
+
+        Dim x As Integer =
+        e.RowBounds.Left + 4
+
+        Dim y As Integer =
+        e.RowBounds.Top +
+        (e.RowBounds.Height - diameter) \ 2
+
+        Using brush As New SolidBrush(indicatorColor)
+
+            e.Graphics.FillEllipse(
+            brush,
+            x,
+            y,
+            diameter,
+            diameter)
+
+        End Using
+
+    End Sub
+    ' Draws a small warning indicator in cells which contain
+    ' a validation warning. Errors continue to use the
+    ' DataGridView's built-in ErrorText indicator.
+    Private Sub transcriptionGrid_CellPainting(
+    sender As Object,
+    e As DataGridViewCellPaintingEventArgs) _
+    Handles transcriptionGrid.CellPainting
+
+        If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then
+            Return
+        End If
+
+        Dim key = (Row:=e.RowIndex, Column:=e.ColumnIndex)
+
+        Dim result As ValidationResult = Nothing
+
+        If Not _cellValidationResults.TryGetValue(key, result) Then
+            Return
+        End If
+
+        If Not result.IsWarning Then
+            Return
+        End If
+
+        e.Paint(e.ClipBounds, e.PaintParts)
+
+        Dim diameter As Integer = 10
+
+        Dim x As Integer =
+        e.CellBounds.Right - diameter - 4
+
+        Dim y As Integer =
+        e.CellBounds.Top +
+        (e.CellBounds.Height - diameter) \ 2
+
+        Using brush As New SolidBrush(UiColors.ValidationWarning)
+
+            e.Graphics.FillEllipse(
+            brush,
+            x,
+            y,
+            diameter,
+            diameter)
+
+        End Using
+
+        e.Handled = True
+
+    End Sub
     Private Sub TranscriptionForm_FormClosing(
     sender As Object,
     e As FormClosingEventArgs) Handles Me.FormClosing

@@ -57,7 +57,9 @@ Public Module ProjectValuesStore
             ProjectValues.Year = values.Year
             ProjectValues.Quarter = values.Quarter
             ProjectValues.Month = values.Month
-
+            ProjectValues.BatchName = If(values.BatchName, "")
+            ProjectValues.Created = If(values.Created, "")
+            ProjectValues.DateModified = values.DateModified
             ProjectValues.Page = values.Page
             ProjectValues.PageSource = values.PageSource
             ProjectValues.PageLetter = If(values.PageLetter, "")
@@ -67,6 +69,11 @@ Public Module ProjectValuesStore
             ProjectValues.SourceRef = If(values.SourceRef, "")
             ProjectValues.Syndicate = If(values.Syndicate, "")
             ProjectValues.Comments = If(values.Comments, "")
+            ProjectValues.SequenceType =
+            If(
+                String.IsNullOrWhiteSpace(values.SequenceType),
+                "SEQUENCED",
+                values.SequenceType)
             ProjectValues.ColourScheme = values.ColourScheme
             ProjectValues.IgnoreAutoComplete = values.IgnoreAutoComplete
             ProjectValues.UiFontName =
@@ -138,7 +145,11 @@ Public Module ProjectValuesStore
                 .VNF = ProjectValues.VNF,
                 .SourceRef = ProjectValues.SourceRef,
                 .Syndicate = ProjectValues.Syndicate,
-                .Comments = ProjectValues.Comments
+                .Comments = ProjectValues.Comments,
+                .SequenceType = ProjectValues.SequenceType,
+                .BatchName = ProjectValues.BatchName,
+                .Created = ProjectValues.Created,
+                .DateModified = ProjectValues.DateModified
             }
 
             Dim options As New JsonSerializerOptions With {
@@ -187,6 +198,10 @@ Public Module ProjectValuesStore
         Public Property SourceRef As String = ""
         Public Property Syndicate As String = ""
         Public Property Comments As String = ""
+        Public Property BatchName As String = ""
+        Public Property Created As String = ""
+        Public Property DateModified As Date = Date.Today
+        Public Property SequenceType As String = "SEQUENCED"
         Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
         Public Property UiFontName As String = SystemFonts.MessageBoxFont.FontFamily.Name
         Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size

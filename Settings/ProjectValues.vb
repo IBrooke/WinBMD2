@@ -66,16 +66,17 @@ Public Module ProjectValues
 #Region "Header"
 
     Public Property BatchType As String = ""
-
+    Public Property BatchName As String = ""
     Public Property Year As Integer
     Public Property Quarter As Integer
     Public Property Month As Integer
-
+    Public Property Created As String = ""
+    Public Property DateModified As Date = Date.Today
     Public Property Page As Integer
     Public Property PageSource As Integer = -1
     Public Property PageLetter As String = ""
     Public Property PageSuffix As String = ""
-
+    Public Property SequenceType As String = "SEQUENCED"
     Public Property VNF As String = ""
     Public Property SourceRef As String = ""
     Public Property Syndicate As String = ""
@@ -90,11 +91,13 @@ Public Module ProjectValues
     Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size
     Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
     Public Property VerifyFontSize As Single = 12.0F
+    Public Property ValidationMode As ValidationMode = ValidationMode.Entry
 
 #End Region
 #Region "Entry"
 
     Public Property IgnoreAutoComplete As IgnoreAutoCompleteKey = IgnoreAutoCompleteKey.Tab
+    Public Property IgnoreAaD As Boolean = False
 
 #End Region
 End Module

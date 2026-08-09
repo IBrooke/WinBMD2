@@ -107,6 +107,12 @@ Public Module UiColors
             Return Color.White
         End Get
     End Property
+
+    Public ReadOnly ValidationError As Color =
+    Color.Red
+
+    Public ReadOnly ValidationWarning As Color =
+    Color.Goldenrod
 #End Region
 
 #Region "Backgrounds"

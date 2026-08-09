@@ -1,4 +1,5 @@
 ﻿Imports System.Collections.Generic
+
 '------------------------------------------------------------------------------
 ' FieldMetaData
 '
@@ -13,14 +14,12 @@
 '     • Whether the field supports a picklist.
 '     • Whether the field is a Volume-style field.
 '     • Whether the field represents transcription data.
+'     • The field-specific validation routine.
 '
 ' The metadata is independent of the current batch. GridLayout determines
 ' which GridFields are visible for the current Birth, Marriage or Death
 ' layout, while FieldMetaData describes how each of those fields should
 ' appear and behave.
-'
-' Additional information, such as validation routines, will be added here
-' as the application develops.
 '------------------------------------------------------------------------------
 Public Module FieldMetaData
 
@@ -31,7 +30,8 @@ Public Module FieldMetaData
                 .Header = "Surname",
                 .Align = CellTextAlign.Left,
                 .PreferredWidth = 150,
-                .MinWidth = 90
+                .MinWidth = 90,
+                .Validator = AddressOf Validator.ValidateSurname
             }
         },
         {
@@ -41,7 +41,8 @@ Public Module FieldMetaData
                 .Align = CellTextAlign.Left,
                 .PreferredWidth = 160,
                 .MinWidth = 100,
-                .UsesPicklist = True
+                .UsesPicklist = True,
+                .Validator = AddressOf Validator.ValidateForename
             }
         },
         {
@@ -51,7 +52,8 @@ Public Module FieldMetaData
                 .Align = CellTextAlign.Left,
                 .PreferredWidth = 130,
                 .MinWidth = 90,
-                .UsesPicklist = True
+                .UsesPicklist = True,
+                .Validator = AddressOf Validator.ValidateDistrict
             }
         },
         {
@@ -61,7 +63,8 @@ Public Module FieldMetaData
                 .Align = CellTextAlign.Right,
                 .PreferredWidth = 55,
                 .MinWidth = 45,
-                .IsVolumeField = True
+                .IsVolumeField = True,
+                .Validator = AddressOf Validator.ValidateVolume
             }
         },
         {
@@ -71,7 +74,8 @@ Public Module FieldMetaData
                 .Align = CellTextAlign.Right,
                 .PreferredWidth = 55,
                 .MinWidth = 45,
-                .IsVolumeField = True
+                .IsVolumeField = True,
+                .Validator = AddressOf Validator.ValidateDistNum
             }
         },
         {
@@ -80,7 +84,8 @@ Public Module FieldMetaData
                 .Header = "Page",
                 .Align = CellTextAlign.Right,
                 .PreferredWidth = 60,
-                .MinWidth = 50
+                .MinWidth = 50,
+                .Validator = AddressOf Validator.ValidatePage
             }
         },
         {
@@ -89,7 +94,8 @@ Public Module FieldMetaData
                 .Header = "AaD",
                 .Align = CellTextAlign.Center,
                 .PreferredWidth = 55,
-                .MinWidth = 45
+                .MinWidth = 45,
+                .Validator = AddressOf Validator.ValidateAaD
             }
         },
         {
@@ -98,7 +104,8 @@ Public Module FieldMetaData
                 .Header = "Mother",
                 .Align = CellTextAlign.Left,
                 .PreferredWidth = 140,
-                .MinWidth = 90
+                .MinWidth = 90,
+                .Validator = AddressOf Validator.ValidateMother
             }
         },
         {
@@ -107,7 +114,8 @@ Public Module FieldMetaData
                 .Header = "Spouse",
                 .Align = CellTextAlign.Left,
                 .PreferredWidth = 140,
-                .MinWidth = 90
+                .MinWidth = 90,
+                .Validator = AddressOf Validator.ValidateSpouse
             }
         },
         {
@@ -116,7 +124,8 @@ Public Module FieldMetaData
                 .Header = "DoR",
                 .Align = CellTextAlign.Right,
                 .PreferredWidth = 65,
-                .MinWidth = 50
+                .MinWidth = 50,
+                .Validator = AddressOf Validator.ValidateDoR
             }
         },
         {
@@ -125,7 +134,8 @@ Public Module FieldMetaData
                 .Header = "Reg",
                 .Align = CellTextAlign.Center,
                 .PreferredWidth = 60,
-                .MinWidth = 45
+                .MinWidth = 45,
+                .Validator = AddressOf Validator.ValidateReg
             }
         },
         {
@@ -134,7 +144,8 @@ Public Module FieldMetaData
                 .Header = "Reg No",
                 .Align = CellTextAlign.Center,
                 .PreferredWidth = 75,
-                .MinWidth = 55
+                .MinWidth = 55,
+                .Validator = AddressOf Validator.ValidateRegNum
             }
         },
         {
@@ -143,7 +154,8 @@ Public Module FieldMetaData
                 .Header = "Entry",
                 .Align = CellTextAlign.Center,
                 .PreferredWidth = 65,
-                .MinWidth = 50
+                .MinWidth = 50,
+                .Validator = AddressOf Validator.ValidateEntry
             }
         },
         {
@@ -152,7 +164,8 @@ Public Module FieldMetaData
                 .Header = "Month",
                 .Align = CellTextAlign.Center,
                 .PreferredWidth = 70,
-                .MinWidth = 55
+                .MinWidth = 55,
+                .Validator = AddressOf Validator.ValidateMonth
             }
         },
         {
@@ -161,7 +174,8 @@ Public Module FieldMetaData
                 .Header = "Source",
                 .Align = CellTextAlign.Center,
                 .PreferredWidth = 75,
-                .MinWidth = 55
+                .MinWidth = 55,
+                .Validator = AddressOf Validator.ValidateSource
             }
         },
         {
@@ -170,7 +184,8 @@ Public Module FieldMetaData
                 .Header = "DoB",
                 .Align = CellTextAlign.Left,
                 .PreferredWidth = 85,
-                .MinWidth = 65
+                .MinWidth = 65,
+                .Validator = AddressOf Validator.ValidateDoB
             }
         },
         {

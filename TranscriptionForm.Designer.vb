@@ -23,13 +23,13 @@ Partial Class TranscriptionForm
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         filePanel = New CollapsiblePanel()
+        btnOptionsTest = New Button()
         gridHostPanel = New Panel()
         transcriptionGrid = New DataGridView()
         statusStrip = New StatusStrip()
         statusMessageLabel = New ToolStripStatusLabel()
         statusSpringLabel = New ToolStripStatusLabel()
         statusPositionLabel = New ToolStripStatusLabel()
-        btnOptionsTest = New Button()
         filePanel.SuspendLayout()
         CType(transcriptionGrid, ComponentModel.ISupportInitialize).BeginInit()
         statusStrip.SuspendLayout()
@@ -46,6 +46,15 @@ Partial Class TranscriptionForm
         filePanel.Padding = New Padding(1, 30, 1, 1)
         filePanel.Size = New Size(884, 50)
         filePanel.TabIndex = 0
+        ' 
+        ' btnOptionsTest
+        ' 
+        btnOptionsTest.Location = New Point(10, 22)
+        btnOptionsTest.Name = "btnOptionsTest"
+        btnOptionsTest.Size = New Size(75, 23)
+        btnOptionsTest.TabIndex = 0
+        btnOptionsTest.Text = "Options"
+        btnOptionsTest.UseVisualStyleBackColor = True
         ' 
         ' gridHostPanel
         ' 
@@ -69,7 +78,6 @@ Partial Class TranscriptionForm
         transcriptionGrid.Name = "transcriptionGrid"
         transcriptionGrid.RowHeadersVisible = False
         transcriptionGrid.SelectionMode = DataGridViewSelectionMode.CellSelect
-        transcriptionGrid.ShowCellErrors = False
         transcriptionGrid.ShowEditingIcon = False
         transcriptionGrid.ShowRowErrors = False
         transcriptionGrid.Size = New Size(884, 431)
@@ -104,18 +112,9 @@ Partial Class TranscriptionForm
         statusPositionLabel.Text = "Row 1"
         statusPositionLabel.TextAlign = ContentAlignment.MiddleRight
         ' 
-        ' btnOptionsTest
-        ' 
-        btnOptionsTest.Location = New Point(10, 22)
-        btnOptionsTest.Name = "btnOptionsTest"
-        btnOptionsTest.Size = New Size(75, 23)
-        btnOptionsTest.TabIndex = 0
-        btnOptionsTest.Text = "Options"
-        btnOptionsTest.UseVisualStyleBackColor = True
-        ' 
         ' TranscriptionForm
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(884, 481)
         Controls.Add(statusStrip)

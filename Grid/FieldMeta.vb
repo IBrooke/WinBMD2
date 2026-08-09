@@ -10,4 +10,7 @@
     Public Property IsVolumeField As Boolean
     Public Property IsDataColumn As Boolean = True
 
+    ' Field-specific validation routine.
+    ' Nothing means that this field has no additional validation rules.
+    Public Property Validator As Func(Of String, ValidationResult)
 End Class

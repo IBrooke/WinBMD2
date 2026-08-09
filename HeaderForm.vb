@@ -825,18 +825,67 @@ Public Class HeaderForm
         ProjectValues.UserPW =
             userPasswordTextBox.Text
 
+        ProjectValues.BatchName =
+            BuildBatchName()
+
+        If String.IsNullOrWhiteSpace(ProjectValues.Created) Then
+            ProjectValues.Created =
+            Date.Today.ToString(
+                "d-MMM-yyyy",
+                Globalization.CultureInfo.InvariantCulture)
+        End If
+
+        ProjectValues.DateModified = Date.Today
+
         ProjectValuesStore.Save()
 
         DebugLog.Write(
-            $"[HEADER] Accepted. Year={ProjectValues.Year}, " &
-            $"Quarter={ProjectValues.Quarter}, " &
-            $"BatchType={ProjectValues.BatchType}, " &
-            $"Page={ProjectValues.Page}, " &
-            $"PageLetter='{ProjectValues.PageLetter}', " &
-            $"PageSuffix='{ProjectValues.PageSuffix}'")
+    $"[HEADER] Accepted. BatchName='{ProjectValues.BatchName}', " &
+    $"Created='{ProjectValues.Created}', " &
+    $"DateModified={ProjectValues.DateModified:d}, " &
+    $"Year={ProjectValues.Year}, " &
+    $"Quarter={ProjectValues.Quarter}, " &
+    $"BatchType={ProjectValues.BatchType}, " &
+    $"Page={ProjectValues.Page}, " &
+    $"PageLetter='{ProjectValues.PageLetter}', " &
+    $"PageSuffix='{ProjectValues.PageSuffix}'")
 
     End Sub
+    Private Shared Function BuildBatchName() As String
 
+        Dim quarterPart As String =
+        If(
+            ProjectValues.Year >= FirstYearWithoutQuarters,
+            "",
+            If(
+                ProjectValues.Quarter > 0,
+                ProjectValues.Quarter.ToString(),
+                ""))
+
+        Dim pageText As String =
+        ProjectValues.Page.ToString("0000")
+
+        Dim pageLetter As String =
+        If(ProjectValues.PageLetter, "").
+        Trim().
+        ToUpperInvariant()
+
+        If pageLetter.Length > 1 Then
+            pageLetter = pageLetter.Substring(0, 1)
+        End If
+
+        Dim suffix As String =
+        If(ProjectValues.PageSuffix, "").
+        Trim().
+        ToUpperInvariant()
+
+        If suffix.Length > 1 Then
+            suffix = suffix.Substring(0, 1)
+        End If
+
+        Return $"{ProjectValues.Year:0000}{ProjectValues.BatchType}{quarterPart}{pageLetter}{pageText}{suffix}.BMD"
+
+    End Function
     Private Sub ShowPasswordButton_Click(
         sender As Object,
         e As EventArgs)
