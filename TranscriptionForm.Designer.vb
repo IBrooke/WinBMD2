@@ -23,7 +23,20 @@ Partial Class TranscriptionForm
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         filePanel = New CollapsiblePanel()
-        btnOptionsTest = New Button()
+        categoryStrip = New FlowLayoutPanel()
+        commandStrip = New FlowLayoutPanel()
+        btnFileOpen = New Button()
+        btnFileSave = New Button()
+        btnFileSaveAs = New Button()
+        btnFileClose = New Button()
+        btnFileExit = New Button()
+        btnCategoryFile = New Button()
+        btnCategoryScan = New Button()
+        btnCategoryOptions = New Button()
+        btnCategoryGrid = New Button()
+        btnCategoryVerify = New Button()
+        btnCategoryUpload = New Button()
+        btnCategoryHelp = New Button()
         gridHostPanel = New Panel()
         transcriptionGrid = New DataGridView()
         statusStrip = New StatusStrip()
@@ -37,24 +50,177 @@ Partial Class TranscriptionForm
         ' 
         ' filePanel
         ' 
-        filePanel.Controls.Add(btnOptionsTest)
+        filePanel.Controls.Add(categoryStrip)
+        filePanel.Controls.Add(commandStrip)
         filePanel.Dock = DockStyle.Top
-        filePanel.HeaderText = "File"
+        filePanel.HeaderText = ""
         filePanel.Location = New Point(0, 0)
         filePanel.MinimumSize = New Size(0, 20)
         filePanel.Name = "filePanel"
-        filePanel.Padding = New Padding(1, 30, 1, 1)
-        filePanel.Size = New Size(884, 50)
+        filePanel.Padding = New Padding(1, 20, 1, 1)
+        filePanel.Size = New Size(884, 92)
         filePanel.TabIndex = 0
-        ' 
-        ' btnOptionsTest
-        ' 
-        btnOptionsTest.Location = New Point(10, 22)
-        btnOptionsTest.Name = "btnOptionsTest"
-        btnOptionsTest.Size = New Size(75, 23)
-        btnOptionsTest.TabIndex = 0
-        btnOptionsTest.Text = "Options"
-        btnOptionsTest.UseVisualStyleBackColor = True
+
+        '
+        ' categoryStrip
+        '
+        categoryStrip.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        categoryStrip.Controls.Add(btnCategoryFile)
+        categoryStrip.Controls.Add(btnCategoryGrid)
+        categoryStrip.Controls.Add(btnCategoryVerify)
+        categoryStrip.Controls.Add(btnCategoryScan)
+        categoryStrip.Controls.Add(btnCategoryUpload)
+        categoryStrip.Controls.Add(btnCategoryOptions)
+        categoryStrip.Controls.Add(btnCategoryHelp)
+        categoryStrip.FlowDirection = FlowDirection.LeftToRight
+        categoryStrip.Location = New Point(6, 23)
+        categoryStrip.Margin = New Padding(0)
+        categoryStrip.Name = "categoryStrip"
+        categoryStrip.Padding = New Padding(2)
+        categoryStrip.Size = New Size(872, 28)
+        categoryStrip.TabIndex = 0
+        categoryStrip.WrapContents = False
+        '
+        ' btnCategoryGrid
+        '
+        btnCategoryGrid.FlatStyle = FlatStyle.Flat
+        btnCategoryGrid.Margin = New Padding(3, 0, 3, 0)
+        btnCategoryGrid.Name = "btnCategoryGrid"
+        btnCategoryGrid.Size = New Size(62, 24)
+        btnCategoryGrid.TabIndex = 1
+        btnCategoryGrid.Text = "Grid"
+        btnCategoryGrid.UseVisualStyleBackColor = False
+
+        '
+        ' btnCategoryVerify
+        '
+        btnCategoryVerify.FlatStyle = FlatStyle.Flat
+        btnCategoryVerify.Margin = New Padding(3, 0, 3, 0)
+        btnCategoryVerify.Name = "btnCategoryVerify"
+        btnCategoryVerify.Size = New Size(62, 24)
+        btnCategoryVerify.TabIndex = 2
+        btnCategoryVerify.Text = "Verify"
+        btnCategoryVerify.UseVisualStyleBackColor = False
+
+        '
+        ' btnCategoryUpload
+        '
+        btnCategoryUpload.FlatStyle = FlatStyle.Flat
+        btnCategoryUpload.Margin = New Padding(3, 0, 3, 0)
+        btnCategoryUpload.Name = "btnCategoryUpload"
+        btnCategoryUpload.Size = New Size(62, 24)
+        btnCategoryUpload.TabIndex = 4
+        btnCategoryUpload.Text = "Upload"
+        btnCategoryUpload.UseVisualStyleBackColor = False
+
+        '
+        ' btnCategoryHelp
+        '
+        btnCategoryHelp.FlatStyle = FlatStyle.Flat
+        btnCategoryHelp.Margin = New Padding(3, 0, 3, 0)
+        btnCategoryHelp.Name = "btnCategoryHelp"
+        btnCategoryHelp.Size = New Size(62, 24)
+        btnCategoryHelp.TabIndex = 6
+        btnCategoryHelp.Text = "Help"
+        btnCategoryHelp.UseVisualStyleBackColor = False
+
+        '
+        ' btnCategoryFile
+        '
+        btnCategoryFile.FlatStyle = FlatStyle.Flat
+        btnCategoryFile.Location = New Point(5, 2)
+        btnCategoryFile.Margin = New Padding(3, 0, 3, 0)
+        btnCategoryFile.Name = "btnCategoryFile"
+        btnCategoryFile.Size = New Size(62, 24)
+        btnCategoryFile.TabIndex = 0
+        btnCategoryFile.Text = "File"
+        btnCategoryFile.UseVisualStyleBackColor = False
+
+        '
+        ' btnCategoryScan
+        '
+        btnCategoryScan.FlatStyle = FlatStyle.Flat
+        btnCategoryScan.Location = New Point(73, 2)
+        btnCategoryScan.Margin = New Padding(3, 0, 3, 0)
+        btnCategoryScan.Name = "btnCategoryScan"
+        btnCategoryScan.Size = New Size(62, 24)
+        btnCategoryScan.TabIndex = 3
+        btnCategoryScan.Text = "Scan"
+        btnCategoryScan.UseVisualStyleBackColor = False
+
+        '
+        ' btnCategoryOptions
+        '
+        btnCategoryOptions.FlatStyle = FlatStyle.Flat
+        btnCategoryOptions.Location = New Point(141, 2)
+        btnCategoryOptions.Margin = New Padding(3, 0, 3, 0)
+        btnCategoryOptions.Name = "btnCategoryOptions"
+        btnCategoryOptions.Size = New Size(70, 24)
+        btnCategoryOptions.TabIndex = 5
+        btnCategoryOptions.Text = "Options"
+        btnCategoryOptions.UseVisualStyleBackColor = False
+
+        '
+        ' commandStrip
+        '
+        commandStrip.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        commandStrip.Controls.Add(btnFileOpen)
+        commandStrip.Controls.Add(btnFileSave)
+        commandStrip.Controls.Add(btnFileSaveAs)
+        commandStrip.Controls.Add(btnFileClose)
+        commandStrip.Controls.Add(btnFileExit)
+        commandStrip.FlowDirection = FlowDirection.LeftToRight
+        commandStrip.Location = New Point(6, 53)
+        commandStrip.Margin = New Padding(0)
+        commandStrip.Name = "commandStrip"
+        commandStrip.Padding = New Padding(2)
+        commandStrip.Size = New Size(872, 34)
+        commandStrip.TabIndex = 1
+        commandStrip.WrapContents = False
+        '
+        ' btnFileOpen
+        '
+        btnFileOpen.Margin = New Padding(3, 0, 3, 0)
+        btnFileOpen.Name = "btnFileOpen"
+        btnFileOpen.Size = New Size(70, 28)
+        btnFileOpen.Text = "Open"
+        btnFileOpen.UseVisualStyleBackColor = False
+
+        '
+        ' btnFileSave
+        '
+        btnFileSave.Margin = New Padding(3, 0, 3, 0)
+        btnFileSave.Name = "btnFileSave"
+        btnFileSave.Size = New Size(70, 28)
+        btnFileSave.Text = "Save"
+        btnFileSave.UseVisualStyleBackColor = False
+
+        '
+        ' btnFileSaveAs
+        '
+        btnFileSaveAs.Margin = New Padding(3, 0, 3, 0)
+        btnFileSaveAs.Name = "btnFileSaveAs"
+        btnFileSaveAs.Size = New Size(70, 28)
+        btnFileSaveAs.Text = "Save As"
+        btnFileSaveAs.UseVisualStyleBackColor = False
+
+        '
+        ' btnFileClose
+        '
+        btnFileClose.Margin = New Padding(3, 0, 3, 0)
+        btnFileClose.Name = "btnFileClose"
+        btnFileClose.Size = New Size(70, 28)
+        btnFileClose.Text = "Close"
+        btnFileClose.UseVisualStyleBackColor = False
+
+        '
+        ' btnFileExit
+        '
+        btnFileExit.Margin = New Padding(3, 0, 3, 0)
+        btnFileExit.Name = "btnFileExit"
+        btnFileExit.Size = New Size(70, 28)
+        btnFileExit.Text = "Exit"
+        btnFileExit.UseVisualStyleBackColor = False
         ' 
         ' gridHostPanel
         ' 
@@ -140,6 +306,19 @@ Partial Class TranscriptionForm
     Friend WithEvents statusMessageLabel As ToolStripStatusLabel
     Friend WithEvents statusSpringLabel As ToolStripStatusLabel
     Friend WithEvents statusPositionLabel As ToolStripStatusLabel
-    Friend WithEvents btnOptionsTest As Button
+    Friend WithEvents categoryStrip As FlowLayoutPanel
+    Friend WithEvents commandStrip As FlowLayoutPanel
+    Friend WithEvents btnCategoryFile As Button
+    Friend WithEvents btnCategoryScan As Button
+    Friend WithEvents btnCategoryOptions As Button
+    Friend WithEvents btnCategoryGrid As Button
+    Friend WithEvents btnCategoryVerify As Button
+    Friend WithEvents btnCategoryUpload As Button
+    Friend WithEvents btnCategoryHelp As Button
+    Friend WithEvents btnFileOpen As Button
+    Friend WithEvents btnFileSave As Button
+    Friend WithEvents btnFileSaveAs As Button
+    Friend WithEvents btnFileClose As Button
+    Friend WithEvents btnFileExit As Button
 
 End Class

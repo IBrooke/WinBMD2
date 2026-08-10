@@ -10,8 +10,9 @@ Public NotInheritable Class LoadSaveFiles
     ' Loads a BMD file into ProjectValues and the transcription grid.
     ' Directives are not yet handled; they will be added later.
     Public Shared Function Load(
-        filePath As String,
-        grid As DataGridView) As Boolean
+    filePath As String,
+    grid As DataGridView,
+    configureGrid As Action) As Boolean
 
         If String.IsNullOrWhiteSpace(filePath) Then
             Return False
@@ -24,11 +25,11 @@ Public NotInheritable Class LoadSaveFiles
         Try
 
             Dim lines As List(Of String) =
-                ReadAllLines(filePath)
+            ReadAllLines(filePath)
 
             If lines.Count < 5 Then
                 Throw New InvalidDataException(
-                    "The file does not contain the required BMD header lines.")
+                "The file does not contain the required BMD header lines.")
             End If
 
             ValidateHeaderLines(lines)
@@ -39,17 +40,27 @@ Public NotInheritable Class LoadSaveFiles
             ParseSourceLine(lines(3))
             ParseOpeningPage(lines(4))
 
+            configureGrid()
+
             LoadGridRows(
                 lines,
                 grid,
                 firstDataLine:=5)
+
+            ProjectValues.BatchName =
+            Path.GetFileName(filePath)
+
+            ProjectValuesStore.Save()
+
+            DebugLog.WriteAlways(
+                $"[LOAD] File loaded: '{filePath}', Rows={grid.Rows.Count}")
 
             Return True
 
         Catch ex As Exception
 
             DebugLog.WriteAlways(
-        $"[SAVE] Failed to save '{filePath}': {ex}")
+            $"[LOAD] Failed to load '{filePath}': {ex}")
 
             Return False
 
@@ -91,10 +102,11 @@ Public NotInheritable Class LoadSaveFiles
 
             For rowIndex As Integer = 0 To lastDataRow
 
-                lines.Add(
-                    BuildDataLine(
-                        grid.Rows(rowIndex),
-                        fields))
+                Dim row As DataGridViewRow = grid.Rows(rowIndex)
+
+                lines.Add(BuildDataLine(row, fields))
+
+                AddRowDirectives(lines, row)
 
             Next
 
@@ -125,6 +137,30 @@ Public NotInheritable Class LoadSaveFiles
         End Try
 
     End Function
+    Private Shared Sub AddRowDirectives(
+    lines As List(Of String),
+    row As DataGridViewRow)
+
+        Dim directiveCell As DataGridViewCell =
+        row.Cells(GridField.Directive.ToString())
+
+        Dim directives As List(Of RowDirective) =
+        TryCast(
+            directiveCell.Tag,
+            List(Of RowDirective))
+
+        If directives Is Nothing Then
+            Return
+        End If
+
+        For Each directive As RowDirective In directives
+
+            lines.Add(
+            BuildDirectiveLine(directive))
+
+        Next
+
+    End Sub
     ' Returns only genuine transcription-data fields.
     ' Directive and Verified are grid-only columns and are not
     ' written as comma-separated data fields.
@@ -226,68 +262,96 @@ Public NotInheritable Class LoadSaveFiles
 
     End Function
     Private Shared Sub LoadGridRows(
-        lines As List(Of String),
-        grid As DataGridView,
-        firstDataLine As Integer)
+    lines As List(Of String),
+    grid As DataGridView,
+    firstDataLine As Integer)
 
         Dim fields() As GridField =
-            GetDataFields()
+        GetDataFields()
 
         grid.Rows.Clear()
+
+        Dim lastDataRowIndex As Integer = -1
 
         For lineIndex As Integer = firstDataLine To lines.Count - 1
 
             Dim line As String =
-                If(lines(lineIndex), "").TrimEnd()
+            If(lines(lineIndex), "").TrimEnd()
 
             If String.IsNullOrWhiteSpace(line) Then
                 Continue For
             End If
 
-            ' Directives will be handled separately later.
-            If line.StartsWith("+") OrElse
-               line.StartsWith("#") Then
+            If line.StartsWith("+") OrElse line.StartsWith("#") Then
+
+                If lastDataRowIndex >= 0 Then
+
+                    Dim directiveCell As DataGridViewCell =
+            grid.Rows(lastDataRowIndex).Cells(GridField.Directive.ToString())
+
+                    Dim directives As List(Of RowDirective) =
+            TryCast(directiveCell.Tag, List(Of RowDirective))
+
+                    If directives Is Nothing Then
+                        directives = New List(Of RowDirective)()
+                        directiveCell.Tag = directives
+                    End If
+
+                    directives.Add(
+            ParseDirectiveLine(
+                line,
+                lastDataRowIndex))
+
+                    directiveCell.Value =
+            $"+{directives.Count}"
+
+                End If
 
                 Continue For
+
             End If
 
             Dim values As List(Of String) =
-                SplitCsv(line)
+            SplitCsv(line)
 
             Dim rowIndex As Integer =
-                grid.Rows.Add()
+            grid.Rows.Add()
+
+            lastDataRowIndex = rowIndex
+
+            Dim row As DataGridViewRow =
+            grid.Rows(rowIndex)
+
+            row.Cells("RowNumber").Value =
+            rowIndex + 1
+
+            row.Cells(GridField.Directive.ToString()).Value = "+"
 
             For fieldIndex As Integer = 0 To fields.Length - 1
 
                 Dim columnIndex As Integer =
-                    FindGridColumn(
-                        grid,
-                        fields(fieldIndex))
+                FindGridColumn(
+                    grid,
+                    fields(fieldIndex))
 
                 If columnIndex < 0 Then
                     Continue For
                 End If
 
                 Dim value As String =
-                    If(
-                        fieldIndex < values.Count,
-                        values(fieldIndex),
-                        "")
+                If(
+                    fieldIndex < values.Count,
+                    values(fieldIndex),
+                    "")
 
-                grid.Rows(rowIndex).
-                    Cells(columnIndex).
-                    Value = value
+                row.Cells(columnIndex).Value =
+                value
 
             Next
 
         Next
 
-        If grid.Rows.Count = 0 Then
-            grid.Rows.Add()
-        End If
-
     End Sub
-
 
     Private Shared Function BuildDataLine(
         row As DataGridViewRow,
@@ -324,8 +388,73 @@ Public NotInheritable Class LoadSaveFiles
             values)
 
     End Function
+    Private Shared Function ParseDirectiveLine(
+    line As String,
+    rowIndex As Integer) As RowDirective
 
+        Dim directive As New RowDirective With {
+        .RowIndex = rowIndex
+    }
 
+        If line.StartsWith("+PAGE,", StringComparison.OrdinalIgnoreCase) Then
+
+            directive.DirectiveType = "+PAGE"
+            directive.Text = line.Substring("+PAGE,".Length).Trim()
+
+        ElseIf line.Equals("+BREAK", StringComparison.OrdinalIgnoreCase) Then
+
+            directive.DirectiveType = "+BREAK"
+
+        ElseIf line.StartsWith("#THEORY,REF,", StringComparison.OrdinalIgnoreCase) Then
+
+            directive.DirectiveType = "#THEORY,REF"
+            directive.Text = line.Substring("#THEORY,REF,".Length).Trim()
+
+        ElseIf line.StartsWith("#COMMENT", StringComparison.OrdinalIgnoreCase) Then
+
+            directive.DirectiveType = "#COMMENT"
+            directive.Text = ExtractDirectiveText(line, "#COMMENT")
+
+        ElseIf line.StartsWith("#THEORY", StringComparison.OrdinalIgnoreCase) Then
+
+            directive.DirectiveType = "#THEORY"
+            directive.Text = ExtractDirectiveText(line, "#THEORY")
+
+        ElseIf line.StartsWith("#", StringComparison.OrdinalIgnoreCase) Then
+
+            directive.DirectiveType = "#"
+
+            If line.Length > 1 Then
+                directive.Text = line.Substring(1).TrimStart()
+            End If
+
+        Else
+
+            directive.DirectiveType = line.Trim()
+
+        End If
+
+        Return directive
+
+    End Function
+    Private Shared Function ExtractDirectiveText(
+    line As String,
+    directivePrefix As String) As String
+
+        If line.Length <= directivePrefix.Length Then
+            Return ""
+        End If
+
+        Dim remainder As String =
+        line.Substring(directivePrefix.Length)
+
+        If remainder.StartsWith(",") Then
+            remainder = remainder.Substring(1)
+        End If
+
+        Return remainder.TrimStart()
+
+    End Function
     Private Shared Function FindLastNonEmptyRow(
         grid As DataGridView,
         fields() As GridField) As Integer
@@ -556,6 +685,22 @@ Public NotInheritable Class LoadSaveFiles
         End If
 
     End Sub
+    Private Shared Function BuildDirectiveLine(
+    directive As RowDirective) As String
+
+        Dim directiveType As String =
+        If(directive.DirectiveType, "").Trim()
+
+        Dim text As String =
+        If(directive.Text, "").Trim()
+
+        If String.IsNullOrWhiteSpace(text) Then
+            Return directiveType
+        End If
+
+        Return directiveType & "," & text
+
+    End Function
     Private Shared Function BuildInfoLine() As String
 
         Dim recordType As String

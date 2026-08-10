@@ -92,7 +92,7 @@ Public Module ProjectValues
     Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
     Public Property VerifyFontSize As Single = 12.0F
     Public Property ValidationMode As ValidationMode = ValidationMode.Entry
-
+    Public Property RecentFiles As New List(Of String)
 #End Region
 #Region "Entry"
 

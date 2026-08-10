@@ -1,4 +1,5 @@
-﻿Imports System.Net.Mail
+﻿Imports System.IO
+Imports System.Net.Mail
 Imports WinBMD2.My.Resources
 
 Public Class HeaderForm
@@ -9,6 +10,7 @@ Public Class HeaderForm
 
     Private ReadOnly _toolTip As New ToolTip()
     Private _loadingValues As Boolean
+    Private ReadOnly _openBatchMenu As New ContextMenuStrip()
 
     Public Sub New()
         InitializeComponent()
@@ -98,6 +100,7 @@ Public Class HeaderForm
         AddHandler showPasswordButton.Click, AddressOf ShowPasswordButton_Click
         AddHandler btnStart.Click, AddressOf btnStart_Click
         AddHandler btnCancel.Click, AddressOf btnCancel_Click
+        AddHandler openBatchButton.Click, AddressOf OpenBatchButton_Click
 
     End Sub
 
@@ -204,7 +207,123 @@ Public Class HeaderForm
             "When one credit field is entered, all three credit fields are required.")
 
     End Sub
+    Private Sub OpenBatchButton_Click(
+    sender As Object,
+    e As EventArgs)
 
+        BuildOpenBatchMenu()
+
+        _openBatchMenu.Show(
+        openBatchButton,
+        New Point(0, openBatchButton.Height))
+
+    End Sub
+    Private Sub BuildOpenBatchMenu()
+
+        _openBatchMenu.Items.Clear()
+
+        For Each filePath As String In ProjectValues.RecentFiles
+
+            If String.IsNullOrWhiteSpace(filePath) Then
+                Continue For
+            End If
+
+            Dim item As New ToolStripMenuItem(
+            Path.GetFileName(filePath))
+
+            item.Tag = filePath
+
+            AddHandler item.Click,
+            AddressOf RecentBatch_Click
+
+            _openBatchMenu.Items.Add(item)
+
+        Next
+
+        If _openBatchMenu.Items.Count > 0 Then
+            _openBatchMenu.Items.Add(
+            New ToolStripSeparator())
+        End If
+
+        Dim browseItem As New ToolStripMenuItem(
+        "Browse...")
+
+        AddHandler browseItem.Click,
+        AddressOf BrowseBatch_Click
+
+        _openBatchMenu.Items.Add(browseItem)
+
+    End Sub
+    Private Sub RecentBatch_Click(
+    sender As Object,
+    e As EventArgs)
+
+        Dim item As ToolStripMenuItem =
+        DirectCast(sender, ToolStripMenuItem)
+
+        Dim filePath As String =
+        DirectCast(item.Tag, String)
+
+        If Not File.Exists(filePath) Then
+
+            ProjectValues.RecentFiles.Remove(filePath)
+            ProjectValuesStore.Save()
+
+            MessageBox.Show(
+            Me,
+            "That file no longer exists and has been removed from the recent files list.",
+            "Open Batch",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information)
+
+            Return
+
+        End If
+
+        OpenExistingBatch(filePath)
+
+    End Sub
+    Private Sub BrowseBatch_Click(
+    sender As Object,
+    e As EventArgs)
+
+        Using dialog As New OpenFileDialog()
+
+            dialog.Filter =
+            "BMD Files (*.BMD)|*.BMD|All Files (*.*)|*.*"
+
+            dialog.Title =
+            "Open Existing Batch"
+
+            If dialog.ShowDialog(Me) <> DialogResult.OK Then
+                Return
+            End If
+
+            OpenExistingBatch(dialog.FileName)
+
+        End Using
+
+    End Sub
+    Private Sub OpenExistingBatch(
+    filePath As String)
+
+        If Not File.Exists(filePath) Then
+            Return
+        End If
+
+        ProjectValues.BatchName =
+        Path.GetFileName(filePath)
+
+        ProjectValuesStore.Save()
+
+        DialogResult =
+        DialogResult.OK
+
+        Tag = filePath
+
+        Close()
+
+    End Sub
     Private Sub LoadFromProjectValues()
 
         _loadingValues = True

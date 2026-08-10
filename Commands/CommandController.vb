@@ -1,4 +1,6 @@
-﻿Public NotInheritable Class CommandController
+﻿Imports System.IO
+
+Public NotInheritable Class CommandController
     Inherits ApplicationContext
     Implements ICommandExecutor
 
@@ -47,14 +49,51 @@
 
     End Sub
 
-    Private Sub HeaderForm_FormClosed(sender As Object, e As FormClosedEventArgs)
+    Private Sub HeaderForm_FormClosed(
+    sender As Object,
+    e As FormClosedEventArgs)
 
-        Dim headerForm As HeaderForm = DirectCast(sender, HeaderForm)
+        Dim headerForm As HeaderForm =
+        DirectCast(sender, HeaderForm)
 
         If headerForm.DialogResult <> DialogResult.OK Then
-            DebugLog.WriteAlways("[STARTUP] Header form cancelled.")
+
+            DebugLog.WriteAlways(
+            "[STARTUP] Header form cancelled.")
+
             ExitThread()
             Return
+
+        End If
+
+        Dim filePath As String = ""
+
+        If headerForm.Tag IsNot Nothing Then
+            filePath = headerForm.Tag.ToString()
+        End If
+
+        If Not String.IsNullOrWhiteSpace(filePath) Then
+
+            DebugLog.WriteAlways(
+            $"[STARTUP] Existing batch selected: '{filePath}'")
+
+            ShowTranscriptionForms()
+
+            If Not _transcriptionForm.LoadBatchFile(filePath) Then
+
+                MessageBox.Show(
+                "The selected batch could not be loaded.",
+                "Open Batch",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error)
+
+                ExitThread()
+                Return
+
+            End If
+
+            Return
+
         End If
 
         LogHeaderDetails()
@@ -138,7 +177,48 @@
                 ' To be connected to the real Open routine.
 
             Case AppCommand.SaveFile
-                ' To be connected to the real Save routine.
+
+                If _transcriptionForm Is Nothing Then
+                    Return
+                End If
+
+                If String.IsNullOrWhiteSpace(ProjectValues.BatchName) Then
+
+                    MessageBox.Show(
+                        "The batch name is not set.", "Save Batch",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning)
+
+                    Return
+
+                End If
+
+                Dim filePath As String =
+                    Path.Combine(
+                    AppPaths.OutputFolder,
+                    ProjectValues.BatchName)
+
+                If LoadSaveFiles.Save(
+                    filePath, _transcriptionForm.transcriptionGrid) Then
+
+                    DebugLog.WriteAlways($"[SAVE] File saved successfully: '{filePath}'")
+
+                    MessageBox.Show(
+                        "The batch has been saved.",
+                        "Save Batch",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information)
+
+                Else
+
+                    MessageBox.Show(
+                        "The batch could not be saved.",
+                        "Save Batch",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error)
+
+                End If
+
 
             Case AppCommand.SaveFileAs
                 ' To be connected to the real Save As routine.

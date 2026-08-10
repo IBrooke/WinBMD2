@@ -100,6 +100,11 @@ Public Module ProjectValuesStore
             If(
                 values.GridColumnWidths,
                 New Dictionary(Of String, Dictionary(Of String, Integer)))
+
+            ProjectValues.RecentFiles =
+            If(
+                values.RecentFiles,
+                New List(Of String))
         Catch ex As Exception
             Save()
         End Try
@@ -149,7 +154,8 @@ Public Module ProjectValuesStore
                 .SequenceType = ProjectValues.SequenceType,
                 .BatchName = ProjectValues.BatchName,
                 .Created = ProjectValues.Created,
-                .DateModified = ProjectValues.DateModified
+                .DateModified = ProjectValues.DateModified,
+                .RecentFiles = ProjectValues.RecentFiles
             }
 
             Dim options As New JsonSerializerOptions With {
@@ -207,6 +213,7 @@ Public Module ProjectValuesStore
         Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size
         Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
         Public Property VerifyFontSize As Single = 12.0F
+        Public Property RecentFiles As New List(Of String)
     End Class
 
 End Module
