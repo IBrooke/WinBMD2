@@ -50,6 +50,20 @@ Public NotInheritable Class LoadSaveFiles
             ProjectValues.BatchName =
             Path.GetFileName(filePath)
 
+            ProjectValues.RecentFiles.RemoveAll(
+                Function(path)
+                    Return String.Equals(
+                        path,
+                        filePath,
+                        StringComparison.OrdinalIgnoreCase)
+                End Function)
+
+            ProjectValues.RecentFiles.Insert(0, filePath)
+
+            While ProjectValues.RecentFiles.Count > 10
+                ProjectValues.RecentFiles.RemoveAt(ProjectValues.RecentFiles.Count - 1)
+            End While
+
             ProjectValuesStore.Save()
 
             DebugLog.WriteAlways(
@@ -352,7 +366,6 @@ Public NotInheritable Class LoadSaveFiles
         Next
 
     End Sub
-
     Private Shared Function BuildDataLine(
         row As DataGridViewRow,
         fields() As GridField) As String
@@ -369,17 +382,10 @@ Public NotInheritable Class LoadSaveFiles
             Dim value As String = ""
 
             If columnIndex >= 0 Then
-
-                value =
-                    If(
-                        row.Cells(columnIndex).Value,
-                        "").
-                    ToString()
-
+                value = If(row.Cells(columnIndex).Value, "").ToString().Trim()
             End If
 
-            values.Add(
-                ReQuote(value))
+            values.Add(ReQuote(value))
 
         Next
 
@@ -662,26 +668,27 @@ Public NotInheritable Class LoadSaveFiles
         End If
 
     End Sub
-
-
     Private Shared Sub ParseOpeningPage(line As String)
 
-        Dim parts As List(Of String) =
-            SplitCsv(line)
+        Dim parts As List(Of String) = SplitCsv(line)
 
         If parts.Count < 2 Then
             Return
         End If
 
+        Dim pageText As String = parts(1).Trim()
+
+        Dim pageNumberText As String =
+        New String(pageText.TakeWhile(Function(ch) Char.IsDigit(ch)).ToArray())
+
+        Dim suffix As String =
+        pageText.Substring(pageNumberText.Length).Trim()
+
         Dim page As Integer
 
-        If Integer.TryParse(
-            parts(1),
-            page) Then
-
-            ProjectValues.Page =
-                page
-
+        If Integer.TryParse(pageNumberText, page) Then
+            ProjectValues.Page = page
+            ProjectValues.PageSuffix = suffix
         End If
 
     End Sub

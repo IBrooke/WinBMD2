@@ -96,6 +96,36 @@ Public NotInheritable Class CommandController
 
         End If
 
+        Dim currentFilePath As String = ""
+
+        If Not String.IsNullOrWhiteSpace(ProjectValues.BatchName) Then
+            currentFilePath = Path.Combine(AppPaths.OutputFolder, ProjectValues.BatchName)
+        End If
+
+        If Not String.IsNullOrWhiteSpace(currentFilePath) AndAlso File.Exists(currentFilePath) Then
+
+            DebugLog.WriteAlways(
+            $"[STARTUP] Continuing current batch: '{currentFilePath}'")
+
+            ShowTranscriptionForms()
+
+            If Not _transcriptionForm.LoadBatchFile(currentFilePath) Then
+
+                MessageBox.Show(
+                "The current batch could not be loaded.",
+                "Open Batch",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error)
+
+                ExitThread()
+                Return
+
+            End If
+
+            Return
+
+        End If
+
         LogHeaderDetails()
         LogVisibleGridFields()
 
@@ -174,7 +204,38 @@ Public NotInheritable Class CommandController
         Select Case command
 
             Case AppCommand.OpenFile
-                ' To be connected to the real Open routine.
+
+                If _transcriptionForm Is Nothing Then
+                    Return
+                End If
+
+                If Not _transcriptionForm.ConfirmSaveChangesIfNeeded() Then
+                    Return
+                End If
+
+                Using dialog As New OpenFileDialog()
+
+                    dialog.Filter = "BMD Files (*.BMD)|*.BMD|All Files (*.*)|*.*"
+                    dialog.Title = "Open Batch"
+                    dialog.InitialDirectory = AppPaths.OutputFolder
+
+                    If dialog.ShowDialog(_transcriptionForm) <> DialogResult.OK Then
+                        Return
+                    End If
+
+                    If Not _transcriptionForm.LoadBatchFile(dialog.FileName) Then
+
+                        MessageBox.Show(
+                            "The selected batch could not be loaded.",
+                            "Open Batch",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+
+                        Return
+
+                    End If
+
+                End Using
 
             Case AppCommand.SaveFile
 
@@ -198,13 +259,12 @@ Public NotInheritable Class CommandController
                     AppPaths.OutputFolder,
                     ProjectValues.BatchName)
 
-                If LoadSaveFiles.Save(
-                    filePath, _transcriptionForm.transcriptionGrid) Then
+                If _transcriptionForm.SaveCurrentBatch(filePath) Then
 
                     DebugLog.WriteAlways($"[SAVE] File saved successfully: '{filePath}'")
 
                     MessageBox.Show(
-                        "The batch has been saved.",
+                        $"{ProjectValues.BatchName} has been saved.",
                         "Save Batch",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information)
@@ -212,7 +272,7 @@ Public NotInheritable Class CommandController
                 Else
 
                     MessageBox.Show(
-                        "The batch could not be saved.",
+                        $"{ProjectValues.BatchName} could not be saved.",
                         "Save Batch",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Error)
@@ -221,10 +281,47 @@ Public NotInheritable Class CommandController
 
 
             Case AppCommand.SaveFileAs
-                ' To be connected to the real Save As routine.
 
-            Case AppCommand.CloseFile
-                ' To be connected later.
+                If _transcriptionForm Is Nothing Then
+                    Return
+                End If
+
+                Using dialog As New SaveFileDialog()
+
+                    dialog.Title = "Save Batch As"
+                    dialog.Filter = "BMD files (*.BMD)|*.BMD|All files (*.*)|*.*"
+                    dialog.DefaultExt = "BMD"
+                    dialog.AddExtension = True
+                    dialog.FileName = ProjectValues.BatchName
+
+                    If dialog.ShowDialog(_transcriptionForm) <> DialogResult.OK Then
+                        Return
+                    End If
+
+                    If _transcriptionForm.SaveCurrentBatch(dialog.FileName) Then
+
+                        ProjectValues.BatchName = Path.GetFileName(dialog.FileName)
+                        ProjectValuesStore.Save()
+
+                        _transcriptionForm.UpdateStatusPosition()
+
+                        MessageBox.Show(
+                            $"{ProjectValues.BatchName} has been saved.",
+                            "Save Batch As",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information)
+
+                    Else
+
+                        MessageBox.Show(
+                            "The batch could not be saved.",
+                            "Save Batch As",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error)
+
+                    End If
+
+                End Using
 
             Case AppCommand.ExitApplication
                 ExitThread()

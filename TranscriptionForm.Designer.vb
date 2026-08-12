@@ -28,13 +28,11 @@ Partial Class TranscriptionForm
         btnFileOpen = New Button()
         btnFileSave = New Button()
         btnFileSaveAs = New Button()
-        btnFileClose = New Button()
         btnFileExit = New Button()
         btnCategoryFile = New Button()
         btnCategoryScan = New Button()
-        btnCategoryOptions = New Button()
-        btnCategoryGrid = New Button()
         btnCategoryVerify = New Button()
+        btnCategoryOptions = New Button()
         btnCategoryUpload = New Button()
         btnCategoryHelp = New Button()
         gridHostPanel = New Panel()
@@ -66,9 +64,8 @@ Partial Class TranscriptionForm
         '
         categoryStrip.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         categoryStrip.Controls.Add(btnCategoryFile)
-        categoryStrip.Controls.Add(btnCategoryGrid)
-        categoryStrip.Controls.Add(btnCategoryVerify)
         categoryStrip.Controls.Add(btnCategoryScan)
+        categoryStrip.Controls.Add(btnCategoryVerify)
         categoryStrip.Controls.Add(btnCategoryUpload)
         categoryStrip.Controls.Add(btnCategoryOptions)
         categoryStrip.Controls.Add(btnCategoryHelp)
@@ -80,17 +77,6 @@ Partial Class TranscriptionForm
         categoryStrip.Size = New Size(872, 28)
         categoryStrip.TabIndex = 0
         categoryStrip.WrapContents = False
-        '
-        ' btnCategoryGrid
-        '
-        btnCategoryGrid.FlatStyle = FlatStyle.Flat
-        btnCategoryGrid.Margin = New Padding(3, 0, 3, 0)
-        btnCategoryGrid.Name = "btnCategoryGrid"
-        btnCategoryGrid.Size = New Size(62, 24)
-        btnCategoryGrid.TabIndex = 1
-        btnCategoryGrid.Text = "Grid"
-        btnCategoryGrid.UseVisualStyleBackColor = False
-
         '
         ' btnCategoryVerify
         '
@@ -167,7 +153,6 @@ Partial Class TranscriptionForm
         commandStrip.Controls.Add(btnFileOpen)
         commandStrip.Controls.Add(btnFileSave)
         commandStrip.Controls.Add(btnFileSaveAs)
-        commandStrip.Controls.Add(btnFileClose)
         commandStrip.Controls.Add(btnFileExit)
         commandStrip.FlowDirection = FlowDirection.LeftToRight
         commandStrip.Location = New Point(6, 53)
@@ -203,16 +188,6 @@ Partial Class TranscriptionForm
         btnFileSaveAs.Size = New Size(70, 28)
         btnFileSaveAs.Text = "Save As"
         btnFileSaveAs.UseVisualStyleBackColor = False
-
-        '
-        ' btnFileClose
-        '
-        btnFileClose.Margin = New Padding(3, 0, 3, 0)
-        btnFileClose.Name = "btnFileClose"
-        btnFileClose.Size = New Size(70, 28)
-        btnFileClose.Text = "Close"
-        btnFileClose.UseVisualStyleBackColor = False
-
         '
         ' btnFileExit
         '
@@ -311,14 +286,12 @@ Partial Class TranscriptionForm
     Friend WithEvents btnCategoryFile As Button
     Friend WithEvents btnCategoryScan As Button
     Friend WithEvents btnCategoryOptions As Button
-    Friend WithEvents btnCategoryGrid As Button
     Friend WithEvents btnCategoryVerify As Button
     Friend WithEvents btnCategoryUpload As Button
     Friend WithEvents btnCategoryHelp As Button
     Friend WithEvents btnFileOpen As Button
     Friend WithEvents btnFileSave As Button
     Friend WithEvents btnFileSaveAs As Button
-    Friend WithEvents btnFileClose As Button
     Friend WithEvents btnFileExit As Button
 
 End Class

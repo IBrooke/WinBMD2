@@ -1,4 +1,5 @@
-﻿Imports WinBMD2.My.Resources
+﻿Imports System.IO
+Imports WinBMD2.My.Resources
 
 Public Class TranscriptionForm
 
@@ -10,6 +11,7 @@ Public Class TranscriptionForm
     Private ReadOnly _navigationManager As NavigationManager
     Private ReadOnly _statusQueue As New Queue(Of (Message As String, Duration As Integer))
     Private ReadOnly _statusTimer As New Timer()
+    Private ReadOnly _openFileMenu As New ContextMenuStrip()
     Private _statusMessageShowing As Boolean
     Private _baseStatusText As String = "Ready"
     ' Stores the latest validation result for each grid cell.
@@ -18,7 +20,7 @@ Public Class TranscriptionForm
     ' Stores the overall validation state for each row.
     Private ReadOnly _rowValidationStates As New Dictionary(Of Integer, ValidationState)
     Private ReadOnly _validationToolTip As New ToolTip()
-    Private _selectedCommandCategory As String = "File"
+    Private _selectedCommandCategory As String = ""
 
     Public Sub New(commandExecutor As ICommandExecutor)
 
@@ -83,8 +85,19 @@ Public Class TranscriptionForm
         btnFileOpen.Visible = False
         btnFileSave.Visible = False
         btnFileSaveAs.Visible = False
-        btnFileClose.Visible = False
         btnFileExit.Visible = False
+
+        If String.IsNullOrWhiteSpace(_selectedCommandCategory) Then
+
+            commandStrip.Visible = False
+            filePanel.Height = 53
+
+            Return
+
+        End If
+
+        commandStrip.Visible = True
+        filePanel.Height = 92
 
         Select Case _selectedCommandCategory
 
@@ -93,7 +106,6 @@ Public Class TranscriptionForm
                 btnFileOpen.Visible = True
                 btnFileSave.Visible = True
                 btnFileSaveAs.Visible = True
-                btnFileClose.Visible = True
                 btnFileExit.Visible = True
 
         End Select
@@ -125,12 +137,66 @@ Public Class TranscriptionForm
             Next
 
             _hasChanges = False
-
+            ProjectValuesStore.Save()
+            UpdateStatusPosition()
             Return True
 
         Finally
             _refreshingGrid = False
         End Try
+
+    End Function
+    Friend ReadOnly Property HasChanges As Boolean
+        Get
+            Return _hasChanges
+        End Get
+    End Property
+    Friend Sub ClearChanges()
+        _hasChanges = False
+    End Sub
+    Friend Function SaveCurrentBatch(filePath As String) As Boolean
+
+        If Not LoadSaveFiles.Save(filePath, transcriptionGrid) Then
+            Return False
+        End If
+
+        ClearChanges()
+
+        Return True
+
+    End Function
+    Friend Function ConfirmSaveChangesIfNeeded() As Boolean
+
+        If Not _hasChanges Then
+            Return True
+        End If
+
+        _pickListPopup.Hide()
+
+        Dim result As DialogResult =
+        MessageBox.Show(
+            Me,
+            $"{ProjectValues.BatchName} has unsaved changes." &
+            Environment.NewLine &
+            Environment.NewLine &
+            "Do you want to save them?",
+            "Unsaved Changes",
+            MessageBoxButtons.YesNoCancel,
+            MessageBoxIcon.Warning)
+
+        Select Case result
+
+            Case DialogResult.Yes
+                _commandExecutor.Execute(AppCommand.SaveFile)
+                Return Not _hasChanges
+
+            Case DialogResult.No
+                Return True
+
+            Case Else
+                Return False
+
+        End Select
 
     End Function
     ' Sets the normal status text shown whenever there is no
@@ -282,7 +348,7 @@ Public Class TranscriptionForm
         ShowDirectiveEditor(e.RowIndex)
 
     End Sub
-    Private Sub CommandCategory_Click(sender As Object, e As EventArgs) Handles btnCategoryFile.Click, btnCategoryGrid.Click, btnCategoryVerify.Click, btnCategoryScan.Click, btnCategoryUpload.Click, btnCategoryOptions.Click, btnCategoryHelp.Click
+    Private Sub CommandCategory_Click(sender As Object, e As EventArgs) Handles btnCategoryFile.Click, btnCategoryScan.Click, btnCategoryVerify.Click, btnCategoryUpload.Click, btnCategoryOptions.Click, btnCategoryHelp.Click
 
         Dim button As Button = TryCast(sender, Button)
 
@@ -306,14 +372,105 @@ Public Class TranscriptionForm
 
         End If
 
-        _selectedCommandCategory = button.Text
-
-        If Not filePanel.Expanded Then
-            filePanel.Expanded = True
+        If _selectedCommandCategory = button.Text Then
+            _selectedCommandCategory = ""
+        Else
+            _selectedCommandCategory = button.Text
         End If
 
         UpdateCommandCategoryAppearance()
         UpdateCommandStrip()
+
+    End Sub
+    Private Sub btnFileOpen_Click(sender As Object, e As EventArgs) Handles btnFileOpen.Click
+
+        BuildOpenFileMenu()
+
+        _openFileMenu.Show(
+        btnFileOpen,
+        New Point(0, btnFileOpen.Height))
+
+    End Sub
+    Private Sub BrowseFile_Click(sender As Object, e As EventArgs)
+
+        _commandExecutor.Execute(AppCommand.OpenFile)
+
+    End Sub
+    Private Sub btnFileSave_Click(sender As Object, e As EventArgs) Handles btnFileSave.Click
+
+        _commandExecutor.Execute(AppCommand.SaveFile)
+
+    End Sub
+    Private Sub btnFileSaveAs_Click(sender As Object, e As EventArgs) Handles btnFileSaveAs.Click
+
+        _commandExecutor.Execute(AppCommand.SaveFileAs)
+
+    End Sub
+    Private Sub btnFileExit_Click(sender As Object, e As EventArgs) Handles btnFileExit.Click
+
+        Close()
+
+    End Sub
+    Private Sub BuildOpenFileMenu()
+
+        _openFileMenu.Items.Clear()
+
+        For Each filePath As String In ProjectValues.RecentFiles
+
+            If String.IsNullOrWhiteSpace(filePath) Then
+                Continue For
+            End If
+
+            Dim item As New ToolStripMenuItem(Path.GetFileName(filePath))
+
+            item.Tag = filePath
+
+            AddHandler item.Click, AddressOf RecentFile_Click
+
+            _openFileMenu.Items.Add(item)
+
+        Next
+
+        If _openFileMenu.Items.Count > 0 Then
+            _openFileMenu.Items.Add(New ToolStripSeparator())
+        End If
+
+        Dim browseItem As New ToolStripMenuItem("Browse...")
+
+        AddHandler browseItem.Click, AddressOf BrowseFile_Click
+
+        _openFileMenu.Items.Add(browseItem)
+
+    End Sub
+    Private Sub RecentFile_Click(sender As Object, e As EventArgs)
+
+        Dim item As ToolStripMenuItem =
+        DirectCast(sender, ToolStripMenuItem)
+
+        Dim filePath As String =
+        DirectCast(item.Tag, String)
+
+        If Not File.Exists(filePath) Then
+
+            ProjectValues.RecentFiles.Remove(filePath)
+            ProjectValuesStore.Save()
+
+            MessageBox.Show(
+            Me,
+            "That file no longer exists and has been removed from the recent files list.",
+            "Open Batch",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information)
+
+            Return
+
+        End If
+
+        If Not ConfirmSaveChangesIfNeeded() Then
+            Return
+        End If
+
+        LoadBatchFile(filePath)
 
     End Sub
     Private Sub UpdateCommandCategoryAppearance()
@@ -812,7 +969,7 @@ Public Class TranscriptionForm
     ' becomes the text that will be restored when that message ends.
     ' Updates the row and column position shown at the
     ' right-hand side of the status bar.
-    Private Sub UpdateStatusPosition()
+    Friend Sub UpdateStatusPosition()
 
         If transcriptionGrid.CurrentCell Is Nothing Then
             statusPositionLabel.Text = ""
@@ -828,12 +985,12 @@ Public Class TranscriptionForm
 
         If column.Name = "RowNumber" Then
             statusPositionLabel.Text =
-            $"Row {rowNumber}"
+                $"{ProjectValues.BatchName}    Row {rowNumber}"
             Return
         End If
 
         statusPositionLabel.Text =
-        $"Row {rowNumber}, {column.HeaderText}"
+$"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
     End Sub
     ' Shows the validation message when the mouse is over the
@@ -2449,6 +2606,11 @@ Public Class TranscriptionForm
     Private Sub TranscriptionForm_FormClosing(
     sender As Object,
     e As FormClosingEventArgs) Handles Me.FormClosing
+
+        If Not ConfirmSaveChangesIfNeeded() Then
+            e.Cancel = True
+            Return
+        End If
 
         _pickListPopup.Dispose()
         SaveFormBounds()
