@@ -1,5 +1,6 @@
 ﻿Imports System.Collections.Generic
 Imports System.Drawing
+Imports System.Reflection
 Public Module ProjectValues
 
 #Region "Command Panels"
@@ -21,7 +22,10 @@ Public Module ProjectValues
     Public Property ScanViewWidth As Integer = 900
     Public Property ScanViewHeight As Integer = 650
     Public Property ScanViewMaximized As Boolean
-
+    Public Property AutoShowScan As Boolean = True
+    Public Property AutoShowRuler As Boolean = True
+    Public Property ScanViewSettings As New Dictionary(Of String, ScanViewData)
+    Public Property RulerSettings As New Dictionary(Of String, RulerData)
 #End Region
 
 #Region "Header Form"
@@ -100,4 +104,125 @@ Public Module ProjectValues
     Public Property IgnoreAaD As Boolean = False
 
 #End Region
+    Public Sub WriteToDebugLog()
+
+        DebugLog.WriteAlways("======= PROJECT VALUES =======")
+
+        Dim properties() As PropertyInfo =
+        GetType(ProjectValues).
+        GetProperties(BindingFlags.Public Or BindingFlags.Static).
+        OrderBy(Function(item) item.Name).
+        ToArray()
+
+        For Each propertyInfo As PropertyInfo In properties
+
+            Dim propertyName As String = propertyInfo.Name
+
+            If propertyName.Equals(NameOf(UserPW), StringComparison.OrdinalIgnoreCase) Then
+                DebugLog.WriteAlways($"{propertyName,-24}: [not logged]")
+                Continue For
+            End If
+
+            Dim value As Object = propertyInfo.GetValue(Nothing)
+
+            If value Is Nothing Then
+                DebugLog.WriteAlways($"{propertyName,-24}: <Nothing>")
+                Continue For
+            End If
+
+            Dim dictionary As System.Collections.IDictionary =
+            TryCast(value, System.Collections.IDictionary)
+
+            If dictionary IsNot Nothing Then
+
+                DebugLog.WriteAlways($"{propertyName,-24}:")
+
+                Dim keys =
+                dictionary.Keys.
+                Cast(Of Object)().
+                OrderBy(Function(item) item.ToString()).
+                ToArray()
+
+                For Each key As Object In keys
+
+                    Dim itemValue As Object = dictionary(key)
+
+                    Dim nestedDictionary As System.Collections.IDictionary =
+                    TryCast(itemValue, System.Collections.IDictionary)
+
+                    If nestedDictionary IsNot Nothing Then
+
+                        Dim nestedValues =
+                            nestedDictionary.Keys.
+                            Cast(Of Object)().
+                            OrderBy(Function(item) item.ToString()).
+                            Select(Function(item) $"{item}={nestedDictionary(item)}")
+
+                        DebugLog.WriteAlways(
+                            $"    {key} : {String.Join(", ", nestedValues)}")
+
+                    Else
+
+                        Dim itemType As Type =
+    itemValue.GetType()
+
+                        Dim itemProperties() As PropertyInfo =
+    itemType.
+    GetProperties(BindingFlags.Public Or BindingFlags.Instance).
+    Where(Function(item) item.CanRead).
+    OrderBy(Function(item) item.Name).
+    ToArray()
+
+                        If itemProperties.Length > 0 AndAlso
+   itemType IsNot GetType(String) AndAlso
+   Not itemType.IsPrimitive AndAlso
+   Not itemType.IsEnum Then
+
+                            Dim values =
+        itemProperties.
+        Select(
+            Function(item)
+                Dim propertyValue As Object = item.GetValue(itemValue)
+
+                Return $"{item.Name}={propertyValue}"
+            End Function)
+
+                            DebugLog.WriteAlways($"    {key} : {String.Join(", ", values)}")
+
+                        Else
+
+                            DebugLog.WriteAlways($"    {key} = {itemValue}")
+
+                        End If
+
+                    End If
+
+                Next
+
+                Continue For
+
+            End If
+
+            Dim collection As System.Collections.ICollection =
+            TryCast(value, System.Collections.ICollection)
+
+            If collection IsNot Nothing AndAlso Not TypeOf value Is String Then
+
+                DebugLog.WriteAlways($"{propertyName,-24}:")
+
+                For Each item As Object In collection
+                    DebugLog.WriteAlways($"    {item}")
+                Next
+
+                Continue For
+
+            End If
+
+            DebugLog.WriteAlways($"{propertyName,-24}: {value}")
+
+        Next
+
+        DebugLog.WriteAlways("==============================")
+
+    End Sub
 End Module

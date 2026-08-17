@@ -1,5 +1,6 @@
 ﻿Imports System.IO
 Imports System.Net.Mail
+Imports System.Linq
 Imports WinBMD2.My.Resources
 
 Public Class HeaderForm
@@ -11,8 +12,12 @@ Public Class HeaderForm
     Private ReadOnly _toolTip As New ToolTip()
     Private _loadingValues As Boolean
     Private ReadOnly _openBatchMenu As New ContextMenuStrip()
+    Private ReadOnly _editMode As Boolean
 
-    Public Sub New()
+    Public Sub New(Optional editMode As Boolean = False)
+
+        _editMode = editMode
+
         InitializeComponent()
         RestoreFormBounds()
 
@@ -32,6 +37,9 @@ Public Class HeaderForm
 
         Icon = WinBMDResources.WinBMD2Icon
         Text = "WinBMD2 Header"
+        If _editMode Then
+            Text = "WinBMD2 - Edit Header"
+        End If
 
         ConfigureControls()
         ConfigureToolTips()
@@ -101,6 +109,7 @@ Public Class HeaderForm
         AddHandler btnStart.Click, AddressOf btnStart_Click
         AddHandler btnCancel.Click, AddressOf btnCancel_Click
         AddHandler openBatchButton.Click, AddressOf OpenBatchButton_Click
+        AddHandler optionsButton.Click, AddressOf optionsButton_Click
 
     End Sub
 
@@ -218,6 +227,19 @@ Public Class HeaderForm
         New Point(0, openBatchButton.Height))
 
     End Sub
+    Private Sub optionsButton_Click(
+    sender As Object,
+    e As EventArgs)
+
+        Using form As New OptionsForm()
+
+            If form.ShowDialog(Me) = DialogResult.OK Then
+                ThemeManager.Apply(Me)
+            End If
+
+        End Using
+
+    End Sub
     Private Sub BuildOpenBatchMenu()
 
         _openBatchMenu.Items.Clear()
@@ -294,6 +316,9 @@ Public Class HeaderForm
 
             dialog.Title =
             "Open Existing Batch"
+
+            dialog.InitialDirectory =
+            AppPaths.OutputFolder
 
             If dialog.ShowDialog(Me) <> DialogResult.OK Then
                 Return
@@ -568,8 +593,7 @@ Public Class HeaderForm
             validationSummaryLabel.Text =
                 "Ready to start transcribing."
 
-            btnStart.Text =
-                "Start batch"
+            btnStart.Text = If(_editMode, "Save changes", "Start batch")
         Else
             validationSummaryLabel.ForeColor =
                 Color.FromArgb(130, 75, 20)
@@ -578,14 +602,47 @@ Public Class HeaderForm
                 "Still required: " &
                 String.Join(", ", problems)
 
-            btnStart.Text =
-                "Start batch"
+            btnStart.Text = If(_editMode, "Save changes", "Start batch")
         End If
 
         ApplyRequiredFieldColours(problems)
 
     End Sub
+    Private Function ProposedHeaderChangesGridLayout() As Boolean
 
+        Dim oldFields() As GridField =
+        GridLayout.GetVisibleFields(
+            ProjectValues.BatchType,
+            ProjectValues.Year,
+            ProjectValues.Quarter)
+
+        Dim proposedBatchType As String =
+        GetSelectedBatchType()
+
+        Dim proposedYear As Integer
+
+        If Not Integer.TryParse(
+        yearTextBox.Text.Trim(),
+        proposedYear) Then
+
+            Return True
+        End If
+
+        Dim proposedQuarter As Integer =
+        If(
+            quarterComboBox.SelectedIndex >= 0,
+            quarterComboBox.SelectedIndex + 1,
+            0)
+
+        Dim newFields() As GridField =
+        GridLayout.GetVisibleFields(
+            proposedBatchType,
+            proposedYear,
+            proposedQuarter)
+        'Return Not oldFields.SequenceEqual(newFields)
+        Return oldFields.Length <> newFields.Length
+
+    End Function
     Private Sub ValidateIdentityFields(
         problems As List(Of String))
 
@@ -970,39 +1027,50 @@ Public Class HeaderForm
     $"PageSuffix='{ProjectValues.PageSuffix}'")
 
     End Sub
-    Private Shared Function BuildBatchName() As String
+    Private Function BuildBatchName() As String
+
+        Dim year As Integer
+        Integer.TryParse(yearTextBox.Text.Trim(), year)
+
+        Dim quarter As Integer =
+        If(
+            quarterComboBox.SelectedIndex >= 0,
+            quarterComboBox.SelectedIndex + 1,
+            0)
+
+        Dim batchType As String =
+        GetSelectedBatchType()
+
+        Dim page As Integer
+        Integer.TryParse(pageTextBox.Text.Trim(), page)
 
         Dim quarterPart As String =
         If(
-            ProjectValues.Year >= FirstYearWithoutQuarters,
+            year >= FirstYearWithoutQuarters,
             "",
             If(
-                ProjectValues.Quarter > 0,
-                ProjectValues.Quarter.ToString(),
+                quarter > 0,
+                quarter.ToString(),
                 ""))
 
         Dim pageText As String =
-        ProjectValues.Page.ToString("0000")
+        page.ToString("0000")
 
         Dim pageLetter As String =
-        If(ProjectValues.PageLetter, "").
-        Trim().
-        ToUpperInvariant()
+        pageLetterTextBox.Text.Trim().ToUpperInvariant()
 
         If pageLetter.Length > 1 Then
             pageLetter = pageLetter.Substring(0, 1)
         End If
 
         Dim suffix As String =
-        If(ProjectValues.PageSuffix, "").
-        Trim().
-        ToUpperInvariant()
+        suffixTextBox.Text.Trim().ToUpperInvariant()
 
         If suffix.Length > 1 Then
             suffix = suffix.Substring(0, 1)
         End If
 
-        Return $"{ProjectValues.Year:0000}{ProjectValues.BatchType}{quarterPart}{pageLetter}{pageText}{suffix}.BMD"
+        Return $"{year:0000}{batchType}{quarterPart}{pageLetter}{pageText}{suffix}.BMD"
 
     End Function
     Private Sub ShowPasswordButton_Click(
@@ -1015,8 +1083,8 @@ Public Class HeaderForm
     End Sub
 
     Private Sub btnStart_Click(
-        sender As Object,
-        e As EventArgs)
+    sender As Object,
+    e As EventArgs)
 
         ValidateForm()
 
@@ -1024,15 +1092,76 @@ Public Class HeaderForm
             Return
         End If
 
+        If _editMode Then
+
+            If Not ValidateHeaderEdit() Then
+                Return
+            End If
+
+        End If
+
         SaveToProjectValues()
 
         DialogResult =
-            DialogResult.OK
+        DialogResult.OK
 
         Close()
 
     End Sub
+    Private Function ValidateHeaderEdit() As Boolean
 
+        If ProposedHeaderChangesGridLayout() Then
+
+            MessageBox.Show(
+            Me,
+            "This change cannot be made because it would change the number of columns in the existing transcription grid.",
+            "Edit Header",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
+
+            Return False
+
+        End If
+
+        Dim newBatchName As String = BuildBatchName()
+
+        Dim batchNameChanged As Boolean =
+        Not String.Equals(
+            newBatchName,
+            ProjectValues.BatchName,
+            StringComparison.OrdinalIgnoreCase)
+
+        If batchNameChanged Then
+
+            Dim newFilePath As String =
+        Path.Combine(
+            AppPaths.OutputFolder,
+            newBatchName)
+
+            If File.Exists(newFilePath) Then
+
+                MessageBox.Show(
+            Me,
+            "A file with the new batch name already exists." &
+            Environment.NewLine &
+            Environment.NewLine &
+            newBatchName &
+            Environment.NewLine &
+            Environment.NewLine &
+            "The header cannot be changed to these values.",
+            "Edit Header",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
+
+                Return False
+
+            End If
+
+        End If
+
+        Return True
+
+    End Function
     Private Sub btnCancel_Click(
         sender As Object,
         e As EventArgs)

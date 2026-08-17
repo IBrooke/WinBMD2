@@ -20,6 +20,8 @@ Public Class OptionsForm
     Private ReadOnly _verifyFontSizeNumeric As New NumericUpDown()
     Private ReadOnly _entryPanel As New Panel()
     Private ReadOnly _ignoreAutoCompleteComboBox As New ComboBox()
+    Private ReadOnly _autoShowScanToggle As New ToggleSwitch()
+    Private ReadOnly _autoShowRulerToggle As New ToggleSwitch()
     Public Sub New()
 
         InitializeComponent()
@@ -346,21 +348,40 @@ Public Class OptionsForm
 
         Dim descriptionLabel As New Label With {
         .Name = "scanningDescriptionLabel",
-        .Text =
-            "Automatic scan display, ruler and scrolling settings " &
-            "will be added here.",
-        .AutoSize = False,
+        .Text = "Choose how WinBMD2 displays scans while transcribing.",
+        .AutoSize = True,
         .ForeColor = UiColors.TextSecondary,
-        .Location = New Point(22, 54),
-        .Size = New Size(420, 50),
-        .Anchor =
-            AnchorStyles.Top Or
-            AnchorStyles.Left Or
-            AnchorStyles.Right
+        .Location = New Point(22, 54)
     }
+
+        Dim autoShowScanLabel As New Label With {
+        .Name = "autoShowScanLabel",
+        .Text = "Automatically show scan when a batch is opened",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 104)
+    }
+
+        _autoShowScanToggle.Name = "autoShowScanToggle"
+        _autoShowScanToggle.Location = New Point(370, 99)
+
+        Dim autoShowRulerLabel As New Label With {
+        .Name = "autoShowRulerLabel",
+        .Text = "Automatically show ruler",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 146)
+    }
+
+        _autoShowRulerToggle.Name = "autoShowRulerToggle"
+        _autoShowRulerToggle.Location = New Point(370, 141)
 
         _scanningTab.Controls.Add(titleLabel)
         _scanningTab.Controls.Add(descriptionLabel)
+        _scanningTab.Controls.Add(autoShowScanLabel)
+        _scanningTab.Controls.Add(_autoShowScanToggle)
+        _scanningTab.Controls.Add(autoShowRulerLabel)
+        _scanningTab.Controls.Add(_autoShowRulerToggle)
 
     End Sub
     Private Sub BuildUploadTab()
@@ -477,7 +498,8 @@ Public Class OptionsForm
                 _uiFontComboBox.Items.Add(ProjectValues.UiFontName)
                 _uiFontComboBox.SelectedItem = ProjectValues.UiFontName
             End If
-
+            _autoShowScanToggle.Checked = ProjectValues.AutoShowScan
+            _autoShowRulerToggle.Checked = ProjectValues.AutoShowRuler
             _uiFontSizeNumeric.Value =
     Math.Min(
         _uiFontSizeNumeric.Maximum,
@@ -551,6 +573,10 @@ Public Class OptionsForm
                 IgnoreAutoCompleteKey)
 
         End If
+
+        ProjectValues.AutoShowScan = _autoShowScanToggle.Checked
+        ProjectValues.AutoShowRuler = _autoShowRulerToggle.Checked
+
         If _uiFontComboBox.SelectedItem IsNot Nothing Then
             ProjectValues.UiFontName =
         _uiFontComboBox.SelectedItem.ToString()

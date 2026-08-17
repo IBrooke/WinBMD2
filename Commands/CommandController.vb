@@ -35,20 +35,64 @@ Public NotInheritable Class CommandController
 
     End Sub
 
-    Private Sub ShowTranscriptionForms()
+    Private Async Sub ShowTranscriptionForms()
 
         _transcriptionForm = New TranscriptionForm(Me)
         _scanView = New ScanView(Me)
 
         AddHandler _transcriptionForm.FormClosed, AddressOf TranscriptionForm_FormClosed
+        AddHandler _transcriptionForm.CurrentGridRowChanged, AddressOf TranscriptionForm_CurrentGridRowChanged
+        AddHandler _scanView.RulerSetupFinished, AddressOf ScanView_RulerSetupFinished
 
         MainForm = _transcriptionForm
 
         _transcriptionForm.Show()
         _scanView.Show()
 
-    End Sub
+        If ProjectValues.AutoShowScan Then
+            Await _scanView.FindScanAsync()
+        End If
 
+    End Sub
+    Private Sub TranscriptionForm_CurrentGridRowChanged(sender As Object, e As EventArgs)
+
+        If _transcriptionForm Is Nothing OrElse
+       _transcriptionForm.CurrentGridCell Is Nothing OrElse
+       _scanView Is Nothing Then
+
+            Return
+
+        End If
+
+        Dim rowNumber As Integer =
+        _transcriptionForm.CurrentGridCell.RowIndex + 1
+
+        _scanView.MoveRulerToRow(rowNumber)
+
+    End Sub
+    Private Sub ScanView_RulerSetupFinished(sender As Object, e As EventArgs)
+
+        If _transcriptionForm Is Nothing OrElse
+       _transcriptionForm.CurrentGridCell Is Nothing Then
+
+            Return
+
+        End If
+
+        Dim rowIndex As Integer =
+        _transcriptionForm.CurrentGridCell.RowIndex
+
+        Dim rowNumber As Integer =
+        rowIndex + 1
+
+        _scanView.MoveRulerToRow(rowNumber)
+
+        _transcriptionForm.FocusGridRow(rowIndex)
+
+        DebugLog.Write(
+        $"[RULER] Setup finished. Returned to grid row {rowNumber}.")
+
+    End Sub
     Private Sub HeaderForm_FormClosed(
     sender As Object,
     e As FormClosedEventArgs)

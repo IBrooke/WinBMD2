@@ -135,6 +135,12 @@ Public Module UiColors
         End Get
     End Property
 
+    Public ReadOnly Property Ruler As Color
+        Get
+            Return ThemeSolid
+        End Get
+    End Property
+
 #End Region
 
 #Region "Text"
@@ -163,6 +169,26 @@ Public Module UiColors
         End Get
     End Property
 
+#End Region
+
+#Region "Option Switches"
+    Public ReadOnly Property ToggleOn As Color
+        Get
+            Return Color.FromArgb(55, 170, 90)
+        End Get
+    End Property
+
+    Public ReadOnly Property ToggleOff As Color
+        Get
+            Return Color.FromArgb(170, 170, 170)
+        End Get
+    End Property
+
+    Public ReadOnly Property ToggleKnob As Color
+        Get
+            Return Color.White
+        End Get
+    End Property
 #End Region
 
 #Region "Borders And Accents"

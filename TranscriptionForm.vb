@@ -3,6 +3,7 @@ Imports WinBMD2.My.Resources
 
 Public Class TranscriptionForm
 
+    Public Event CurrentGridRowChanged As EventHandler
     Private ReadOnly _commandExecutor As ICommandExecutor
     Private _configuringGrid As Boolean
     Private _hasChanges As Boolean
@@ -21,6 +22,7 @@ Public Class TranscriptionForm
     Private ReadOnly _rowValidationStates As New Dictionary(Of Integer, ValidationState)
     Private ReadOnly _validationToolTip As New ToolTip()
     Private _selectedCommandCategory As String = ""
+    Private _lastGridRowIndex As Integer = -1
 
     Public Sub New(commandExecutor As ICommandExecutor)
 
@@ -86,6 +88,7 @@ Public Class TranscriptionForm
         btnFileSave.Visible = False
         btnFileSaveAs.Visible = False
         btnFileExit.Visible = False
+        btnFileEditHeader.Visible = False
 
         If String.IsNullOrWhiteSpace(_selectedCommandCategory) Then
 
@@ -107,12 +110,15 @@ Public Class TranscriptionForm
                 btnFileSave.Visible = True
                 btnFileSaveAs.Visible = True
                 btnFileExit.Visible = True
+                btnFileEditHeader.Visible = True
 
         End Select
 
     End Sub
     Public Function LoadBatchFile(
     filePath As String) As Boolean
+
+        SaveFormBounds()
 
         _refreshingGrid = True
 
@@ -126,6 +132,8 @@ Public Class TranscriptionForm
                 Return False
 
             End If
+
+            RestoreFormBounds()
 
             Dim fields() As GridField =
             GridLayout.GetVisibleFields()
@@ -390,6 +398,10 @@ Public Class TranscriptionForm
         btnFileOpen,
         New Point(0, btnFileOpen.Height))
 
+        _selectedCommandCategory = ""
+        UpdateCommandCategoryAppearance()
+        UpdateCommandStrip()
+
     End Sub
     Private Sub BrowseFile_Click(sender As Object, e As EventArgs)
 
@@ -398,19 +410,80 @@ Public Class TranscriptionForm
     End Sub
     Private Sub btnFileSave_Click(sender As Object, e As EventArgs) Handles btnFileSave.Click
 
+        _selectedCommandCategory = ""
+        UpdateCommandCategoryAppearance()
+        UpdateCommandStrip()
+
         _commandExecutor.Execute(AppCommand.SaveFile)
 
     End Sub
     Private Sub btnFileSaveAs_Click(sender As Object, e As EventArgs) Handles btnFileSaveAs.Click
 
+        _selectedCommandCategory = ""
+        UpdateCommandCategoryAppearance()
+        UpdateCommandStrip()
+
         _commandExecutor.Execute(AppCommand.SaveFileAs)
+
+    End Sub
+    Private Sub btnFileEditHeader_Click(sender As Object, e As EventArgs) Handles btnFileEditHeader.Click
+
+        _selectedCommandCategory = ""
+        UpdateCommandCategoryAppearance()
+        UpdateCommandStrip()
+
+        Dim oldBatchName As String =
+        ProjectValues.BatchName
+
+        Using form As New HeaderForm(True)
+
+            If form.ShowDialog(Me) <> DialogResult.OK Then
+                Return
+            End If
+
+        End Using
+
+        Dim newFilePath As String =
+        Path.Combine(
+            AppPaths.OutputFolder,
+            ProjectValues.BatchName)
+
+        If Not SaveCurrentBatch(newFilePath) Then
+
+            MessageBox.Show(
+            Me,
+            "The transcription could not be saved with the edited header.",
+            "Edit Header",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
+
+            Return
+
+        End If
+
+        If Not LoadBatchFile(newFilePath) Then
+
+            MessageBox.Show(
+            Me,
+            "The edited transcription was saved, but could not be reloaded.",
+            "Edit Header",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
+
+            Return
+
+        End If
+
+        DebugLog.Write(
+        $"[HEADER EDIT] Header updated. OldBatchName='{oldBatchName}', NewBatchName='{ProjectValues.BatchName}'.")
 
     End Sub
     Private Sub btnFileExit_Click(sender As Object, e As EventArgs) Handles btnFileExit.Click
 
-        Close()
+        Close
 
     End Sub
+
     Private Sub BuildOpenFileMenu()
 
         _openFileMenu.Items.Clear()
@@ -619,6 +692,10 @@ Public Class TranscriptionForm
     End Sub
     Private Sub SaveFormBounds()
 
+        If WindowState = FormWindowState.Minimized Then
+            Return
+        End If
+
         Dim layoutKey As String = GetGridLayoutKey()
 
         Dim savedBounds As FormBoundsData = FormBoundsHelper.GetBoundsDataToSave(Me)
@@ -783,6 +860,21 @@ Public Class TranscriptionForm
 
         _pickListPopup.Hide()
         UpdateStatusPosition()
+
+        If transcriptionGrid.CurrentCell Is Nothing Then
+            Return
+        End If
+
+        Dim rowIndex As Integer =
+        transcriptionGrid.CurrentCell.RowIndex
+
+        If rowIndex = _lastGridRowIndex Then
+            Return
+        End If
+
+        _lastGridRowIndex = rowIndex
+
+        RaiseEvent CurrentGridRowChanged(Me, EventArgs.Empty)
 
     End Sub
     Private Sub transcriptionGrid_CellValueChanged(
@@ -1630,6 +1722,47 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
             Return transcriptionGrid.CurrentCell
         End Get
     End Property
+    Friend Sub FocusGridRow(rowIndex As Integer)
+
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then
+            Return
+        End If
+
+        Dim columnIndex As Integer = GetFirstDataColumn()
+
+        If transcriptionGrid.CurrentCell IsNot Nothing AndAlso
+       IsDataColumn(transcriptionGrid.CurrentCell.ColumnIndex) Then
+
+            columnIndex = transcriptionGrid.CurrentCell.ColumnIndex
+
+        End If
+
+        transcriptionGrid.CurrentCell =
+        transcriptionGrid.Rows(rowIndex).Cells(columnIndex)
+
+        transcriptionGrid.Focus()
+        transcriptionGrid.BeginEdit(selectAll:=False)
+
+        If Not IsHandleCreated OrElse IsDisposed OrElse Disposing Then
+            Return
+        End If
+
+        BeginInvoke(
+        Sub()
+
+            Dim editor As TextBox =
+                TryCast(transcriptionGrid.EditingControl, TextBox)
+
+            If editor Is Nothing Then
+                Return
+            End If
+
+            editor.Focus()
+            editor.Select(editor.TextLength, 0)
+
+        End Sub)
+
+    End Sub
     Friend Sub EndGridEdit()
 
         transcriptionGrid.EndEdit()
@@ -2612,6 +2745,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
             Return
         End If
 
+        SaveFormBounds()
         _pickListPopup.Dispose()
         SaveFormBounds()
 

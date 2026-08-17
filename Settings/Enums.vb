@@ -39,3 +39,21 @@ Public Enum ValidationMode
     Upload
 End Enum
 #End Region
+
+#Region "Buttons"
+Public Enum ScanCommandIcon
+    None
+    ZoomOut
+    ZoomIn
+    RotateLeft
+    RotateRight
+End Enum
+#End Region
+#Region "Scan"
+Public Enum RulerSetupStage
+    None
+    AwaitingRow1
+    AwaitingRow10
+    Complete
+End Enum
+#End Region

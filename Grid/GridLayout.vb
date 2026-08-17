@@ -225,52 +225,64 @@ Public Module GridLayout
 
     Public Function GetVisibleFields() As GridField()
 
-        If ProjectValues.Year <= 0 OrElse
-           String.IsNullOrWhiteSpace(ProjectValues.BatchType) Then
+        Return GetVisibleFields(
+        ProjectValues.BatchType,
+        ProjectValues.Year,
+        ProjectValues.Quarter)
+
+    End Function
+
+    Public Function GetVisibleFields(
+    batchType As String,
+    year As Integer,
+    quarter As Integer) As GridField()
+
+        If year <= 0 OrElse
+       String.IsNullOrWhiteSpace(batchType) Then
 
             Return New GridField() {
-                GridField.Surname,
-                GridField.Forename,
-                GridField.District,
-                GridField.Volume,
-                GridField.Page,
-                GridField.Directive,
-                GridField.Verified
-            }
+            GridField.Surname,
+            GridField.Forename,
+            GridField.District,
+            GridField.Volume,
+            GridField.Page,
+            GridField.Directive,
+            GridField.Verified
+        }
 
         End If
 
         Dim layout As LayoutDefinition =
-            Layouts.FirstOrDefault(
-                Function(item)
-                    Return item.BatchType = ProjectValues.BatchType AndAlso
-                           IsOnOrAfter(
-                               ProjectValues.Year,
-                               ProjectValues.Quarter,
-                               item.FromYear,
-                               item.FromQuarter) AndAlso
-                           IsOnOrBefore(
-                               ProjectValues.Year,
-                               ProjectValues.Quarter,
-                               item.ToYear,
-                               item.ToQuarter)
-                End Function)
+        Layouts.FirstOrDefault(
+            Function(item)
+                Return item.BatchType = batchType AndAlso
+                       IsOnOrAfter(
+                           year,
+                           quarter,
+                           item.FromYear,
+                           item.FromQuarter) AndAlso
+                       IsOnOrBefore(
+                           year,
+                           quarter,
+                           item.ToYear,
+                           item.ToQuarter)
+            End Function)
 
         If layout Is Nothing Then
             Throw New InvalidOperationException(
-                "Unsupported layout: " &
-                "BatchType=" & ProjectValues.BatchType &
-                ", Year=" & ProjectValues.Year.ToString() &
-                ", Quarter=" & ProjectValues.Quarter.ToString())
+            "Unsupported layout: " &
+            "BatchType=" & batchType &
+            ", Year=" & year.ToString() &
+            ", Quarter=" & quarter.ToString())
         End If
 
         Return layout.Fields.
-            Concat(
-                New GridField() {
-                    GridField.Directive,
-                    GridField.Verified
-                }).
-            ToArray()
+        Concat(
+            New GridField() {
+                GridField.Directive,
+                GridField.Verified
+            }).
+        ToArray()
 
     End Function
 

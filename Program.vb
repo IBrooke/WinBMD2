@@ -6,10 +6,10 @@
         Application.EnableVisualStyles()
         Application.SetCompatibleTextRenderingDefault(False)
 
-        ProjectValuesStore.Initialise()
-
         DebugLog.Clear()
         DebugLog.WriteAlways("WinBMD2 starting.")
+
+        ProjectValuesStore.Initialise()
 
         If Not ForenameData.Load() Then
             DebugLog.WriteAlways("Startup cancelled because the forenames file could not be loaded.")

@@ -4,8 +4,11 @@ Imports System.Drawing
 Public Module ProjectValuesStore
 
     Public Sub Initialise()
+        DebugLog.WriteAlways("[SETTINGS] ProjectValuesStore.Initialise called.")
+
         AppPaths.EnsureFoldersExist()
         Load()
+        ProjectValues.WriteToDebugLog()
     End Sub
 
     Public Sub Load()
@@ -69,6 +72,16 @@ Public Module ProjectValuesStore
             ProjectValues.SourceRef = If(values.SourceRef, "")
             ProjectValues.Syndicate = If(values.Syndicate, "")
             ProjectValues.Comments = If(values.Comments, "")
+            ProjectValues.ScanViewSettings =
+            If(
+                values.ScanViewSettings,
+                New Dictionary(Of String, ScanViewData))
+            ProjectValues.RulerSettings =
+            If(
+                values.RulerSettings,
+                New Dictionary(Of String, RulerData))
+            ProjectValues.AutoShowScan = values.AutoShowScan
+            ProjectValues.AutoShowRuler = values.AutoShowRuler
             ProjectValues.SequenceType =
             If(
                 String.IsNullOrWhiteSpace(values.SequenceType),
@@ -121,6 +134,8 @@ Public Module ProjectValuesStore
                 .ScanViewWidth = ProjectValues.ScanViewWidth,
                 .ScanViewHeight = ProjectValues.ScanViewHeight,
                 .ScanViewMaximized = ProjectValues.ScanViewMaximized,
+                .ScanViewSettings = ProjectValues.ScanViewSettings,
+                .RulerSettings = ProjectValues.RulerSettings,
                 .HeaderFormLeft = ProjectValues.HeaderFormLeft,
                 .HeaderFormTop = ProjectValues.HeaderFormTop,
                 .HeaderFormWidth = ProjectValues.HeaderFormWidth,
@@ -151,6 +166,8 @@ Public Module ProjectValuesStore
                 .SourceRef = ProjectValues.SourceRef,
                 .Syndicate = ProjectValues.Syndicate,
                 .Comments = ProjectValues.Comments,
+                .AutoShowScan = ProjectValues.AutoShowScan,
+                .AutoShowRuler = ProjectValues.AutoShowRuler,
                 .SequenceType = ProjectValues.SequenceType,
                 .BatchName = ProjectValues.BatchName,
                 .Created = ProjectValues.Created,
@@ -179,6 +196,8 @@ Public Module ProjectValuesStore
         Public Property ScanViewWidth As Integer = 900
         Public Property ScanViewHeight As Integer = 650
         Public Property ScanViewMaximized As Boolean
+        Public Property ScanViewSettings As New Dictionary(Of String, ScanViewData)
+        Public Property RulerSettings As New Dictionary(Of String, RulerData)
         Public Property HeaderFormLeft As Integer = -1
         Public Property HeaderFormTop As Integer = -1
         Public Property HeaderFormWidth As Integer = 964
@@ -207,6 +226,8 @@ Public Module ProjectValuesStore
         Public Property BatchName As String = ""
         Public Property Created As String = ""
         Public Property DateModified As Date = Date.Today
+        Public Property AutoShowScan As Boolean = True
+        Public Property AutoShowRuler As Boolean = True
         Public Property SequenceType As String = "SEQUENCED"
         Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
         Public Property UiFontName As String = SystemFonts.MessageBoxFont.FontFamily.Name
