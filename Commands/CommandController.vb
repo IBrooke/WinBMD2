@@ -23,7 +23,15 @@ Public NotInheritable Class CommandController
         Return True
 
     End Function
+    Public Sub ApplyScanViewColourScheme() Implements ICommandExecutor.ApplyScanViewColourScheme
 
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then
+            Return
+        End If
+
+        _scanView.ApplyColourScheme()
+
+    End Sub
     Private Sub ShowHeaderForm()
 
         Dim headerForm As New HeaderForm()
@@ -35,7 +43,7 @@ Public NotInheritable Class CommandController
 
     End Sub
 
-    Private Async Sub ShowTranscriptionForms()
+    Private Async Sub ShowTranscriptionForms(Optional filePath As String = "")
 
         _transcriptionForm = New TranscriptionForm(Me)
         _scanView = New ScanView(Me)
@@ -49,9 +57,96 @@ Public NotInheritable Class CommandController
         _transcriptionForm.Show()
         _scanView.Show()
 
+        If Not String.IsNullOrWhiteSpace(filePath) Then
+
+            If Not _transcriptionForm.LoadBatchFile(filePath) Then
+
+                MessageBox.Show(
+                "The selected batch could not be loaded.",
+                "Open Batch",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error)
+
+                ExitThread()
+                Return
+
+            End If
+
+        End If
+
         If ProjectValues.AutoShowScan Then
             Await _scanView.FindScanAsync()
         End If
+
+    End Sub
+    Public Sub ToggleVerify() Implements ICommandExecutor.ToggleVerify
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then
+            Return
+        End If
+
+        _scanView.ToggleVerify()
+
+    End Sub
+    Public Sub SetVerifyVisible(visible As Boolean) Implements ICommandExecutor.SetVerifyVisible
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then
+            Return
+        End If
+
+        _scanView.SetVerifyVisible(visible)
+
+        If Not visible OrElse
+       _transcriptionForm Is Nothing OrElse
+       _transcriptionForm.IsDisposed Then
+
+            Return
+
+        End If
+
+        Dim values As Dictionary(Of GridField, String) =
+        _transcriptionForm.StartVerify()
+
+        If values Is Nothing Then
+            Return
+        End If
+
+        _scanView.LoadVerifyValues(values)
+
+        Dim rowIndex As Integer =
+        _transcriptionForm.CurrentVerifyRowIndex
+
+        If rowIndex >= 0 Then
+            _scanView.MoveRulerToRow(rowIndex + 1)
+        End If
+        _scanView.MoveScanToVerifyRow(rowIndex + 1)
+        _scanView.FocusFirstVerifyBox()
+
+    End Sub
+    Public Sub CompleteVerifyRow() Implements ICommandExecutor.CompleteVerifyRow
+
+        If _transcriptionForm Is Nothing OrElse
+       _scanView Is Nothing Then
+
+            Return
+
+        End If
+
+        Dim values As Dictionary(Of GridField, String) =
+        _scanView.GetVerifyValues()
+
+        Dim nextRow As Integer =
+        _transcriptionForm.CompleteCurrentVerify(values)
+
+        If nextRow < 0 Then
+            Return
+        End If
+
+        _scanView.LoadVerifyValues(
+        _transcriptionForm.GetCurrentVerifyValues())
+
+        _scanView.MoveRulerToRow(nextRow + 1)
+        _scanView.FocusFirstVerifyBox()
 
     End Sub
     Private Sub TranscriptionForm_CurrentGridRowChanged(sender As Object, e As EventArgs)
@@ -65,9 +160,17 @@ Public NotInheritable Class CommandController
         End If
 
         Dim rowNumber As Integer =
-        _transcriptionForm.CurrentGridCell.RowIndex + 1
+    _transcriptionForm.CurrentGridCell.RowIndex + 1
 
-        _scanView.MoveRulerToRow(rowNumber)
+        If _scanView.VerifyVisible Then
+
+            _scanView.MoveScanToVerifyRow(rowNumber)
+
+        Else
+
+            _scanView.MoveRulerToRow(rowNumber)
+
+        End If
 
     End Sub
     Private Sub ScanView_RulerSetupFinished(sender As Object, e As EventArgs)
@@ -121,21 +224,7 @@ Public NotInheritable Class CommandController
             DebugLog.WriteAlways(
             $"[STARTUP] Existing batch selected: '{filePath}'")
 
-            ShowTranscriptionForms()
-
-            If Not _transcriptionForm.LoadBatchFile(filePath) Then
-
-                MessageBox.Show(
-                "The selected batch could not be loaded.",
-                "Open Batch",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error)
-
-                ExitThread()
-                Return
-
-            End If
-
+            ShowTranscriptionForms(filePath)
             Return
 
         End If
@@ -151,21 +240,7 @@ Public NotInheritable Class CommandController
             DebugLog.WriteAlways(
             $"[STARTUP] Continuing current batch: '{currentFilePath}'")
 
-            ShowTranscriptionForms()
-
-            If Not _transcriptionForm.LoadBatchFile(currentFilePath) Then
-
-                MessageBox.Show(
-                "The current batch could not be loaded.",
-                "Open Batch",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error)
-
-                ExitThread()
-                Return
-
-            End If
-
+            ShowTranscriptionForms(currentFilePath)
             Return
 
         End If

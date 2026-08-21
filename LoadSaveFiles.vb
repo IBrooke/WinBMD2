@@ -419,7 +419,43 @@ Public NotInheritable Class LoadSaveFiles
         ElseIf line.StartsWith("#COMMENT", StringComparison.OrdinalIgnoreCase) Then
 
             directive.DirectiveType = "#COMMENT"
-            directive.Text = ExtractDirectiveText(line, "#COMMENT")
+
+            Dim remainder As String =
+        line.Substring("#COMMENT".Length).Trim()
+
+            ' Accept the old erroneous comma-separated form as well.
+            remainder = remainder.TrimStart(","c).Trim()
+
+            If remainder.StartsWith("(") Then
+
+                Dim closeBracket As Integer =
+            remainder.IndexOf(")"c)
+
+                If closeBracket > 1 Then
+
+                    Dim linesText As String =
+                remainder.Substring(
+                    1,
+                    closeBracket - 1)
+
+                    Dim lines As Integer
+
+                    If Integer.TryParse(linesText, lines) AndAlso lines > 0 Then
+
+                        directive.Lines = lines
+
+                        remainder =
+                    remainder.Substring(closeBracket + 1).
+                    TrimStart(","c).
+                    Trim()
+
+                    End If
+
+                End If
+
+            End If
+
+            directive.Text = remainder
 
         ElseIf line.StartsWith("#THEORY", StringComparison.OrdinalIgnoreCase) Then
 
@@ -700,6 +736,20 @@ Public NotInheritable Class LoadSaveFiles
 
         Dim text As String =
         If(directive.Text, "").Trim()
+
+        If directiveType.Equals(
+        "#COMMENT",
+        StringComparison.OrdinalIgnoreCase) Then
+
+            If directive.Lines.HasValue AndAlso directive.Lines.Value > 0 Then
+
+                Return $"#COMMENT ({directive.Lines.Value}) {text}"
+
+            End If
+
+            Return $"#COMMENT {text}".TrimEnd()
+
+        End If
 
         If String.IsNullOrWhiteSpace(text) Then
             Return directiveType

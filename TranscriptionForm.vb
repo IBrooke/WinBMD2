@@ -24,6 +24,9 @@ Public Class TranscriptionForm
     Private _selectedCommandCategory As String = ""
     Private _lastGridRowIndex As Integer = -1
 
+    Private _verifyRowIndex As Integer = -1
+    Private ReadOnly _verifiedRows As New HashSet(Of Integer)
+
     Public Sub New(commandExecutor As ICommandExecutor)
 
         InitializeComponent()
@@ -53,7 +56,11 @@ Public Class TranscriptionForm
         DebugLog.WriteAlways("=========================================")
 
     End Sub
-
+    Friend ReadOnly Property CurrentVerifyRowIndex As Integer
+        Get
+            Return _verifyRowIndex
+        End Get
+    End Property
     Private Sub RestoreFormBounds()
 
         Dim layoutKey As String =
@@ -372,12 +379,39 @@ Public Class TranscriptionForm
                     ApplyTranscriptionAppearance()
                     UpdateCommandCategoryAppearance()
                     UpdateCommandStrip()
+                    _commandExecutor.ApplyScanViewColourScheme()
                 End If
 
             End Using
 
             Return
 
+        End If
+
+        If button Is btnCategoryVerify Then
+
+            Dim verifyVisible As Boolean =
+        _selectedCommandCategory <> button.Text
+
+            If verifyVisible Then
+                _selectedCommandCategory = button.Text
+            Else
+                _selectedCommandCategory = ""
+            End If
+
+            _commandExecutor.SetVerifyVisible(verifyVisible)
+
+            UpdateCommandCategoryAppearance()
+            UpdateCommandStrip()
+
+            Return
+
+        End If
+
+        If _selectedCommandCategory = button.Text Then
+            _selectedCommandCategory = ""
+        Else
+            _selectedCommandCategory = button.Text
         End If
 
         If _selectedCommandCategory = button.Text Then
@@ -1663,49 +1697,6 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         ThemeManager.Apply(Me)
 
-        transcriptionGrid.EnableHeadersVisualStyles = False
-
-        transcriptionGrid.BackgroundColor =
-        UiColors.PanelBackground
-
-        transcriptionGrid.GridColor =
-        UiColors.GridLine
-
-        transcriptionGrid.DefaultCellStyle.BackColor =
-        UiColors.PanelBackground
-
-        transcriptionGrid.DefaultCellStyle.ForeColor =
-        UiColors.UserText
-
-        transcriptionGrid.DefaultCellStyle.SelectionBackColor =
-        UiColors.Selected
-
-        transcriptionGrid.DefaultCellStyle.SelectionForeColor =
-        UiColors.UserText
-
-        transcriptionGrid.AlternatingRowsDefaultCellStyle.BackColor =
-        UiColors.AlternateRowBackground
-
-        transcriptionGrid.ColumnHeadersDefaultCellStyle.BackColor =
-        UiColors.ThemeShaded
-
-        transcriptionGrid.ColumnHeadersDefaultCellStyle.ForeColor =
-        UiColors.TextPrimary
-
-        transcriptionGrid.ColumnHeadersDefaultCellStyle.SelectionBackColor =
-        UiColors.ThemeShaded
-
-        transcriptionGrid.ColumnHeadersDefaultCellStyle.SelectionForeColor =
-        UiColors.TextPrimary
-
-        transcriptionGrid.RowHeadersDefaultCellStyle.BackColor =
-        UiColors.ThemeSoft
-
-        transcriptionGrid.RowHeadersDefaultCellStyle.ForeColor =
-        UiColors.TextPrimary
-
-        transcriptionGrid.Invalidate()
-
     End Sub
     Private Sub NavigationKeyDown(
     sender As Object,
@@ -2759,5 +2750,155 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         ProjectValuesStore.Save()
 
     End Sub
+    Friend Function FindNextUnverifiedRow(startRow As Integer) As Integer
 
+        For rowIndex As Integer = Math.Max(0, startRow) To transcriptionGrid.Rows.Count - 1
+
+            Dim row As DataGridViewRow =
+                transcriptionGrid.Rows(rowIndex)
+
+            If IsBlankEntryRow(row) Then
+                Continue For
+            End If
+
+            If Not _verifiedRows.Contains(rowIndex) Then
+                Return rowIndex
+            End If
+
+        Next
+
+        Return -1
+
+    End Function
+    Friend Function GetVerifyValues(
+    rowIndex As Integer) As Dictionary(Of GridField, String)
+
+        Dim values As New Dictionary(Of GridField, String)
+
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then
+            Return values
+        End If
+
+        Dim row As DataGridViewRow =
+            transcriptionGrid.Rows(rowIndex)
+
+        For Each column As DataGridViewColumn In transcriptionGrid.Columns
+
+            If column.Tag Is Nothing Then
+                Continue For
+            End If
+
+            Dim field As GridField =
+                DirectCast(column.Tag, GridField)
+
+            If Not FieldMetaData.Meta(field).IsDataColumn Then
+                Continue For
+            End If
+
+            values(field) =
+                If(row.Cells(column.Index).Value, "").ToString()
+
+        Next
+
+        Return values
+
+    End Function
+    Friend Function StartVerify() As Dictionary(Of GridField, String)
+
+        _verifyRowIndex =
+            FindNextUnverifiedRow(0)
+
+        If _verifyRowIndex < 0 Then
+            Return Nothing
+        End If
+
+        transcriptionGrid.CurrentCell =
+            transcriptionGrid.Rows(_verifyRowIndex).
+            Cells(GetFirstDataColumn())
+
+        Return GetVerifyValues(_verifyRowIndex)
+
+    End Function
+    Friend Function IsRowVerified(rowIndex As Integer) As Boolean
+
+        Return _verifiedRows.Contains(rowIndex)
+
+    End Function
+    Friend Sub MarkRowVerified(rowIndex As Integer)
+
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then
+            Return
+        End If
+
+        _verifiedRows.Add(rowIndex)
+
+    End Sub
+    Friend Sub ClearRowVerified(rowIndex As Integer)
+
+        _verifiedRows.Remove(rowIndex)
+
+    End Sub
+    Friend Function CompleteCurrentVerify(
+    values As Dictionary(Of GridField, String)) As Integer
+
+        If _verifyRowIndex < 0 OrElse
+           _verifyRowIndex >= transcriptionGrid.Rows.Count Then
+
+            Return -1
+
+        End If
+
+        Dim row As DataGridViewRow =
+            transcriptionGrid.Rows(_verifyRowIndex)
+
+        For Each column As DataGridViewColumn In transcriptionGrid.Columns
+
+            If column.Tag Is Nothing Then
+                Continue For
+            End If
+
+            Dim field As GridField =
+                DirectCast(column.Tag, GridField)
+
+            If Not FieldMetaData.Meta(field).IsDataColumn Then
+                Continue For
+            End If
+
+            Dim value As String = ""
+
+            values.TryGetValue(field, value)
+
+            row.Cells(column.Index).Value = value
+
+        Next
+
+        MarkRowVerified(_verifyRowIndex)
+
+        _hasChanges = True
+
+        Dim nextRow As Integer =
+            FindNextUnverifiedRow(_verifyRowIndex + 1)
+
+        _verifyRowIndex = nextRow
+
+        If nextRow >= 0 Then
+
+            transcriptionGrid.CurrentCell =
+                transcriptionGrid.Rows(nextRow).
+                Cells(GetFirstDataColumn())
+
+        End If
+
+        Return nextRow
+
+    End Function
+    Friend Function GetCurrentVerifyValues() As Dictionary(Of GridField, String)
+
+        If _verifyRowIndex < 0 Then
+            Return Nothing
+        End If
+
+        Return GetVerifyValues(_verifyRowIndex)
+
+    End Function
 End Class

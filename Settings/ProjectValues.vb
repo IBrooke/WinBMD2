@@ -26,6 +26,7 @@ Public Module ProjectValues
     Public Property AutoShowRuler As Boolean = True
     Public Property ScanViewSettings As New Dictionary(Of String, ScanViewData)
     Public Property RulerSettings As New Dictionary(Of String, RulerData)
+    Public Property VerifyFieldLayouts As New Dictionary(Of String, Dictionary(Of String, VerifyFieldLayoutData))
 #End Region
 
 #Region "Header Form"

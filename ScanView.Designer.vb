@@ -23,6 +23,7 @@ Partial Class ScanView
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
         scanTopPanel = New Panel()
+        lblZoomValue = New Label()
         btnRuler = New Button()
         btnRotateRight = New ScanCommandButton()
         btnRotateLeft = New ScanCommandButton()
@@ -38,6 +39,7 @@ Partial Class ScanView
         ' 
         ' scanTopPanel
         ' 
+        scanTopPanel.Controls.Add(lblZoomValue)
         scanTopPanel.Controls.Add(btnRuler)
         scanTopPanel.Controls.Add(btnRotateRight)
         scanTopPanel.Controls.Add(btnRotateLeft)
@@ -53,6 +55,17 @@ Partial Class ScanView
         scanTopPanel.Name = "scanTopPanel"
         scanTopPanel.Size = New Size(777, 41)
         scanTopPanel.TabIndex = 0
+        ' 
+        ' lblZoomValue
+        ' 
+        lblZoomValue.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        lblZoomValue.BackColor = Color.White
+        lblZoomValue.Location = New Point(692, 12)
+        lblZoomValue.Name = "lblZoomValue"
+        lblZoomValue.Size = New Size(35, 23)
+        lblZoomValue.TabIndex = 1
+        lblZoomValue.Text = "100%"
+        lblZoomValue.TextAlign = ContentAlignment.MiddleLeft
         ' 
         ' btnRuler
         ' 
@@ -74,7 +87,7 @@ Partial Class ScanView
         btnRotateRight.FlatStyle = FlatStyle.Flat
         btnRotateRight.Font = New Font("Segoe UI Symbol", 14.0F)
         btnRotateRight.ForeColor = Color.FromArgb(CByte(35), CByte(42), CByte(52))
-        btnRotateRight.Location = New Point(566, 2)
+        btnRotateRight.Location = New Point(559, 2)
         btnRotateRight.Margin = New Padding(3, 0, 3, 0)
         btnRotateRight.Name = "btnRotateRight"
         btnRotateRight.Size = New Size(36, 36)
@@ -95,7 +108,7 @@ Partial Class ScanView
         btnRotateLeft.FlatStyle = FlatStyle.Flat
         btnRotateLeft.Font = New Font("Segoe UI Symbol", 14.0F)
         btnRotateLeft.ForeColor = Color.FromArgb(CByte(35), CByte(42), CByte(52))
-        btnRotateLeft.Location = New Point(608, 2)
+        btnRotateLeft.Location = New Point(599, 2)
         btnRotateLeft.Margin = New Padding(3, 0, 3, 0)
         btnRotateLeft.Name = "btnRotateLeft"
         btnRotateLeft.Size = New Size(36, 36)
@@ -116,7 +129,7 @@ Partial Class ScanView
         btnZoomIn.FlatStyle = FlatStyle.Flat
         btnZoomIn.Font = New Font("Segoe UI Symbol", 14.0F)
         btnZoomIn.ForeColor = Color.FromArgb(CByte(35), CByte(42), CByte(52))
-        btnZoomIn.Location = New Point(682, 2)
+        btnZoomIn.Location = New Point(655, 2)
         btnZoomIn.Margin = New Padding(3, 0, 3, 0)
         btnZoomIn.Name = "btnZoomIn"
         btnZoomIn.Size = New Size(36, 36)
@@ -137,7 +150,7 @@ Partial Class ScanView
         btnZoomOut.FlatStyle = FlatStyle.Flat
         btnZoomOut.Font = New Font("Segoe UI Symbol", 14.0F)
         btnZoomOut.ForeColor = Color.FromArgb(CByte(35), CByte(42), CByte(52))
-        btnZoomOut.Location = New Point(724, 2)
+        btnZoomOut.Location = New Point(729, 2)
         btnZoomOut.Margin = New Padding(3, 0, 3, 0)
         btnZoomOut.Name = "btnZoomOut"
         btnZoomOut.Size = New Size(36, 36)
@@ -225,4 +238,5 @@ Partial Class ScanView
     Friend WithEvents btnZoomIn As ScanCommandButton
     Friend WithEvents btnZoomOut As ScanCommandButton
     Friend WithEvents btnRuler As Button
+    Friend WithEvents lblZoomValue As Label
 End Class

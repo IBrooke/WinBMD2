@@ -3,9 +3,9 @@
     Private ReadOnly _viewer As ScanViewerControl
 
     Private _stage As RulerSetupStage = RulerSetupStage.None
-    Private _row1PanY As Single
-    Private _row10PanY As Single
-    Private _rowStepPanY As Single
+    Private _row1ImageY As Single
+    Private _row10ImageY As Single
+    Private _rowStepImageY As Single
     Private _currentRow As Integer
     Private _panX As Single
 
@@ -21,15 +21,15 @@
         End Get
     End Property
 
-    Public ReadOnly Property Row1PanY As Single
+    Public ReadOnly Property Row1ImageY As Single
         Get
-            Return _row1PanY
+            Return _row1ImageY
         End Get
     End Property
 
-    Public ReadOnly Property RowStepPanY As Single
+    Public ReadOnly Property RowStepImageY As Single
         Get
-            Return _rowStepPanY
+            Return _rowStepImageY
         End Get
     End Property
 
@@ -41,15 +41,34 @@
 
     Public Sub StartSetup()
 
-        _row1PanY = 0.0F
-        _row10PanY = 0.0F
-        _rowStepPanY = 0.0F
+        _row1ImageY = 0.0F
+        _row10ImageY = 0.0F
+        _rowStepImageY = 0.0F
         _currentRow = 0
         _stage = RulerSetupStage.AwaitingRow1
 
         _viewer.ShowRuler = True
 
         DebugLog.Write("[RULER] Setup started.")
+
+    End Sub
+
+    Public Sub LoadCalibration(row1ImageY As Single, rowStepImageY As Single)
+
+        _row1ImageY = row1ImageY
+        _rowStepImageY = rowStepImageY
+
+        _row10ImageY =
+            _row1ImageY + (9.0F * _rowStepImageY)
+
+        _currentRow = 1
+        _stage = RulerSetupStage.Complete
+
+        DebugLog.Write(
+            $"[RULER] Calibration loaded. " &
+            $"Row1ImageY={_row1ImageY:0.###}, " &
+            $"Row10ImageY={_row10ImageY:0.###}, " &
+            $"RowStepImageY={_rowStepImageY:0.###}")
 
     End Sub
 
@@ -60,29 +79,34 @@
             Case RulerSetupStage.AwaitingRow1
 
                 _panX = _viewer.GetImagePanX()
-                _row1PanY = _viewer.GetImagePanY()
+
+                _row1ImageY =
+                    _viewer.GetImageYAtScreenY(
+                        _viewer.RulerScreenY)
 
                 _stage = RulerSetupStage.AwaitingRow10
 
                 DebugLog.Write(
-                    $"[RULER] Row 1 captured. PanY={_row1PanY:0.###}")
+                    $"[RULER] Row 1 captured. ImageY={_row1ImageY:0.###}")
 
                 Return True
 
             Case RulerSetupStage.AwaitingRow10
 
-                _row10PanY = _viewer.GetImagePanY()
+                _row10ImageY =
+                    _viewer.GetImageYAtScreenY(
+                        _viewer.RulerScreenY)
 
-                _rowStepPanY =
-                    (_row10PanY - _row1PanY) / 9.0F
+                _rowStepImageY =
+                    (_row10ImageY - _row1ImageY) / 9.0F
+
                 _currentRow = 10
-
                 _stage = RulerSetupStage.Complete
 
                 DebugLog.Write(
                     $"[RULER] Row 10 captured. " &
-                    $"PanY={_row10PanY:0.###}, " &
-                    $"RowStep={_rowStepPanY:0.###}")
+                    $"ImageY={_row10ImageY:0.###}, " &
+                    $"RowStepImageY={_rowStepImageY:0.###}")
 
                 Return True
 
@@ -91,6 +115,7 @@
         Return False
 
     End Function
+
     Public Sub CancelSetup()
 
         _stage = RulerSetupStage.None
@@ -98,6 +123,7 @@
         DebugLog.Write("[RULER] Setup cancelled.")
 
     End Sub
+
     Public Sub MoveToRow(rowNumber As Integer)
 
         If _stage <> RulerSetupStage.Complete Then
@@ -108,24 +134,21 @@
             Return
         End If
 
-        If rowNumber = 1 Then
+        Dim rowImageY As Single =
+            _row1ImageY +
+            ((rowNumber - 1) * _rowStepImageY)
 
-            _viewer.SetImagePanY(_row1PanY)
-            _currentRow = 1
+        _viewer.PositionImageYAtScreenY(
+            rowImageY,
+            _viewer.RulerScreenY)
 
-        Else
-
-            Dim rowDifference As Integer = rowNumber - _currentRow
-
-            _viewer.MoveImageByPanY(
-            rowDifference * _rowStepPanY)
-
-            _currentRow = rowNumber
-
-        End If
+        _currentRow = rowNumber
 
         DebugLog.Write(
-        $"[RULER] Moved to row {rowNumber}. PanY={_viewer.GetImagePanY():0.###}")
+            $"[RULER] Moved to row {rowNumber}. " &
+            $"ImageY={rowImageY:0.###}, " &
+            $"PanY={_viewer.GetImagePanY():0.###}")
 
     End Sub
+
 End Class

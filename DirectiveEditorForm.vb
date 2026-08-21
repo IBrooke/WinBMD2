@@ -1,16 +1,23 @@
 ﻿Imports System.Collections.Generic
+Imports System.Windows.Forms.VisualStyles.VisualStyleElement
 
 Public Class DirectiveEditorForm
 
     Private _rowIndex As Integer
     Private _suggestedPageNumber As Integer
     Private _loadingSelectedDirective As Boolean
+    Private ReadOnly _toolTip As New System.Windows.Forms.ToolTip()
 
     Public ReadOnly Property Directives As New List(Of RowDirective)
 
     Public Sub New()
 
         InitializeComponent()
+
+        _toolTip.InitialDelay = 50
+        _toolTip.ReshowDelay = 50
+        _toolTip.AutoPopDelay = 10000
+        _toolTip.ShowAlways = True
 
         ApplyTheme()
 
@@ -37,11 +44,12 @@ Public Class DirectiveEditorForm
         For Each directive As RowDirective In existingDirectives
 
             Directives.Add(
-            New RowDirective With {
-                .RowIndex = directive.RowIndex,
-                .DirectiveType = directive.DirectiveType,
-                .Text = directive.Text
-            })
+                New RowDirective With {
+                    .RowIndex = directive.RowIndex,
+                    .DirectiveType = directive.DirectiveType,
+                    .Lines = directive.Lines,
+                    .Text = directive.Text
+})
 
         Next
 
@@ -183,7 +191,7 @@ Public Class DirectiveEditorForm
 
             Return (
                 "COMMENT",
-                ExtractRows(type),
+                If(directive.Lines.HasValue, directive.Lines.Value.ToString(), ""),
                 text)
 
         End If
@@ -332,7 +340,10 @@ Public Class DirectiveEditorForm
             StringComparison.OrdinalIgnoreCase) Then
 
             typeCombo.SelectedItem = "COMMENT"
-            rowsTextBox.Text = ExtractRows(type)
+
+            If directive.Lines.HasValue Then
+                rowsTextBox.Text = directive.Lines.Value.ToString()
+            End If
 
         ElseIf type.StartsWith(
             "#THEORY,REF",
@@ -529,12 +540,7 @@ Public Class DirectiveEditorForm
 
             Case "COMMENT"
 
-                If String.IsNullOrWhiteSpace(rowsText) Then
-                    directiveType = "#COMMENT"
-                Else
-                    directiveType =
-                        $"#COMMENT({rowsText})"
-                End If
+                directiveType = "#COMMENT"
 
             Case "THEORY"
 
@@ -571,12 +577,21 @@ Public Class DirectiveEditorForm
 
         End Select
 
+        Dim lines As Integer? = Nothing
+
+        If selectedType = "COMMENT" AndAlso Not String.IsNullOrWhiteSpace(rowsText) Then
+
+            lines = Integer.Parse(rowsText)
+
+        End If
+
         directive =
             New RowDirective With {
                 .RowIndex = _rowIndex,
                 .DirectiveType = directiveType,
+                .Lines = lines,
                 .Text = If(selectedType = "BREAK", "", text)
-            }
+    }
 
         Return True
 
@@ -699,14 +714,14 @@ Public Class DirectiveEditorForm
     Private Sub UpdateInputState()
 
         Dim selectedType As String =
-            GetSelectedType()
+        GetSelectedType()
 
         Dim usesRows As Boolean =
-            selectedType = "COMMENT" OrElse
-            selectedType = "THEORY"
+        selectedType = "COMMENT" OrElse
+        selectedType = "THEORY"
 
         Dim usesText As Boolean =
-            selectedType <> "BREAK"
+        selectedType <> "BREAK"
 
         rowsTextBox.Enabled = usesRows
         textTextBox.Enabled = usesText
@@ -717,6 +732,39 @@ Public Class DirectiveEditorForm
 
         If Not usesText Then
             textTextBox.Text = ""
+        End If
+
+        If selectedType = "COMMENT" Then
+
+            _toolTip.SetToolTip(
+            rowsTextBox,
+            "Optional. Enter the number of following rows this comment also applies to." &
+            Environment.NewLine &
+            "Leave blank if it applies only to the preceding row.")
+
+            _toolTip.SetToolTip(
+            textTextBox,
+            "Enter only the comment text." &
+            Environment.NewLine &
+            "Do not enter #COMMENT or the row count.")
+
+        ElseIf selectedType = "THEORY" Then
+
+            _toolTip.SetToolTip(
+            rowsTextBox,
+            "Optional. Enter the number of following rows this theory also applies to." &
+            Environment.NewLine &
+            "Leave blank if it applies only to the preceding row.")
+
+            _toolTip.SetToolTip(
+            textTextBox,
+            "Enter only the theory text.")
+
+        Else
+
+            _toolTip.SetToolTip(rowsTextBox, "")
+            _toolTip.SetToolTip(textTextBox, "")
+
         End If
 
     End Sub

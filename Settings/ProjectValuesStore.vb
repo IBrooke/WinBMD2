@@ -80,6 +80,10 @@ Public Module ProjectValuesStore
             If(
                 values.RulerSettings,
                 New Dictionary(Of String, RulerData))
+            ProjectValues.VerifyFieldLayouts =
+                If(
+                    values.VerifyFieldLayouts,
+                    New Dictionary(Of String, Dictionary(Of String, VerifyFieldLayoutData)))
             ProjectValues.AutoShowScan = values.AutoShowScan
             ProjectValues.AutoShowRuler = values.AutoShowRuler
             ProjectValues.SequenceType =
@@ -136,6 +140,7 @@ Public Module ProjectValuesStore
                 .ScanViewMaximized = ProjectValues.ScanViewMaximized,
                 .ScanViewSettings = ProjectValues.ScanViewSettings,
                 .RulerSettings = ProjectValues.RulerSettings,
+                .VerifyFieldLayouts = ProjectValues.VerifyFieldLayouts,
                 .HeaderFormLeft = ProjectValues.HeaderFormLeft,
                 .HeaderFormTop = ProjectValues.HeaderFormTop,
                 .HeaderFormWidth = ProjectValues.HeaderFormWidth,
@@ -198,6 +203,7 @@ Public Module ProjectValuesStore
         Public Property ScanViewMaximized As Boolean
         Public Property ScanViewSettings As New Dictionary(Of String, ScanViewData)
         Public Property RulerSettings As New Dictionary(Of String, RulerData)
+        Public Property VerifyFieldLayouts As New Dictionary(Of String, Dictionary(Of String, VerifyFieldLayoutData))
         Public Property HeaderFormLeft As Integer = -1
         Public Property HeaderFormTop As Integer = -1
         Public Property HeaderFormWidth As Integer = 964

@@ -24,10 +24,38 @@ Public Module ThemeManager
 
         For Each control As Control In controls
 
-            control.ForeColor = UiColors.TextPrimary
+            Select Case True
 
-            If TypeOf control Is Button Then
-                ApplyStandardButton(DirectCast(control, Button))
+                Case TypeOf control Is DataGridView
+                    ApplyDataGrid(DirectCast(control, DataGridView))
+
+                Case TypeOf control Is Button
+                    ApplyStandardButton(DirectCast(control, Button))
+
+                Case TypeOf control Is Label
+                    control.ForeColor = UiColors.TextPrimary
+                    control.BackColor = Color.Transparent
+
+                Case TypeOf control Is TextBox
+                    control.ForeColor = UiColors.UserText
+
+                Case TypeOf control Is ComboBox
+                    control.ForeColor = UiColors.UserText
+
+                Case TypeOf control Is Panel,
+                 TypeOf control Is TableLayoutPanel,
+                 TypeOf control Is FlowLayoutPanel
+
+                    control.BackColor = UiColors.PanelBackground
+                    control.ForeColor = UiColors.TextPrimary
+
+                Case Else
+                    control.ForeColor = UiColors.TextPrimary
+
+            End Select
+
+            If TypeOf control Is CollapsiblePanel Then
+                control.Invalidate()
             End If
 
             If control.HasChildren Then
@@ -37,6 +65,35 @@ Public Module ThemeManager
         Next
 
     End Sub
+    Public ReadOnly Property PanelBorderColour As Color
+        Get
+            Return UiColors.Border
+        End Get
+    End Property
+
+    Public ReadOnly Property CollapsibleHeaderColour As Color
+        Get
+            Return UiColors.ThemeSoft
+        End Get
+    End Property
+
+    Public ReadOnly Property CollapsibleHeaderHoverColour As Color
+        Get
+            Return UiColors.ThemeShaded
+        End Get
+    End Property
+
+    Public ReadOnly Property CollapsibleHeaderAccentColour As Color
+        Get
+            Return UiColors.ThemeSolid
+        End Get
+    End Property
+
+    Public ReadOnly Property CollapsibleHeaderTextColour As Color
+        Get
+            Return UiColors.TextPrimary
+        End Get
+    End Property
     Public Sub ApplyStandardButton(button As Button)
 
         button.BackColor = UiColors.ThemeSoft
@@ -51,37 +108,7 @@ Public Module ThemeManager
         button.FlatAppearance.MouseDownBackColor = UiColors.ThemeShaded
 
     End Sub
-    Private Sub ApplyControl(control As Control)
 
-        Select Case True
-
-            Case TypeOf control Is Label
-
-                control.ForeColor = UiColors.TextPrimary
-                control.BackColor = Color.Transparent
-
-            Case TypeOf control Is Panel,
-                 TypeOf control Is TableLayoutPanel,
-                 TypeOf control Is FlowLayoutPanel
-
-                control.BackColor = UiColors.PanelBackground
-
-            Case TypeOf control Is TextBox
-
-                control.ForeColor = UiColors.UserText
-
-            Case TypeOf control Is ComboBox
-
-                control.ForeColor = UiColors.UserText
-
-            Case TypeOf control Is Button
-
-                ApplySecondaryButton(
-                    DirectCast(control, Button))
-
-        End Select
-
-    End Sub
     Public Sub ApplyNavigationButton(button As Button)
 
         button.BackColor = UiColors.ThemeSoft
@@ -139,6 +166,17 @@ Public Module ThemeManager
         panel.ForeColor = UiColors.TextPrimary
 
     End Sub
+    Public ReadOnly Property RulerColour As Color
+        Get
+            Return UiColors.ThemeShaded
+        End Get
+    End Property
+    Public Sub ApplyVerifyBar(bar As VerifyBar)
+
+        bar.BackColor = UiColors.ThemeShaded
+        bar.ForeColor = UiColors.TextPrimary
+
+    End Sub
     Public Sub ApplyDataGrid(grid As DataGridView)
 
         grid.EnableHeadersVisualStyles = False
@@ -185,6 +223,27 @@ Public Module ThemeManager
             UiColors.AlternateRowBackground
 
         grid.RowTemplate.Height = 26
+
+    End Sub
+    Public Sub ApplyLozengeButton(button As Button)
+
+        ApplyStandardButton(button)
+
+        button.FlatStyle = FlatStyle.Flat
+        button.FlatAppearance.BorderSize = 1
+        button.FlatAppearance.BorderColor = UiColors.AccentBorder
+
+        Dim radius As Integer = button.Height
+
+        Using path As New Drawing2D.GraphicsPath()
+
+            path.AddArc(0, 0, radius, radius, 90, 180)
+            path.AddArc(button.Width - radius, 0, radius, radius, 270, 180)
+            path.CloseFigure()
+
+            button.Region = New Region(path)
+
+        End Using
 
     End Sub
 End Module

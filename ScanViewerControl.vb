@@ -229,13 +229,7 @@ Public Class ScanViewerControl
 
         If _showRuler Then
 
-            Dim top As Single = _rulerScreenY - (_rulerBandHeight / 2.0F)
-
-            Using bandBrush As New SolidBrush(Color.FromArgb(55, UiColors.Ruler))
-                e.Graphics.FillRectangle(bandBrush, 0, top, ClientSize.Width, _rulerBandHeight)
-            End Using
-
-            Using rulerPen As New Pen(UiColors.Ruler, 1.0F)
+            Using rulerPen As New Pen(ThemeManager.RulerColour, 15.0F)
                 e.Graphics.DrawLine(rulerPen, 0, _rulerScreenY, ClientSize.Width, _rulerScreenY)
             End Using
 
@@ -372,6 +366,31 @@ Public Class ScanViewerControl
             Cursor = Cursors.Default
 
         End If
+
+    End Sub
+    Public Function GetImageYAtScreenY(screenY As Single) As Single
+
+        If _image Is Nothing Then
+            Return 0.0F
+        End If
+
+        Return (screenY - _imageOffsetY - _panY) / _zoom
+
+    End Function
+    Public Sub PositionImageYAtScreenY(
+    imageY As Single,
+    screenY As Single)
+
+        If _image Is Nothing Then
+            Return
+        End If
+
+        _panY =
+            screenY -
+            _imageOffsetY -
+            (imageY * _zoom)
+
+        Invalidate()
 
     End Sub
 End Class

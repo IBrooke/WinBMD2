@@ -21,19 +21,7 @@ Public Class HeaderForm
         InitializeComponent()
         RestoreFormBounds()
 
-        ThemeManager.Apply(Me)
-
-        ThemeManager.ApplyApplicationBackground(rootLayout)
-        ThemeManager.ApplyApplicationBackground(bodyLayout)
-        ThemeManager.ApplyApplicationBackground(sideLayout)
-
-        ThemeManager.ApplyCardPanel(headerPanel)
-        ThemeManager.ApplyCardPanel(batchPanel)
-        ThemeManager.ApplyCardPanel(contributorPanel)
-        ThemeManager.ApplyCardPanel(footerPanel)
-
-        ThemeManager.ApplyPrimaryButton(btnStart)
-        ThemeManager.ApplyInformationPanel(rulesPanel)
+        ApplyColourScheme()
 
         Icon = WinBMDResources.WinBMD2Icon
         Text = "WinBMD2 Header"
@@ -49,6 +37,25 @@ Public Class HeaderForm
         UpdateQuarterVisibility()
         SuggestVolumeFormat()
         ValidateForm()
+    End Sub
+    Public Sub ApplyColourScheme()
+
+        ThemeManager.Apply(Me)
+
+        ThemeManager.ApplyApplicationBackground(rootLayout)
+        ThemeManager.ApplyApplicationBackground(bodyLayout)
+        ThemeManager.ApplyApplicationBackground(sideLayout)
+
+        ThemeManager.ApplyCardPanel(headerPanel)
+        ThemeManager.ApplyCardPanel(batchPanel)
+        ThemeManager.ApplyCardPanel(contributorPanel)
+        ThemeManager.ApplyCardPanel(footerPanel)
+
+        ThemeManager.ApplyPrimaryButton(btnStart)
+        ThemeManager.ApplyInformationPanel(rulesPanel)
+
+        Invalidate(True)
+
     End Sub
     Private Sub RestoreFormBounds()
 
@@ -234,7 +241,7 @@ Public Class HeaderForm
         Using form As New OptionsForm()
 
             If form.ShowDialog(Me) = DialogResult.OK Then
-                ThemeManager.Apply(Me)
+                ApplyColourScheme()
             End If
 
         End Using

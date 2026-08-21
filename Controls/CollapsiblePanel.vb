@@ -174,7 +174,7 @@ Public Class CollapsiblePanel
     End Sub
 
     Private Sub DrawBorder(graphics As Graphics)
-        Using borderPen As New Pen(Theme.PanelBorderColor)
+        Using borderPen As New Pen(ThemeManager.PanelBorderColour)
             graphics.DrawLine(borderPen, 0, 0, Width - 1, 0)
             graphics.DrawLine(borderPen, 0, 0, 0, Height - 1)
             graphics.DrawLine(borderPen, Width - 1, 0, Width - 1, Height - 1)
@@ -194,17 +194,18 @@ Public Class CollapsiblePanel
         height:=Math.Max(0, _headerHeight - 3))
 
         Dim backgroundColor As Color =
-        If(
-            _headerHovered,
-            UiColors.ThemeShaded,
-            UiColors.ThemeSoft)
+    If(
+        _headerHovered,
+        ThemeManager.CollapsibleHeaderHoverColour,
+        ThemeManager.CollapsibleHeaderColour)
+
 
         Using headerBrush As New SolidBrush(backgroundColor)
             graphics.FillRectangle(headerBrush, headerRectangle)
         End Using
 
         ' Draw a 1-pixel accent line along the bottom of the header.
-        Using accentPen As New Pen(UiColors.ThemeSolid)
+        Using accentPen As New Pen(ThemeManager.CollapsibleHeaderAccentColour)
             graphics.DrawLine(
             accentPen,
             1,
@@ -234,7 +235,7 @@ Public Class CollapsiblePanel
             }
         End If
 
-        Using arrowBrush As New SolidBrush(Theme.PanelHeaderTextColor)
+        Using arrowBrush As New SolidBrush(ThemeManager.CollapsibleHeaderTextColour)
             graphics.FillPolygon(
                 arrowBrush,
                 points)
@@ -249,7 +250,7 @@ Public Class CollapsiblePanel
         _headerText,
         Theme.HeaderFont,
         textRectangle,
-        Theme.PanelHeaderTextColor,
+        ThemeManager.CollapsibleHeaderTextColour,
         TextFormatFlags.Left Or
         TextFormatFlags.VerticalCenter Or
         TextFormatFlags.EndEllipsis)

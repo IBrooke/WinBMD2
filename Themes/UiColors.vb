@@ -135,12 +135,6 @@ Public Module UiColors
         End Get
     End Property
 
-    Public ReadOnly Property Ruler As Color
-        Get
-            Return ThemeSolid
-        End Get
-    End Property
-
 #End Region
 
 #Region "Text"

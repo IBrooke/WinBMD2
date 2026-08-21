@@ -5,7 +5,7 @@ End Class
 Public Class RulerData
 
     Public Property PanX As Single
-    Public Property Row1PanY As Single
-    Public Property RowStepPanY As Single
+    Public Property Row1ImageY As Single
+    Public Property RowStepImageY As Single
 
 End Class

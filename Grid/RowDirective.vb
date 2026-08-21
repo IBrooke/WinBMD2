@@ -6,6 +6,10 @@
 
     Public Property Text As String = ""
 
+    ' Lines is used by #COMMENT directives.
+    ' Nothing means no line count was supplied.
+    Public Property Lines As Integer?
+
     Public Overrides Function ToString() As String
 
         If String.IsNullOrWhiteSpace(Text) Then
