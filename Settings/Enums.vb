@@ -57,3 +57,11 @@ Public Enum RulerSetupStage
     Complete
 End Enum
 #End Region
+#Region "Capitalisation"
+Public Enum CapitalisationMode
+    AsTyped = 1
+    Upper = 2
+    Lower = 3
+    Name = 4
+End Enum
+#End Region

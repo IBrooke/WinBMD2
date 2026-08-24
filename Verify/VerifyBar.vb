@@ -40,8 +40,32 @@
             Sub()
                 RaiseEvent VerifiedClicked(Me, EventArgs.Empty)
             End Sub
+        AddHandler _verifiedButton.KeyDown, AddressOf VerifiedButton_KeyDown
 
         Controls.Add(_verifiedButton)
+
+    End Sub
+    Private Sub VerifiedButton_KeyDown(sender As Object, e As KeyEventArgs)
+
+        If e.KeyCode = Keys.Tab Then
+
+            e.Handled = True
+            e.SuppressKeyPress = True
+
+            System.Media.SystemSounds.Beep.Play()
+
+            Return
+
+        End If
+
+        If e.KeyCode = Keys.Enter Then
+
+            e.Handled = True
+            e.SuppressKeyPress = True
+
+            RaiseEvent VerifiedClicked(Me, EventArgs.Empty)
+
+        End If
 
     End Sub
     Private Sub ArrangeButton_Click(
@@ -102,6 +126,8 @@
                     PositionVerifiedButton()
                 End Sub
 
+            AddHandler box.TabPressed, AddressOf VerifyBox_TabPressed
+
             AddHandler box.LayoutFinished,
                 Sub()
                     SaveLayout()
@@ -115,6 +141,22 @@
         Next
 
         PositionVerifiedButton()
+
+    End Sub
+    Private Sub VerifyBox_TabPressed(sender As Object, e As EventArgs)
+
+        Dim box As VerifyFieldBox = DirectCast(sender, VerifyFieldBox)
+        Dim index As Integer = _fieldBoxes.IndexOf(box)
+
+        If index < 0 Then
+            Return
+        End If
+
+        If index < _fieldBoxes.Count - 1 Then
+            _fieldBoxes(index + 1).FocusEditor()
+        Else
+            _verifiedButton.Focus()
+        End If
 
     End Sub
     Private Function GetLayoutKey() As String

@@ -605,8 +605,6 @@ Public NotInheritable Class LoadSaveFiles
         End Select
 
     End Sub
-
-
     Private Shared Sub ParseHeaderLine1(line As String)
 
         Dim parts As List(Of String) =
@@ -635,8 +633,6 @@ Public NotInheritable Class LoadSaveFiles
             parts(9)
 
     End Sub
-
-
     Private Shared Sub ParseHeaderLine2(line As String)
 
         If line.StartsWith("#,") Then
@@ -650,8 +646,6 @@ Public NotInheritable Class LoadSaveFiles
         End If
 
     End Sub
-
-
     Private Shared Sub ParseSourceLine(line As String)
 
         Dim parts As List(Of String) =
@@ -855,8 +849,7 @@ Public NotInheritable Class LoadSaveFiles
     Private Shared Function ReadAllLines(
     filePath As String) As List(Of String)
 
-        Encoding.RegisterProvider(
-        CodePagesEncodingProvider.Instance)
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)
 
         Dim firstLine As String
 

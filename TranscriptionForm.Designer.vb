@@ -22,6 +22,7 @@ Partial Class TranscriptionForm
     'Do not modify it using the code editor.
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
+        components = New ComponentModel.Container()
         filePanel = New CollapsiblePanel()
         categoryStrip = New FlowLayoutPanel()
         btnCategoryFile = New Button()
@@ -42,6 +43,7 @@ Partial Class TranscriptionForm
         statusMessageLabel = New ToolStripStatusLabel()
         statusSpringLabel = New ToolStripStatusLabel()
         statusPositionLabel = New ToolStripStatusLabel()
+        uploadToolTip = New ToolTip(components)
         filePanel.SuspendLayout()
         categoryStrip.SuspendLayout()
         commandStrip.SuspendLayout()
@@ -270,7 +272,7 @@ Partial Class TranscriptionForm
         ' 
         ' TranscriptionForm
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(884, 481)
         Controls.Add(statusStrip)
@@ -312,5 +314,6 @@ Partial Class TranscriptionForm
     Friend WithEvents btnFileSaveAs As Button
     Friend WithEvents btnFileExit As Button
     Friend WithEvents btnFileEditHeader As Button
+    Friend WithEvents uploadToolTip As ToolTip
 
 End Class

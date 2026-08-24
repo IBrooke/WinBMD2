@@ -108,6 +108,17 @@ Public NotInheritable Class CommandController
         _transcriptionForm.StartVerify()
 
         If values Is Nothing Then
+
+            If _transcriptionForm.CurrentVerifyRowHasError Then
+                MessageBox.Show(_transcriptionForm, "Verify cannot continue until the error on this row is corrected.", "Verify", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                SetVerifyVisible(False)
+            End If
+
+            Return
+
+        End If
+
+        If values Is Nothing Then
             Return
         End If
 
@@ -125,30 +136,32 @@ Public NotInheritable Class CommandController
     End Sub
     Public Sub CompleteVerifyRow() Implements ICommandExecutor.CompleteVerifyRow
 
-        If _transcriptionForm Is Nothing OrElse
-       _scanView Is Nothing Then
+        If _transcriptionForm Is Nothing OrElse _scanView Is Nothing Then
+            Return
+        End If
 
+        Dim values As Dictionary(Of GridField, String) = _scanView.GetVerifyValues()
+        Dim nextRow As Integer = _transcriptionForm.CompleteCurrentVerify(values)
+
+        If nextRow = -2 Then
+
+            MessageBox.Show(_transcriptionForm, "Verify cannot continue until the error on this row is corrected.", "Verify", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+
+            SetVerifyVisible(False)
             Return
 
         End If
-
-        Dim values As Dictionary(Of GridField, String) =
-        _scanView.GetVerifyValues()
-
-        Dim nextRow As Integer =
-        _transcriptionForm.CompleteCurrentVerify(values)
 
         If nextRow < 0 Then
             Return
         End If
 
-        _scanView.LoadVerifyValues(
-        _transcriptionForm.GetCurrentVerifyValues())
-
+        _scanView.LoadVerifyValues(_transcriptionForm.GetCurrentVerifyValues())
         _scanView.MoveRulerToRow(nextRow + 1)
         _scanView.FocusFirstVerifyBox()
 
     End Sub
+
     Private Sub TranscriptionForm_CurrentGridRowChanged(sender As Object, e As EventArgs)
 
         If _transcriptionForm Is Nothing OrElse

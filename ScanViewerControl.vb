@@ -6,6 +6,7 @@ Public Class ScanViewerControl
     Inherits ScrollableControl
 
     Public Event EnterPressed As EventHandler
+    Public Event PanChanged As EventHandler
     Private _image As Image
     Private _imageOffsetX As Integer
     Private _imageOffsetY As Integer
@@ -128,13 +129,6 @@ Public Class ScanViewerControl
     Public Sub SetImagePanY(value As Single)
 
         _panY = value
-        Invalidate()
-
-    End Sub
-
-    Public Sub MoveImageByPanY(deltaY As Single)
-
-        _panY += deltaY
         Invalidate()
 
     End Sub
@@ -347,11 +341,10 @@ Public Class ScanViewerControl
 
         MyBase.OnMouseUp(e)
 
-        If e.Button = MouseButtons.Left Then
-
+        If e.Button = MouseButtons.Left AndAlso _isDragging Then
             _isDragging = False
             Cursor = Cursors.Default
-
+            RaiseEvent PanChanged(Me, EventArgs.Empty)
         End If
 
     End Sub

@@ -1246,4 +1246,15 @@ Public NotInheritable Class Validator
         Return result
 
     End Function
+    Public Shared Function IsDirective(value As String) As Boolean
+
+        If String.IsNullOrWhiteSpace(value) Then
+            Return False
+        End If
+
+        Dim text As String = value.TrimStart()
+
+        Return text.StartsWith("#") OrElse text.StartsWith("+")
+
+    End Function
 End Class

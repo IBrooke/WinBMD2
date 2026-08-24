@@ -10,6 +10,7 @@
         DebugLog.WriteAlways("WinBMD2 starting.")
 
         ProjectValuesStore.Initialise()
+        CapitalisationData.Load()
 
         If Not ForenameData.Load() Then
             DebugLog.WriteAlways("Startup cancelled because the forenames file could not be loaded.")

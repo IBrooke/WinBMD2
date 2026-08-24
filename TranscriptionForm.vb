@@ -23,7 +23,7 @@ Public Class TranscriptionForm
     Private ReadOnly _validationToolTip As New ToolTip()
     Private _selectedCommandCategory As String = ""
     Private _lastGridRowIndex As Integer = -1
-
+    Private _uploadTooltipShowing As Boolean
     Private _verifyRowIndex As Integer = -1
     Private ReadOnly _verifiedRows As New HashSet(Of Integer)
 
@@ -122,6 +122,36 @@ Public Class TranscriptionForm
         End Select
 
     End Sub
+    Private Sub categoryStrip_MouseMove(sender As Object, e As MouseEventArgs) Handles categoryStrip.MouseMove
+
+        If btnCategoryUpload.Enabled Then
+            Return
+        End If
+
+        If btnCategoryUpload.Bounds.Contains(e.Location) Then
+
+            If Not _uploadTooltipShowing Then
+                uploadToolTip.Show("Upload is not available until all rows are verified.", categoryStrip, e.X + 10, e.Y + 20, 5000)
+                _uploadTooltipShowing = True
+            End If
+
+        Else
+
+            If _uploadTooltipShowing Then
+                uploadToolTip.Hide(categoryStrip)
+                _uploadTooltipShowing = False
+            End If
+
+        End If
+
+    End Sub
+
+    Private Sub categoryStrip_MouseLeave(sender As Object, e As EventArgs) Handles categoryStrip.MouseLeave
+
+        uploadToolTip.Hide(categoryStrip)
+        _uploadTooltipShowing = False
+
+    End Sub
     Public Function LoadBatchFile(
     filePath As String) As Boolean
 
@@ -131,21 +161,24 @@ Public Class TranscriptionForm
 
         Try
 
-            If Not LoadSaveFiles.Load(
-            filePath,
-            transcriptionGrid,
-            AddressOf ConfigureGridColumns) Then
-
+            If Not LoadSaveFiles.Load(filePath, transcriptionGrid, AddressOf ConfigureGridColumns) Then
                 Return False
-
             End If
+
+            Dim verificationState As String = VerificationData.Load(ProjectValues.BatchName)
+
+            ApplyVerificationState(verificationState)
+            ValidateLoadedRows()
+
+            UpdateUploadEnabled()
 
             RestoreFormBounds()
 
-            Dim fields() As GridField =
-            GridLayout.GetVisibleFields()
+            Dim fields() As GridField = GridLayout.GetVisibleFields()
 
             AddBlankEntryRow(fields)
+
+            ValidateLoadedRows()
 
             For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
                 UpdateDirectiveCell(rowIndex)
@@ -309,6 +342,8 @@ Public Class TranscriptionForm
 
         UpdateStatusPosition()
 
+        UpdateUploadEnabled()
+
         DebugLog.WriteAlways(
     "[BATCH] Loaded into transcription form: " &
     $"Type='{ProjectValues.BatchType}', " &
@@ -373,7 +408,7 @@ Public Class TranscriptionForm
 
         If button Is btnCategoryOptions Then
 
-            Using form As New OptionsForm()
+            Using form As New OptionsForm(True)
 
                 If form.ShowDialog(Me) = DialogResult.OK Then
                     ApplyTranscriptionAppearance()
@@ -406,12 +441,6 @@ Public Class TranscriptionForm
 
             Return
 
-        End If
-
-        If _selectedCommandCategory = button.Text Then
-            _selectedCommandCategory = ""
-        Else
-            _selectedCommandCategory = button.Text
         End If
 
         If _selectedCommandCategory = button.Text Then
@@ -724,6 +753,46 @@ Public Class TranscriptionForm
             directives.Select(Function(item) item.ToString()))
 
     End Sub
+    Private Sub UpdateUploadEnabled()
+
+        Dim dataRowCount As Integer = 0
+        Dim allVerified As Boolean = True
+
+        For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
+
+            If IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then
+                Continue For
+            End If
+
+            dataRowCount += 1
+
+            If Not _verifiedRows.Contains(rowIndex) Then
+                allVerified = False
+                Exit For
+            End If
+
+        Next
+
+        btnCategoryUpload.Enabled = dataRowCount > 0 AndAlso allVerified
+
+        If btnCategoryUpload.Enabled Then
+            uploadToolTip.SetToolTip(btnCategoryUpload, "Upload the completed transcription.")
+        Else
+            uploadToolTip.SetToolTip(btnCategoryUpload, "Upload is not available until all rows are verified.")
+        End If
+
+    End Sub
+    Friend Function VerifyRowHasError(rowIndex As Integer) As Boolean
+
+        Dim state As ValidationState
+
+        If Not _rowValidationStates.TryGetValue(rowIndex, state) Then
+            Return False
+        End If
+
+        Return state = ValidationState.Error
+
+    End Function
     Private Sub SaveFormBounds()
 
         If WindowState = FormWindowState.Minimized Then
@@ -788,11 +857,17 @@ Public Class TranscriptionForm
                     End If
 
                 End If
-                column.DefaultCellStyle.Alignment =
-            GetGridAlignment(fieldInformation.Align)
+                column.DefaultCellStyle.Alignment = GetGridAlignment(fieldInformation.Align)
 
-                column.HeaderCell.Style.Alignment =
-            DataGridViewContentAlignment.MiddleCenter
+                column.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
+
+                If field = GridField.Verified Then
+
+                    column.DefaultCellStyle.ForeColor = Color.Green
+                    column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
+                    column.DefaultCellStyle.Font = New Font(transcriptionGrid.Font, FontStyle.Bold)
+
+                End If
 
                 transcriptionGrid.Columns.Add(column)
 
@@ -953,6 +1028,10 @@ Public Class TranscriptionForm
 
             gridRow.Tag = Nothing
 
+        End If
+
+        If FieldMetaData.Meta(field).IsDataColumn Then
+            ClearRowVerified(e.RowIndex)
         End If
 
         _hasChanges = True
@@ -1326,6 +1405,9 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         RemoveHandler editor.KeyDown, AddressOf NavigationKeyDown
         AddHandler editor.KeyDown, AddressOf NavigationKeyDown
 
+        RemoveHandler editor.KeyPress, AddressOf Capitalisation_KeyPress
+        AddHandler editor.KeyPress, AddressOf Capitalisation_KeyPress
+
         RemoveHandler editor.TextChanged, AddressOf ForenameEditor_TextChanged
         AddHandler editor.TextChanged, AddressOf ForenameEditor_TextChanged
 
@@ -1337,6 +1419,39 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         End If
 
         RefreshPickList(editor)
+
+    End Sub
+    Private Sub Capitalisation_KeyPress(sender As Object, e As KeyPressEventArgs)
+
+        Dim editor As TextBox = TryCast(sender, TextBox)
+
+        If editor Is Nothing OrElse transcriptionGrid.CurrentCell Is Nothing Then
+            Return
+        End If
+
+        Dim column As DataGridViewColumn = transcriptionGrid.Columns(transcriptionGrid.CurrentCell.ColumnIndex)
+
+        If column.Tag Is Nothing Then
+            Return
+        End If
+
+        Dim field As GridField = DirectCast(column.Tag, GridField)
+
+        If Not FieldMetaData.Meta(field).IsDataColumn Then
+            Return
+        End If
+
+        Dim fields() As GridField = GridLayout.GetVisibleFields().Where(Function(item) FieldMetaData.Meta(item).IsDataColumn).ToArray()
+        Dim fieldIndex As Integer = Array.IndexOf(fields, field)
+
+        If fieldIndex < 0 Then
+            Return
+        End If
+
+        Dim mode As CapitalisationMode = CapitalisationData.GetMode(ProjectValues.BatchType, ProjectValues.Year, fieldIndex)
+        Dim shiftPressed As Boolean = (Control.ModifierKeys And Keys.Shift) = Keys.Shift
+
+        e.KeyChar = CapitalisationHelper.ApplyTypedCharacter(e.KeyChar, mode, shiftPressed, editor.Text, editor.SelectionStart)
 
     End Sub
     Private Sub transcriptionGrid_CellEnter(
@@ -2216,11 +2331,20 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         Dim cell As DataGridViewCell =
         transcriptionGrid.Rows(e.RowIndex).Cells(e.ColumnIndex)
 
-        Dim value As String =
-        If(cell.Value, "").ToString()
+        Dim value As String = If(cell.Value, "").ToString()
 
-        Dim result As ValidationResult =
-    Validator.Validate(field, value)
+        If field = GridField.Forename Then
+
+            Dim normalisedValue As String = CapitalisationHelper.NormaliseReservedForename(value)
+
+            If Not String.Equals(value, normalisedValue, StringComparison.Ordinal) Then
+                value = normalisedValue
+                cell.Value = normalisedValue
+            End If
+
+        End If
+
+        Dim result As ValidationResult = Validator.Validate(field, value)
 
         If field = GridField.District OrElse
            field = GridField.Volume OrElse
@@ -2803,18 +2927,25 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         Return values
 
     End Function
+    Friend ReadOnly Property CurrentVerifyRowHasError As Boolean
+        Get
+            Return _verifyRowIndex >= 0 AndAlso VerifyRowHasError(_verifyRowIndex)
+        End Get
+    End Property
     Friend Function StartVerify() As Dictionary(Of GridField, String)
 
-        _verifyRowIndex =
-            FindNextUnverifiedRow(0)
+        _verifyRowIndex = FindNextUnverifiedRow(0)
 
         If _verifyRowIndex < 0 Then
             Return Nothing
         End If
 
-        transcriptionGrid.CurrentCell =
-            transcriptionGrid.Rows(_verifyRowIndex).
-            Cells(GetFirstDataColumn())
+        If VerifyRowHasError(_verifyRowIndex) Then
+            FocusGridRow(_verifyRowIndex)
+            Return Nothing
+        End If
+
+        transcriptionGrid.CurrentCell = transcriptionGrid.Rows(_verifyRowIndex).Cells(GetFirstDataColumn())
 
         Return GetVerifyValues(_verifyRowIndex)
 
@@ -2832,24 +2963,41 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         _verifiedRows.Add(rowIndex)
 
+        Dim verifiedColumn As DataGridViewColumn =
+        transcriptionGrid.Columns(GridField.Verified.ToString())
+
+        transcriptionGrid.Rows(rowIndex).
+        Cells(verifiedColumn.Index).Value = "✓"
+
+        VerificationData.Save(ProjectValues.BatchName, BuildVerificationState())
+
+        UpdateUploadEnabled()
     End Sub
     Friend Sub ClearRowVerified(rowIndex As Integer)
 
         _verifiedRows.Remove(rowIndex)
 
-    End Sub
-    Friend Function CompleteCurrentVerify(
-    values As Dictionary(Of GridField, String)) As Integer
-
-        If _verifyRowIndex < 0 OrElse
-           _verifyRowIndex >= transcriptionGrid.Rows.Count Then
-
-            Return -1
-
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then
+            Return
         End If
 
-        Dim row As DataGridViewRow =
-            transcriptionGrid.Rows(_verifyRowIndex)
+        Dim verifiedColumn As DataGridViewColumn =
+        transcriptionGrid.Columns(GridField.Verified.ToString())
+
+        transcriptionGrid.Rows(rowIndex).
+        Cells(verifiedColumn.Index).Value = ""
+        VerificationData.Save(ProjectValues.BatchName, BuildVerificationState())
+
+        UpdateUploadEnabled()
+
+    End Sub
+    Friend Function CompleteCurrentVerify(values As Dictionary(Of GridField, String)) As Integer
+
+        If _verifyRowIndex < 0 OrElse _verifyRowIndex >= transcriptionGrid.Rows.Count Then
+            Return -1
+        End If
+
+        Dim row As DataGridViewRow = transcriptionGrid.Rows(_verifyRowIndex)
 
         For Each column As DataGridViewColumn In transcriptionGrid.Columns
 
@@ -2857,15 +3005,13 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
                 Continue For
             End If
 
-            Dim field As GridField =
-                DirectCast(column.Tag, GridField)
+            Dim field As GridField = DirectCast(column.Tag, GridField)
 
             If Not FieldMetaData.Meta(field).IsDataColumn Then
                 Continue For
             End If
 
             Dim value As String = ""
-
             values.TryGetValue(field, value)
 
             row.Cells(column.Index).Value = value
@@ -2876,17 +3022,17 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         _hasChanges = True
 
-        Dim nextRow As Integer =
-            FindNextUnverifiedRow(_verifyRowIndex + 1)
+        Dim nextRow As Integer = FindNextUnverifiedRow(_verifyRowIndex + 1)
 
         _verifyRowIndex = nextRow
 
+        If nextRow >= 0 AndAlso VerifyRowHasError(nextRow) Then
+            FocusGridRow(nextRow)
+            Return -2
+        End If
+
         If nextRow >= 0 Then
-
-            transcriptionGrid.CurrentCell =
-                transcriptionGrid.Rows(nextRow).
-                Cells(GetFirstDataColumn())
-
+            transcriptionGrid.CurrentCell = transcriptionGrid.Rows(nextRow).Cells(GetFirstDataColumn())
         End If
 
         Return nextRow
@@ -2901,4 +3047,101 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         Return GetVerifyValues(_verifyRowIndex)
 
     End Function
+    Private Function BuildVerificationState() As String
+
+        Dim result As New Text.StringBuilder
+
+        For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
+
+            If IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then
+                Continue For
+            End If
+
+            If _verifiedRows.Contains(rowIndex) Then
+                result.Append("1"c)
+            Else
+                result.Append("0"c)
+            End If
+
+        Next
+
+        Return result.ToString()
+
+    End Function
+    Private Sub ApplyVerificationState(state As String)
+
+        _verifiedRows.Clear()
+
+        If String.IsNullOrEmpty(state) Then
+            Return
+        End If
+
+        Dim rowCount As Integer =
+            Math.Min(state.Length, transcriptionGrid.Rows.Count)
+
+        For rowIndex As Integer = 0 To rowCount - 1
+
+            If state(rowIndex) <> "1"c Then
+                Continue For
+            End If
+
+            _verifiedRows.Add(rowIndex)
+
+            transcriptionGrid.Rows(rowIndex).
+                Cells(GridField.Verified.ToString()).Value = "✓"
+
+        Next
+
+    End Sub
+    Private Sub ValidateLoadedRows()
+
+        _cellValidationResults.Clear()
+        _rowValidationStates.Clear()
+
+        For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
+
+            Dim row As DataGridViewRow = transcriptionGrid.Rows(rowIndex)
+
+            If IsBlankEntryRow(row) Then
+                Continue For
+            End If
+
+            For Each column As DataGridViewColumn In transcriptionGrid.Columns
+
+                If column.Tag Is Nothing Then
+                    Continue For
+                End If
+
+                Dim field As GridField = DirectCast(column.Tag, GridField)
+
+                If Not FieldMetaData.Meta(field).IsDataColumn Then
+                    Continue For
+                End If
+
+                If field = GridField.District OrElse field = GridField.Volume OrElse field = GridField.DistNum Then
+                    Continue For
+                End If
+
+                Dim value As String = If(row.Cells(column.Index).Value, "").ToString()
+                Dim result As ValidationResult = Validator.Validate(field, value)
+
+                ApplyCellValidationResult(rowIndex, column.Index, result)
+
+            Next
+
+            ValidateDistrictCodePair(rowIndex)
+            ValidateSequence(rowIndex)
+            UpdateRowValidationState(rowIndex)
+            Dim rowState As ValidationState
+
+            If _rowValidationStates.TryGetValue(rowIndex, rowState) AndAlso rowState = ValidationState.Error Then
+                _verifiedRows.Remove(rowIndex)
+                row.Cells(GridField.Verified.ToString()).Value = ""
+            End If
+
+        Next
+
+        VerificationData.Save(ProjectValues.BatchName, BuildVerificationState())
+        UpdateUploadEnabled()
+    End Sub
 End Class

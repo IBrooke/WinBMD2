@@ -8,6 +8,7 @@ Public Class VerifyFieldBox
 
     Public Event LayoutChanged As EventHandler
     Public Event LayoutFinished As EventHandler
+    Public Event TabPressed As EventHandler
     Private _dragging As Boolean
     Private _resizing As Boolean
     Private _dragStartMouseScreenX As Integer
@@ -89,6 +90,16 @@ Public Class VerifyFieldBox
         AddHandler _textBox.MouseMove, AddressOf TextBox_MouseMove
         AddHandler _textBox.MouseUp, AddressOf TextBox_MouseUp
     End Sub
+    Protected Overrides Function ProcessCmdKey(ByRef msg As Message, keyData As Keys) As Boolean
+
+        If keyData = Keys.Tab Then
+            RaiseEvent TabPressed(Me, EventArgs.Empty)
+            Return True
+        End If
+
+        Return MyBase.ProcessCmdKey(msg, keyData)
+
+    End Function
     Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
 
         MyBase.OnMouseDown(e)

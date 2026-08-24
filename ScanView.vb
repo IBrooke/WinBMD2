@@ -37,6 +37,7 @@ Public Class ScanView
         _viewer.Dock = DockStyle.Fill
         _rulerController = New RulerController(_viewer)
         Controls.Add(_viewer)
+        AddHandler _viewer.PanChanged, AddressOf Viewer_PanChanged
         _viewer.BringToFront()
         scanTopPanel.BringToFront()
         RestoreFormBounds()
@@ -121,10 +122,16 @@ Public Class ScanView
         ProjectValues.ScanViewSettings(key) =
         New ScanViewData With {
             .Zoom = _viewer.Zoom,
-            .Rotation = _viewer.Rotation
+            .Rotation = _viewer.Rotation,
+            .PanX = _viewer.GetImagePanX()
         }
 
         ProjectValuesStore.Save()
+
+    End Sub
+    Private Sub Viewer_PanChanged(sender As Object, e As EventArgs)
+
+        SaveScanViewSettings()
 
     End Sub
     Private Sub btnRuler_Click(sender As Object, e As EventArgs) Handles btnRuler.Click
@@ -153,13 +160,7 @@ Public Class ScanView
         Dim settings As RulerData = Nothing
 
         If ProjectValues.RulerSettings.TryGetValue(key, settings) Then
-
-            _viewer.SetImagePanX(settings.PanX)
-
-            _viewer.PositionImageYAtScreenY(
-            settings.Row1ImageY,
-            _viewer.RulerScreenY)
-
+            _viewer.PositionImageYAtScreenY(settings.Row1ImageY, _viewer.RulerScreenY)
         End If
 
         RaiseEvent RulerSetupStarted(Me, EventArgs.Empty)
@@ -319,11 +320,13 @@ Public Class ScanView
 
             _viewer.Zoom = settings.Zoom
             _viewer.Rotation = settings.Rotation
+            _viewer.SetImagePanX(settings.PanX)
 
         Else
 
             _viewer.Zoom = 1.0F
             _viewer.Rotation = 0.0F
+            _viewer.SetImagePanX(0.0F)
 
         End If
 
@@ -433,18 +436,22 @@ Public Class ScanView
 
             Case Keys.Left
                 _viewer.NudgeImage(-nudge, 0)
+                SaveScanViewSettings()
                 Return True
 
             Case Keys.Right
                 _viewer.NudgeImage(nudge, 0)
+                SaveScanViewSettings()
                 Return True
 
             Case Keys.Up
                 _viewer.NudgeImage(0, -nudge)
+                SaveScanViewSettings()
                 Return True
 
             Case Keys.Down
                 _viewer.NudgeImage(0, nudge)
+                SaveScanViewSettings()
                 Return True
 
             Case Keys.Enter
@@ -509,30 +516,17 @@ Public Class ScanView
 
         If Not ProjectValues.RulerSettings.TryGetValue(key, settings) Then
 
-            DebugLog.Write(
-            $"[RULER] Auto-show skipped. No saved settings for {key}.")
-
+            DebugLog.Write($"[RULER] Auto-show skipped. No saved settings for {key}.")
             Return
 
         End If
 
-        _rulerController.LoadCalibration(
-        settings.Row1ImageY,
-        settings.RowStepImageY)
+        _rulerController.LoadCalibration(settings.Row1ImageY, settings.RowStepImageY)
 
-        _viewer.SetImagePanX(settings.PanX)
-
-        _viewer.PositionImageYAtScreenY(
-        settings.Row1ImageY,
-        _viewer.RulerScreenY)
-
+        _viewer.PositionImageYAtScreenY(settings.Row1ImageY, _viewer.RulerScreenY)
         _viewer.ShowRuler = True
 
-        DebugLog.Write(
-        $"[RULER] Auto-show. Key={key}, " &
-        $"PanX={settings.PanX:0.###}, " &
-        $"Row1ImageY={settings.Row1ImageY:0.###}, " &
-        $"RowStepImageY={settings.RowStepImageY:0.###}")
+        DebugLog.Write($"[RULER] Auto-show. Key={key}, Row1ImageY={settings.Row1ImageY:0.###}, RowStepImageY={settings.RowStepImageY:0.###}")
 
     End Sub
     Public Sub ToggleVerify()
@@ -629,7 +623,6 @@ Public Class ScanView
 
         ProjectValues.RulerSettings(key) =
             New RulerData With {
-                .PanX = _rulerController.PanX,
                 .Row1ImageY = _rulerController.Row1ImageY,
                 .RowStepImageY = _rulerController.RowStepImageY
             }

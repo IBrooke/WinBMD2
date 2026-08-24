@@ -19,13 +19,16 @@ Public Class OptionsForm
     Private ReadOnly _uiFontSizeNumeric As New NumericUpDown()
     Private ReadOnly _verifyFontSizeNumeric As New NumericUpDown()
     Private ReadOnly _entryPanel As New Panel()
+    Private ReadOnly _capitalisationPanel As New Panel()
+    Private ReadOnly _capitalisationTable As New TableLayoutPanel()
     Private ReadOnly _ignoreAutoCompleteComboBox As New ComboBox()
     Private ReadOnly _autoShowScanToggle As New ToggleSwitch()
     Private ReadOnly _autoShowRulerToggle As New ToggleSwitch()
-    Public Sub New()
+    Public Sub New(Optional allowCapitalisation As Boolean = False)
 
         InitializeComponent()
 
+        btnCapitalisation.Enabled = allowCapitalisation
         Icon = WinBMDResources.WinBMD2Icon
         Text = "Options"
 
@@ -34,6 +37,7 @@ Public Class OptionsForm
 
         BuildGeneralPage()
         BuildEntryPage()
+        BuildCapitalisationPage()
         LoadOptionValues()
 
         ThemeManager.Apply(Me)
@@ -65,6 +69,124 @@ Public Class OptionsForm
         mainSplitContainer.Panel2.Controls.Add(_generalPanel)
 
     End Sub
+    Private Sub BuildCapitalisationPage()
+
+        _capitalisationPanel.Name = "capitalisationOptionsPanel"
+        _capitalisationPanel.Location = New Point(24, 56)
+        _capitalisationPanel.Size = New Size(Math.Max(300, mainSplitContainer.Panel2.ClientSize.Width - 48), Math.Max(200, mainSplitContainer.Panel2.ClientSize.Height - 136))
+        _capitalisationPanel.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
+
+        mainSplitContainer.Panel2.Controls.Add(_capitalisationPanel)
+        BuildCapitalisationTable()
+    End Sub
+    Private Sub BuildCapitalisationTable()
+
+        _capitalisationTable.Name = "capitalisationTable"
+        _capitalisationTable.Location = New Point(20, 20)
+        _capitalisationTable.AutoSize = True
+        _capitalisationTable.AutoSizeMode = AutoSizeMode.GrowAndShrink
+        _capitalisationTable.ColumnCount = 5
+        _capitalisationTable.RowCount = 1
+
+        _capitalisationTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 150))
+        _capitalisationTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 90))
+        _capitalisationTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 90))
+        _capitalisationTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 90))
+        _capitalisationTable.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 90))
+
+        _capitalisationTable.Controls.Add(CreateCapitalisationHeading("Upper"), 1, 0)
+        _capitalisationTable.Controls.Add(CreateCapitalisationHeading("Lower"), 2, 0)
+        _capitalisationTable.Controls.Add(CreateCapitalisationHeading("Name"), 3, 0)
+        _capitalisationTable.Controls.Add(CreateCapitalisationHeading("As typed"), 4, 0)
+
+        _capitalisationPanel.Controls.Add(_capitalisationTable)
+        BuildCapitalisationRows()
+
+    End Sub
+    Private Sub BuildCapitalisationRows()
+
+        Dim fields() As GridField = GridLayout.GetVisibleFields().Where(Function(field) FieldMetaData.Meta(field).IsDataColumn).ToArray()
+        Dim savedValues As String = CapitalisationData.GetSettings(ProjectValues.BatchType, ProjectValues.Year)
+
+        _capitalisationTable.RowCount = fields.Length + 1
+        _capitalisationTable.RowStyles.Clear()
+
+        _capitalisationTable.RowStyles.Add(New RowStyle(SizeType.Absolute, 32))
+
+        For index As Integer = 0 To fields.Length - 1
+            _capitalisationTable.RowStyles.Add(New RowStyle(SizeType.Absolute, 32))
+        Next
+
+        For fieldIndex As Integer = 0 To fields.Length - 1
+
+            Dim field As GridField = fields(fieldIndex)
+            Dim rowIndex As Integer = fieldIndex + 1
+            Dim selectedMode As CapitalisationMode = CapitalisationMode.AsTyped
+
+            If fieldIndex < savedValues.Length Then
+
+                Dim enumValue As Integer
+
+                If Integer.TryParse(savedValues(fieldIndex).ToString(), enumValue) AndAlso [Enum].IsDefined(GetType(CapitalisationMode), enumValue) Then
+                    selectedMode = CType(enumValue, CapitalisationMode)
+                End If
+
+            End If
+
+            Dim fieldLabel As New Label With {
+            .Text = FieldMetaData.Meta(field).Header,
+            .AutoSize = False,
+            .Dock = DockStyle.Fill,
+            .TextAlign = ContentAlignment.MiddleLeft,
+            .ForeColor = UiColors.TextPrimary
+        }
+
+            _capitalisationTable.Controls.Add(fieldLabel, 0, rowIndex)
+
+            Dim modePanel As New Panel With {
+            .Dock = DockStyle.Fill,
+            .Margin = Padding.Empty
+        }
+
+            _capitalisationTable.Controls.Add(modePanel, 1, rowIndex)
+            _capitalisationTable.SetColumnSpan(modePanel, 4)
+
+            Dim modes() As CapitalisationMode = {
+            CapitalisationMode.Upper,
+            CapitalisationMode.Lower,
+            CapitalisationMode.Name,
+            CapitalisationMode.AsTyped
+        }
+
+            For modeIndex As Integer = 0 To modes.Length - 1
+
+                Dim radioButton As New RadioButton With {
+                .AutoSize = True,
+                .Tag = New CapitalisationTag(field, modes(modeIndex)),
+                .Location = New Point((modeIndex * 90) + 36, 7),
+                .Checked = modes(modeIndex) = selectedMode
+            }
+
+                modePanel.Controls.Add(radioButton)
+
+            Next
+
+        Next
+
+    End Sub
+    Private Function CreateCapitalisationHeading(text As String) As Label
+
+        Return New Label With {
+        .Text = text,
+        .AutoSize = False,
+        .Dock = DockStyle.Fill,
+        .TextAlign = ContentAlignment.MiddleCenter,
+        .Font = UiFonts.SectionHeading,
+        .ForeColor = UiColors.TextPrimary,
+        .Margin = New Padding(3, 3, 3, 8)
+    }
+
+    End Function
     Private Sub BuildEntryPage()
 
         _entryPanel.Name = "entryOptionsPanel"
@@ -610,80 +732,57 @@ Public Class OptionsForm
 
     Private Sub ApplyOptionsAppearance()
 
-        headerPanel.BackColor =
-            UiColors.PanelBackground
+        _capitalisationPanel.BackColor = UiColors.PanelBackground
 
-        footerPanel.BackColor =
-            UiColors.PanelBackground
+        headerPanel.BackColor = UiColors.PanelBackground
 
-        mainSplitContainer.BackColor =
-            UiColors.Border
+        footerPanel.BackColor = UiColors.PanelBackground
 
-        mainSplitContainer.Panel1.BackColor =
-            UiColors.PanelBackground
+        mainSplitContainer.BackColor = UiColors.Border
 
-        mainSplitContainer.Panel2.BackColor =
-            UiColors.PanelBackground
+        mainSplitContainer.Panel1.BackColor = UiColors.PanelBackground
 
-        lblTitle.Font =
-            UiFonts.Title
+        mainSplitContainer.Panel2.BackColor = UiColors.PanelBackground
 
-        lblTitle.ForeColor =
-            UiColors.TextPrimary
+        lblTitle.Font = UiFonts.Title
 
-        lblSubtitle.Font =
-            UiFonts.Normal
+        lblTitle.ForeColor = UiColors.TextPrimary
 
-        lblSubtitle.ForeColor =
-            UiColors.TextSecondary
+        lblSubtitle.Font = UiFonts.Normal
 
-        lblPageTitle.Font =
-            UiFonts.SectionHeading
+        lblSubtitle.ForeColor = UiColors.TextSecondary
 
-        lblPageTitle.ForeColor =
-            UiColors.TextPrimary
+        lblPageTitle.Font = UiFonts.SectionHeading
 
-        lblPageDescription.Font =
-            UiFonts.Normal
+        lblPageTitle.ForeColor = UiColors.TextPrimary
 
-        lblPageDescription.ForeColor =
-            UiColors.TextSecondary
+        lblPageDescription.Font = UiFonts.Normal
 
-        _generalPanel.BackColor =
-            UiColors.PanelBackground
+        lblPageDescription.ForeColor = UiColors.TextSecondary
 
-        _entryPanel.BackColor =
-            UiColors.PanelBackground
+        _generalPanel.BackColor = UiColors.PanelBackground
 
-        _appearanceTab.BackColor =
-            UiColors.PanelBackground
+        _entryPanel.BackColor = UiColors.PanelBackground
 
-        _scanningTab.BackColor =
-            UiColors.PanelBackground
+        _appearanceTab.BackColor = UiColors.PanelBackground
 
-        _uploadTab.BackColor =
-            UiColors.PanelBackground
+        _scanningTab.BackColor = UiColors.PanelBackground
 
-        _diagnosticsTab.BackColor =
-            UiColors.PanelBackground
+        _uploadTab.BackColor = UiColors.PanelBackground
 
-        ThemeManager.ApplyNavigationButton(
-            btnGeneral)
+        _diagnosticsTab.BackColor = UiColors.PanelBackground
 
-        ThemeManager.ApplyNavigationButton(
-            btnEntry)
+        ThemeManager.ApplyNavigationButton(btnGeneral)
 
-        ThemeManager.ApplyNavigationButton(
-            btnCapitalisation)
+        ThemeManager.ApplyNavigationButton(btnEntry)
 
-        ThemeManager.ApplyNavigationButton(
-            btnAdvanced)
+        ThemeManager.ApplyNavigationButton(btnCapitalisation)
 
-        ThemeManager.ApplyPrimaryButton(
-            btnOk)
+        ThemeManager.ApplyNavigationButton(btnAdvanced)
 
-        ThemeManager.ApplySecondaryButton(
-            btnCancel)
+        ThemeManager.ApplyPrimaryButton(btnOk)
+
+        ThemeManager.ApplySecondaryButton(btnCancel)
 
     End Sub
 
@@ -718,6 +817,7 @@ Public Class OptionsForm
 
         _generalPanel.Visible = False
         _entryPanel.Visible = False
+        _capitalisationPanel.Visible = False
 
     End Sub
 
@@ -758,11 +858,55 @@ Public Class OptionsForm
         HideOptionPages()
         SelectNavigationButton(btnCapitalisation)
 
-        lblPageTitle.Text =
-            "Capitalisation"
+        lblPageTitle.Text = "Capitalisation"
+        lblPageDescription.Text = "Capitalisation settings for the fields in the current batch."
 
-        lblPageDescription.Text =
-            "Capitalisation settings for the fields in the current batch."
+        _capitalisationPanel.Visible = True
+        _capitalisationPanel.BringToFront()
+
+    End Sub
+    Private Sub SaveCapitalisationValues()
+
+        Dim fields() As GridField = GridLayout.GetVisibleFields().Where(Function(field) FieldMetaData.Meta(field).IsDataColumn).ToArray()
+        Dim values As New Text.StringBuilder()
+
+        For Each field As GridField In fields
+
+            Dim selectedMode As CapitalisationMode = CapitalisationMode.AsTyped
+
+            For Each control As Control In _capitalisationTable.Controls
+
+                Dim panel As Panel = TryCast(control, Panel)
+
+                If panel Is Nothing Then
+                    Continue For
+                End If
+
+                For Each child As Control In panel.Controls
+
+                    Dim radioButton As RadioButton = TryCast(child, RadioButton)
+
+                    If radioButton Is Nothing OrElse Not radioButton.Checked Then
+                        Continue For
+                    End If
+
+                    Dim tag As CapitalisationTag = TryCast(radioButton.Tag, CapitalisationTag)
+
+                    If tag IsNot Nothing AndAlso tag.Field = field Then
+                        selectedMode = tag.Mode
+                        Exit For
+                    End If
+
+                Next
+
+            Next
+
+            values.Append(CInt(selectedMode).ToString())
+
+        Next
+
+        CapitalisationData.SetSettings(ProjectValues.BatchType, ProjectValues.Year, values.ToString())
+        CapitalisationData.Save()
 
     End Sub
 
@@ -815,19 +959,26 @@ Public Class OptionsForm
 
     End Sub
 
-    Private Sub btnOk_Click(
-        sender As Object,
-        e As EventArgs) Handles btnOk.Click
+    Private Sub btnOk_Click(sender As Object, e As EventArgs) Handles btnOk.Click
 
+        SaveCapitalisationValues()
         SaveOptionValues()
 
-        DialogResult =
-            DialogResult.OK
-
+        DialogResult = DialogResult.OK
         Close()
 
     End Sub
 
 #End Region
+    Private Class CapitalisationTag
 
+        Public Property Field As GridField
+        Public Property Mode As CapitalisationMode
+
+        Public Sub New(field As GridField, mode As CapitalisationMode)
+            Me.Field = field
+            Me.Mode = mode
+        End Sub
+
+    End Class
 End Class
