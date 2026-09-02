@@ -134,21 +134,36 @@
             Return
         End If
 
-        Dim rowImageY As Single =
-            _row1ImageY +
-            ((rowNumber - 1) * _rowStepImageY)
+        Dim previousRow As Integer = _currentRow
+        Dim deltaRows As Integer = rowNumber - _currentRow
 
-        _viewer.PositionImageYAtScreenY(
-            rowImageY,
-            _viewer.RulerScreenY)
+        If deltaRows = 0 Then
+            Return
+        End If
+
+        MoveByRows(deltaRows)
 
         _currentRow = rowNumber
 
-        DebugLog.Write(
-            $"[RULER] Moved to row {rowNumber}. " &
-            $"ImageY={rowImageY:0.###}, " &
-            $"PanY={_viewer.GetImagePanY():0.###}")
+        DebugLog.Write($"[RULER] Grid moved from row {previousRow} to row {rowNumber}. DeltaRows={deltaRows}, RowStepImageY={_rowStepImageY:0.###}")
 
     End Sub
+    Public Sub MoveByRows(deltaRows As Integer)
 
+        If _stage <> RulerSetupStage.Complete Then
+            Return
+        End If
+
+        If deltaRows = 0 Then
+            Return
+        End If
+
+        Dim currentImageY As Single = _viewer.GetImageYAtScreenY(_viewer.RulerScreenY)
+        Dim targetImageY As Single = currentImageY + (deltaRows * _rowStepImageY)
+
+        _viewer.PositionImageYAtScreenY(targetImageY, _viewer.RulerScreenY)
+
+        DebugLog.Write($"[RULER] Moved by {deltaRows} row(s). CurrentImageY={currentImageY:0.###}, TargetImageY={targetImageY:0.###}, PanY={_viewer.GetImagePanY():0.###}")
+
+    End Sub
 End Class

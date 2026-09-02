@@ -14,49 +14,34 @@
 ' their own hard-coded colours. This allows the complete application appearance
 ' to change consistently when the user selects another colour scheme.
 '------------------------------------------------------------------------------
+
 Public Module UiColors
 
     Private ReadOnly Property Palette As UiPalette
         Get
+
             Select Case ProjectValues.ColourScheme
 
                 Case UiColourScheme.Teal
-                    Return New UiPalette(
-                    Color.FromArgb(220, 245, 244),
-                    Color.FromArgb(166, 227, 225),
-                    Color.FromArgb(0, 133, 126))
+                    Return New UiPalette(Color.FromArgb(234, 248, 246), Color.FromArgb(202, 232, 228), Color.FromArgb(28, 124, 116))
 
                 Case UiColourScheme.Magenta
-                    Return New UiPalette(
-                    Color.FromArgb(248, 232, 241),
-                    Color.FromArgb(236, 197, 217),
-                    Color.FromArgb(200, 65, 130))
+                    Return New UiPalette(Color.FromArgb(249, 238, 245), Color.FromArgb(232, 205, 221), Color.FromArgb(172, 72, 124))
 
                 Case UiColourScheme.Violet
-                    Return New UiPalette(
-                    Color.FromArgb(245, 240, 252),
-                    Color.FromArgb(220, 205, 245),
-                    Color.FromArgb(110, 70, 180))
+                    Return New UiPalette(Color.FromArgb(246, 241, 251), Color.FromArgb(220, 207, 239), Color.FromArgb(104, 78, 164))
 
                 Case UiColourScheme.Gold
-                    Return New UiPalette(
-                    Color.FromArgb(255, 250, 232),
-                    Color.FromArgb(245, 228, 170),
-                    Color.FromArgb(185, 140, 30))
+                    Return New UiPalette(Color.FromArgb(254, 248, 230), Color.FromArgb(239, 222, 170), Color.FromArgb(166, 126, 36))
 
                 Case UiColourScheme.Green
-                    Return New UiPalette(
-                    Color.FromArgb(238, 248, 238),
-                    Color.FromArgb(200, 228, 200),
-                    Color.FromArgb(50, 140, 70))
+                    Return New UiPalette(Color.FromArgb(239, 248, 239), Color.FromArgb(207, 231, 208), Color.FromArgb(62, 132, 76))
 
                 Case Else
-                    Return New UiPalette(
-                    Color.FromArgb(240, 246, 252),
-                    Color.FromArgb(184, 236, 255),
-                    Color.FromArgb(0, 127, 174))
+                    Return New UiPalette(Color.FromArgb(238, 246, 252), Color.FromArgb(203, 226, 241), Color.FromArgb(38, 116, 158))
 
             End Select
+
         End Get
     End Property
 
@@ -108,11 +93,9 @@ Public Module UiColors
         End Get
     End Property
 
-    Public ReadOnly ValidationError As Color =
-    Color.Red
+    Public ReadOnly ValidationError As Color = Color.Red
+    Public ReadOnly ValidationWarning As Color = Color.Goldenrod
 
-    Public ReadOnly ValidationWarning As Color =
-    Color.Goldenrod
 #End Region
 
 #Region "Backgrounds"
@@ -166,6 +149,7 @@ Public Module UiColors
 #End Region
 
 #Region "Option Switches"
+
     Public ReadOnly Property ToggleOn As Color
         Get
             Return Color.FromArgb(55, 170, 90)
@@ -183,6 +167,7 @@ Public Module UiColors
             Return Color.White
         End Get
     End Property
+
 #End Region
 
 #Region "Borders And Accents"
@@ -207,7 +192,7 @@ Public Module UiColors
 
     Public ReadOnly Property Selected As Color
         Get
-            Return ThemeSoft
+            Return ThemeShaded
         End Get
     End Property
 

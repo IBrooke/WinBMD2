@@ -1,6 +1,7 @@
 ﻿Public Class PickListPopup
     Implements IDisposable
 
+    Public Event ItemClicked As EventHandler
     Private ReadOnly _listBox As ListBox
     Private ReadOnly _host As ToolStripControlHost
     Private ReadOnly _dropDown As ToolStripDropDown
@@ -17,6 +18,7 @@
             .ItemHeight = 24
         }
         AddHandler _listBox.DrawItem, AddressOf ListBox_DrawItem
+        AddHandler _listBox.MouseClick, AddressOf ListBox_MouseClick
 
         _host = New ToolStripControlHost(_listBox) With {
             .AutoSize = False,
@@ -31,6 +33,18 @@
         }
 
         _dropDown.Items.Add(_host)
+
+    End Sub
+    Private Sub ListBox_MouseClick(sender As Object, e As MouseEventArgs)
+
+        Dim index As Integer = _listBox.IndexFromPoint(e.Location)
+
+        If index < 0 OrElse index >= _listBox.Items.Count Then
+            Return
+        End If
+
+        _listBox.SelectedIndex = index
+        RaiseEvent ItemClicked(Me, EventArgs.Empty)
 
     End Sub
     Private Sub ListBox_DrawItem(

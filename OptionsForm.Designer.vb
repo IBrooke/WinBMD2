@@ -24,18 +24,19 @@ Partial Class OptionsForm
     Private Sub InitializeComponent()
         Dim resources As System.ComponentModel.ComponentResourceManager = New System.ComponentModel.ComponentResourceManager(GetType(OptionsForm))
         mainSplitContainer = New SplitContainer()
-        btnGeneral = New Button()
-        btnEntry = New Button()
-        btnCapitalisation = New Button()
         btnAdvanced = New Button()
-        headerPanel = New Panel()
-        lblTitle = New Label()
-        lblSubtitle = New Label()
-        footerPanel = New Panel()
-        btnCancel = New Button()
-        btnOk = New Button()
-        lblPageTitle = New Label()
+        btnCapitalisation = New Button()
+        btnEntry = New Button()
+        btnGeneral = New Button()
         lblPageDescription = New Label()
+        lblPageTitle = New Label()
+        headerPanel = New Panel()
+        lblSubtitle = New Label()
+        lblTitle = New Label()
+        footerPanel = New Panel()
+        btnOk = New Button()
+        btnCancel = New Button()
+        btnPicklists = New Button()
         CType(mainSplitContainer, ComponentModel.ISupportInitialize).BeginInit()
         mainSplitContainer.Panel1.SuspendLayout()
         mainSplitContainer.Panel2.SuspendLayout()
@@ -54,6 +55,7 @@ Partial Class OptionsForm
         ' 
         ' mainSplitContainer.Panel1
         ' 
+        mainSplitContainer.Panel1.Controls.Add(btnPicklists)
         mainSplitContainer.Panel1.Controls.Add(btnAdvanced)
         mainSplitContainer.Panel1.Controls.Add(btnCapitalisation)
         mainSplitContainer.Panel1.Controls.Add(btnEntry)
@@ -63,10 +65,55 @@ Partial Class OptionsForm
         ' 
         mainSplitContainer.Panel2.Controls.Add(lblPageDescription)
         mainSplitContainer.Panel2.Controls.Add(lblPageTitle)
-        mainSplitContainer.Size = New Size(764, 449)
+        mainSplitContainer.Size = New Size(884, 489)
         mainSplitContainer.SplitterDistance = 180
         mainSplitContainer.SplitterWidth = 1
         mainSplitContainer.TabIndex = 0
+        ' 
+        ' btnAdvanced
+        ' 
+        btnAdvanced.Anchor = AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
+        btnAdvanced.FlatStyle = FlatStyle.Flat
+        btnAdvanced.ImageAlign = ContentAlignment.MiddleLeft
+        btnAdvanced.Location = New Point(8, 441)
+        btnAdvanced.Name = "btnAdvanced"
+        btnAdvanced.Padding = New Padding(12, 0, 0, 0)
+        btnAdvanced.Size = New Size(160, 36)
+        btnAdvanced.TabIndex = 3
+        btnAdvanced.Text = "Advanced"
+        btnAdvanced.TextAlign = ContentAlignment.MiddleLeft
+        btnAdvanced.TextImageRelation = TextImageRelation.ImageBeforeText
+        btnAdvanced.UseVisualStyleBackColor = False
+        ' 
+        ' btnCapitalisation
+        ' 
+        btnCapitalisation.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        btnCapitalisation.FlatStyle = FlatStyle.Flat
+        btnCapitalisation.ImageAlign = ContentAlignment.MiddleLeft
+        btnCapitalisation.Location = New Point(8, 146)
+        btnCapitalisation.Name = "btnCapitalisation"
+        btnCapitalisation.Padding = New Padding(12, 0, 0, 0)
+        btnCapitalisation.Size = New Size(160, 36)
+        btnCapitalisation.TabIndex = 2
+        btnCapitalisation.Text = "Capitalisation"
+        btnCapitalisation.TextAlign = ContentAlignment.MiddleLeft
+        btnCapitalisation.TextImageRelation = TextImageRelation.ImageBeforeText
+        btnCapitalisation.UseVisualStyleBackColor = False
+        ' 
+        ' btnEntry
+        ' 
+        btnEntry.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        btnEntry.FlatStyle = FlatStyle.Flat
+        btnEntry.ImageAlign = ContentAlignment.MiddleLeft
+        btnEntry.Location = New Point(8, 54)
+        btnEntry.Name = "btnEntry"
+        btnEntry.Padding = New Padding(12, 0, 0, 0)
+        btnEntry.Size = New Size(160, 36)
+        btnEntry.TabIndex = 1
+        btnEntry.Text = "Entry"
+        btnEntry.TextAlign = ContentAlignment.MiddleLeft
+        btnEntry.TextImageRelation = TextImageRelation.ImageBeforeText
+        btnEntry.UseVisualStyleBackColor = False
         ' 
         ' btnGeneral
         ' 
@@ -83,110 +130,14 @@ Partial Class OptionsForm
         btnGeneral.TextImageRelation = TextImageRelation.ImageBeforeText
         btnGeneral.UseVisualStyleBackColor = False
         ' 
-        ' btnEntry
+        ' lblPageDescription
         ' 
-        btnEntry.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        btnEntry.FlatStyle = FlatStyle.Flat
-        btnEntry.ImageAlign = ContentAlignment.MiddleLeft
-        btnEntry.Location = New Point(8, 52)
-        btnEntry.Name = "btnEntry"
-        btnEntry.Padding = New Padding(12, 0, 0, 0)
-        btnEntry.Size = New Size(160, 36)
-        btnEntry.TabIndex = 1
-        btnEntry.Text = "Entry"
-        btnEntry.TextAlign = ContentAlignment.MiddleLeft
-        btnEntry.TextImageRelation = TextImageRelation.ImageBeforeText
-        btnEntry.UseVisualStyleBackColor = False
-        ' 
-        ' btnCapitalisation
-        ' 
-        btnCapitalisation.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        btnCapitalisation.FlatStyle = FlatStyle.Flat
-        btnCapitalisation.ImageAlign = ContentAlignment.MiddleLeft
-        btnCapitalisation.Location = New Point(8, 96)
-        btnCapitalisation.Name = "btnCapitalisation"
-        btnCapitalisation.Padding = New Padding(12, 0, 0, 0)
-        btnCapitalisation.Size = New Size(160, 36)
-        btnCapitalisation.TabIndex = 2
-        btnCapitalisation.Text = "Capitalisation"
-        btnCapitalisation.TextAlign = ContentAlignment.MiddleLeft
-        btnCapitalisation.TextImageRelation = TextImageRelation.ImageBeforeText
-        btnCapitalisation.UseVisualStyleBackColor = False
-        ' 
-        ' btnAdvanced
-        ' 
-        btnAdvanced.Anchor = AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
-        btnAdvanced.FlatStyle = FlatStyle.Flat
-        btnAdvanced.ImageAlign = ContentAlignment.MiddleLeft
-        btnAdvanced.Location = New Point(8, 401)
-        btnAdvanced.Name = "btnAdvanced"
-        btnAdvanced.Padding = New Padding(12, 0, 0, 0)
-        btnAdvanced.Size = New Size(160, 36)
-        btnAdvanced.TabIndex = 3
-        btnAdvanced.Text = "Advanced"
-        btnAdvanced.TextAlign = ContentAlignment.MiddleLeft
-        btnAdvanced.TextImageRelation = TextImageRelation.ImageBeforeText
-        btnAdvanced.UseVisualStyleBackColor = False
-        ' 
-        ' headerPanel
-        ' 
-        headerPanel.Controls.Add(lblSubtitle)
-        headerPanel.Controls.Add(lblTitle)
-        headerPanel.Dock = DockStyle.Top
-        headerPanel.Location = New Point(0, 0)
-        headerPanel.Name = "headerPanel"
-        headerPanel.Padding = New Padding(22, 14, 22, 10)
-        headerPanel.Size = New Size(764, 72)
-        headerPanel.TabIndex = 1
-        ' 
-        ' lblTitle
-        ' 
-        lblTitle.AutoSize = True
-        lblTitle.Location = New Point(20, 10)
-        lblTitle.Name = "lblTitle"
-        lblTitle.Size = New Size(49, 15)
-        lblTitle.TabIndex = 0
-        lblTitle.Text = "Options"
-        ' 
-        ' lblSubtitle
-        ' 
-        lblSubtitle.AutoSize = True
-        lblSubtitle.Location = New Point(22, 42)
-        lblSubtitle.Name = "lblSubtitle"
-        lblSubtitle.Size = New Size(160, 15)
-        lblSubtitle.TabIndex = 1
-        lblSubtitle.Text = "Configure WinBMD2 settings"
-        ' 
-        ' footerPanel
-        ' 
-        footerPanel.Controls.Add(btnOk)
-        footerPanel.Controls.Add(btnCancel)
-        footerPanel.Dock = DockStyle.Bottom
-        footerPanel.Location = New Point(0, 469)
-        footerPanel.Name = "footerPanel"
-        footerPanel.Padding = New Padding(18, 9, 18, 9)
-        footerPanel.Size = New Size(764, 52)
-        footerPanel.TabIndex = 2
-        ' 
-        ' btnCancel
-        ' 
-        btnCancel.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnCancel.Location = New Point(519, 10)
-        btnCancel.Name = "btnCancel"
-        btnCancel.Size = New Size(90, 30)
-        btnCancel.TabIndex = 0
-        btnCancel.Text = "Cancel"
-        btnCancel.UseVisualStyleBackColor = True
-        ' 
-        ' btnOk
-        ' 
-        btnOk.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnOk.Location = New Point(637, 10)
-        btnOk.Name = "btnOk"
-        btnOk.Size = New Size(90, 30)
-        btnOk.TabIndex = 1
-        btnOk.Text = "Ok"
-        btnOk.UseVisualStyleBackColor = True
+        lblPageDescription.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        lblPageDescription.Location = New Point(24, 34)
+        lblPageDescription.Name = "lblPageDescription"
+        lblPageDescription.Size = New Size(606, 60)
+        lblPageDescription.TabIndex = 1
+        lblPageDescription.Text = "General WinBMD2 settings."
         ' 
         ' lblPageTitle
         ' 
@@ -197,22 +148,88 @@ Partial Class OptionsForm
         lblPageTitle.TabIndex = 0
         lblPageTitle.Text = "General"
         ' 
-        ' lblPageDescription
+        ' headerPanel
         ' 
-        lblPageDescription.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        lblPageDescription.Location = New Point(24, 34)
-        lblPageDescription.Name = "lblPageDescription"
-        lblPageDescription.Size = New Size(480, 60)
-        lblPageDescription.TabIndex = 1
-        lblPageDescription.Text = "General WinBMD2 settings."
+        headerPanel.Controls.Add(lblSubtitle)
+        headerPanel.Controls.Add(lblTitle)
+        headerPanel.Dock = DockStyle.Top
+        headerPanel.Location = New Point(0, 0)
+        headerPanel.Name = "headerPanel"
+        headerPanel.Padding = New Padding(22, 14, 22, 10)
+        headerPanel.Size = New Size(884, 72)
+        headerPanel.TabIndex = 1
+        ' 
+        ' lblSubtitle
+        ' 
+        lblSubtitle.AutoSize = True
+        lblSubtitle.Location = New Point(22, 42)
+        lblSubtitle.Name = "lblSubtitle"
+        lblSubtitle.Size = New Size(160, 15)
+        lblSubtitle.TabIndex = 1
+        lblSubtitle.Text = "Configure WinBMD2 settings"
+        ' 
+        ' lblTitle
+        ' 
+        lblTitle.AutoSize = True
+        lblTitle.Location = New Point(20, 10)
+        lblTitle.Name = "lblTitle"
+        lblTitle.Size = New Size(49, 15)
+        lblTitle.TabIndex = 0
+        lblTitle.Text = "Options"
+        ' 
+        ' footerPanel
+        ' 
+        footerPanel.Controls.Add(btnOk)
+        footerPanel.Controls.Add(btnCancel)
+        footerPanel.Dock = DockStyle.Bottom
+        footerPanel.Location = New Point(0, 509)
+        footerPanel.Name = "footerPanel"
+        footerPanel.Padding = New Padding(18, 9, 18, 9)
+        footerPanel.Size = New Size(884, 52)
+        footerPanel.TabIndex = 2
+        ' 
+        ' btnOk
+        ' 
+        btnOk.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnOk.Location = New Point(757, 10)
+        btnOk.Name = "btnOk"
+        btnOk.Size = New Size(90, 30)
+        btnOk.TabIndex = 1
+        btnOk.Text = "Ok"
+        btnOk.UseVisualStyleBackColor = True
+        ' 
+        ' btnCancel
+        ' 
+        btnCancel.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnCancel.Location = New Point(639, 10)
+        btnCancel.Name = "btnCancel"
+        btnCancel.Size = New Size(90, 30)
+        btnCancel.TabIndex = 0
+        btnCancel.Text = "Cancel"
+        btnCancel.UseVisualStyleBackColor = True
+        ' 
+        ' btnPicklists
+        ' 
+        btnPicklists.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        btnPicklists.FlatStyle = FlatStyle.Flat
+        btnPicklists.ImageAlign = ContentAlignment.MiddleLeft
+        btnPicklists.Location = New Point(8, 100)
+        btnPicklists.Name = "btnPicklists"
+        btnPicklists.Padding = New Padding(12, 0, 0, 0)
+        btnPicklists.Size = New Size(160, 36)
+        btnPicklists.TabIndex = 4
+        btnPicklists.Text = "Picklists"
+        btnPicklists.TextAlign = ContentAlignment.MiddleLeft
+        btnPicklists.TextImageRelation = TextImageRelation.ImageBeforeText
+        btnPicklists.UseVisualStyleBackColor = False
         ' 
         ' OptionsForm
         ' 
         AcceptButton = btnOk
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         CancelButton = btnCancel
-        ClientSize = New Size(764, 521)
+        ClientSize = New Size(884, 561)
         Controls.Add(footerPanel)
         Controls.Add(mainSplitContainer)
         Controls.Add(headerPanel)
@@ -248,4 +265,5 @@ Partial Class OptionsForm
     Friend WithEvents btnCancel As Button
     Friend WithEvents lblPageTitle As Label
     Friend WithEvents lblPageDescription As Label
+    Friend WithEvents btnPicklists As Button
 End Class

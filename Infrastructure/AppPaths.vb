@@ -12,8 +12,17 @@ Public Module AppPaths
     Public ReadOnly Property FilesFolder As String =
         Path.Combine(BaseFolder, "Files")
 
-    Public ReadOnly Property OutputFolder As String =
-        Path.Combine(BaseFolder, "Output")
+    Public ReadOnly Property SaveFolder As String
+        Get
+
+            If Not String.IsNullOrWhiteSpace(ProjectValues.SaveFolder) Then
+                Return ProjectValues.SaveFolder
+            End If
+
+            Return Path.Combine(BaseFolder, "Output")
+
+        End Get
+    End Property
 
     Public ReadOnly Property SettingsFilePath As String =
         Path.Combine(BaseFolder, "settings.json")
@@ -22,7 +31,7 @@ Public Module AppPaths
         Directory.CreateDirectory(BaseFolder)
         Directory.CreateDirectory(DownloadedScansFolder)
         Directory.CreateDirectory(FilesFolder)
-        Directory.CreateDirectory(OutputFolder)
+        Directory.CreateDirectory(SaveFolder)
     End Sub
 
 End Module

@@ -2,6 +2,8 @@
 Imports System.Drawing
 Imports System.Reflection
 Public Module ProjectValues
+    Public Property LoadingPersistedValues As Boolean = True
+    Public Event StatusMessageRequested(message As String, duration As Integer)
 
 #Region "Command Panels"
 
@@ -9,9 +11,24 @@ Public Module ProjectValues
 
 #End Region
 
-#Region "Transcription Form"
+#Region "Paths and Character Set"
+    Public Property SaveFolder As String
+    Public Property OutputCharacterSet As String = "ISO-8859-1"
+    Public Property InputCharacterSet As String = "ISO-8859-1"
+    Public Property UploadServerUrl As String = "www.freebmd.org.uk"
+#End Region
 
+#Region "Transcription Form"
     Public Property TranscriptionFormBounds As New Dictionary(Of String, FormBoundsData)
+
+#End Region
+
+#Region "Picklists"
+    Public Property FormatPicklistSelections As Boolean = False
+    Public Property PickListCompletion As Boolean = True
+    Public Property ShowForenamePickList As Boolean = True
+    Public Property ShowDistrictPickList As Boolean = True
+    Public Property Match3VolChars As Boolean = False
 
 #End Region
 
@@ -27,6 +44,8 @@ Public Module ProjectValues
     Public Property ScanViewSettings As New Dictionary(Of String, ScanViewData)
     Public Property RulerSettings As New Dictionary(Of String, RulerData)
     Public Property VerifyFieldLayouts As New Dictionary(Of String, Dictionary(Of String, VerifyFieldLayoutData))
+    Public Property EntryMode As EntryMode = EntryMode.Horizontal
+    Public Property SkipSurname As Boolean = False
 #End Region
 
 #Region "Header Form"
@@ -72,7 +91,36 @@ Public Module ProjectValues
 
     Public Property BatchType As String = ""
     Public Property BatchName As String = ""
+    Private _year As Integer
+
     Public Property Year As Integer
+        Get
+            Return _year
+        End Get
+        Set(value As Integer)
+            _year = value
+
+            If LoadingPersistedValues Then
+                Return
+            End If
+
+            Dim shouldMatch3 As Boolean = value >= 1993
+
+            If Match3VolChars = shouldMatch3 Then
+                Return
+            End If
+
+            Match3VolChars = shouldMatch3
+
+            If shouldMatch3 Then
+                RaiseEvent StatusMessageRequested("First 3-character volume matching has been enabled for post-1992 batches.", 10000)
+            Else
+                RaiseEvent StatusMessageRequested("First 3-character volume matching has been disabled for pre-1993 batches.", 10000)
+            End If
+
+            DebugLog.Write($"[OPTIONS] Match3VolChars automatically set to {Match3VolChars} for year {value}")
+        End Set
+    End Property
     Public Property Quarter As Integer
     Public Property Month As Integer
     Public Property Created As String = ""

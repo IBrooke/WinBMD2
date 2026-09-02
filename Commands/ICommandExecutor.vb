@@ -5,4 +5,6 @@
     Sub ToggleVerify()
     Sub SetVerifyVisible(visible As Boolean)
     Sub CompleteVerifyRow()
+    Sub NudgeScan(deltaX As Single, deltaY As Single)
+    Sub MoveScanOneRow(direction As Integer)
 End Interface

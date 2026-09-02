@@ -40,6 +40,10 @@ Public NotInheritable Class LoadSaveFiles
             ParseSourceLine(lines(3))
             ParseOpeningPage(lines(4))
 
+            If Not DistrictData.LoadAliveDistricts() Then
+                Throw New InvalidDataException("The district information for this batch could not be loaded.")
+            End If
+
             configureGrid()
 
             LoadGridRows(
@@ -255,7 +259,6 @@ Public NotInheritable Class LoadSaveFiles
         Return fields
 
     End Function
-
 
     Private Shared Function ReQuote(value As String) As String
 
@@ -757,7 +760,6 @@ Public NotInheritable Class LoadSaveFiles
         Dim recordType As String
 
         Select Case ProjectValues.BatchType
-
             Case "B"
                 recordType = "BIRTHS"
 
@@ -769,19 +771,31 @@ Public NotInheritable Class LoadSaveFiles
 
             Case Else
                 recordType = "BIRTHS"
-
         End Select
 
-        Return String.Join(
-            ",",
-            "+INFO",
-            ReQuote(ProjectValues.CreatorEmail),
-            "Password",
-            ReQuote(ProjectValues.SequenceType),
-            recordType)
+        Dim characterSet As String = ProjectValues.OutputCharacterSet
+
+        If String.Equals(characterSet, "Input Format", StringComparison.OrdinalIgnoreCase) Then
+            characterSet = ProjectValues.InputCharacterSet
+        End If
+
+        Dim infoLine As String = String.Join(
+        ",",
+        "+INFO",
+        ReQuote(ProjectValues.CreatorEmail),
+        "Password",
+        ReQuote(ProjectValues.SequenceType),
+        recordType)
+
+        Dim encoding As Encoding = ResolveEncoding(characterSet)
+
+        If encoding.CodePage <> Encoding.GetEncoding("ISO-8859-1").CodePage Then
+            infoLine &= "," & characterSet
+        End If
+
+        Return infoLine
 
     End Function
-
 
     Private Shared Function BuildHeaderLine1() As String
 
@@ -873,43 +887,77 @@ Public NotInheritable Class LoadSaveFiles
 
     End Function
 
+    Private Shared Function DetectEncoding(firstLine As String) As Encoding
 
-    Private Shared Function DetectEncoding(
-        firstLine As String) As Encoding
+        Const defaultCharacterSet As String = "ISO-8859-1"
 
-        Encoding.RegisterProvider(
-            CodePagesEncodingProvider.Instance)
+        ProjectValues.InputCharacterSet = defaultCharacterSet
 
-        If firstLine.StartsWith(
-            "+INFO",
-            StringComparison.OrdinalIgnoreCase) Then
+        Dim inputEncoding As Encoding = Encoding.GetEncoding(defaultCharacterSet)
 
-            Dim parts As List(Of String) =
-                SplitCsv(firstLine)
+        If firstLine.StartsWith("+INFO", StringComparison.OrdinalIgnoreCase) Then
 
-            If parts.Count >= 6 AndAlso
-               Not String.IsNullOrWhiteSpace(parts(5)) Then
+            Dim parts As List(Of String) = SplitCsv(firstLine)
 
-                Return ResolveEncoding(
-                    parts(5))
+            If parts.Count >= 6 AndAlso Not String.IsNullOrWhiteSpace(parts(5)) Then
+
+                Dim characterSet As String = parts(5).Trim()
+
+                Try
+                    inputEncoding = ResolveEncoding(characterSet)
+                    ProjectValues.InputCharacterSet = characterSet
+
+                Catch ex As ArgumentException
+                    MessageBox.Show(
+                    $"The character set '{characterSet}' specified in the file is not recognised." & Environment.NewLine & Environment.NewLine &
+                    $"The file will be treated as {defaultCharacterSet}.",
+                    "Character Set",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning)
+
+                    inputEncoding = Encoding.GetEncoding(defaultCharacterSet)
+                    ProjectValues.InputCharacterSet = defaultCharacterSet
+                End Try
 
             End If
 
         End If
 
-        Return Encoding.GetEncoding(
-            "ISO-8859-1")
+        ' If output is set to Input Format, it will automatically use the input
+        ' file's character set, so there can be no mismatch.
+        If Not String.Equals(ProjectValues.OutputCharacterSet, "Input Format", StringComparison.OrdinalIgnoreCase) Then
+
+            Try
+                Dim outputEncoding As Encoding = ResolveEncoding(ProjectValues.OutputCharacterSet)
+
+                If inputEncoding.CodePage <> outputEncoding.CodePage Then
+                    MessageBox.Show(
+                    $"This file uses the {ProjectValues.InputCharacterSet} character set, but your current output character set is {ProjectValues.OutputCharacterSet}." & Environment.NewLine & Environment.NewLine &
+                    "You may wish to change the Output Character Set on the Files & Upload tab of Options.",
+                    "Character Set",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning)
+                End If
+
+            Catch ex As ArgumentException
+                ' The saved output value should already have been validated.
+                ' Do nothing here if it is unexpectedly invalid.
+            End Try
+
+        End If
+
+        Return inputEncoding
 
     End Function
 
 
     Private Shared Function GetSaveEncoding() As Encoding
 
-        Encoding.RegisterProvider(
-            CodePagesEncodingProvider.Instance)
+        If String.Equals(ProjectValues.OutputCharacterSet, "Input Format", StringComparison.OrdinalIgnoreCase) Then
+            Return ResolveEncoding(ProjectValues.InputCharacterSet)
+        End If
 
-        Return Encoding.GetEncoding(
-            "ISO-8859-1")
+        Return ResolveEncoding(ProjectValues.OutputCharacterSet)
 
     End Function
 

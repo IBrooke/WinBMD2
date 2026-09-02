@@ -435,23 +435,19 @@ Public Class ScanView
         Select Case keyData And Keys.KeyCode
 
             Case Keys.Left
-                _viewer.NudgeImage(-nudge, 0)
-                SaveScanViewSettings()
+                _commandExecutor.NudgeScan(-nudge, 0)
                 Return True
 
             Case Keys.Right
-                _viewer.NudgeImage(nudge, 0)
-                SaveScanViewSettings()
+                _commandExecutor.NudgeScan(nudge, 0)
                 Return True
 
             Case Keys.Up
-                _viewer.NudgeImage(0, -nudge)
-                SaveScanViewSettings()
+                _commandExecutor.NudgeScan(0, -nudge)
                 Return True
 
             Case Keys.Down
-                _viewer.NudgeImage(0, nudge)
-                SaveScanViewSettings()
+                _commandExecutor.NudgeScan(0, nudge)
                 Return True
 
             Case Keys.Enter
@@ -584,19 +580,13 @@ Public Class ScanView
 
         _viewer.ShowRuler = False
 
-        Dim rowImageY As Single =
-        settings.Row1ImageY +
-        ((rowNumber - 1) * settings.RowStepImageY)
+        Dim rowImageY As Single = settings.Row1ImageY + ((rowNumber - 1) * settings.RowStepImageY)
 
-        Dim rowHeightScreen As Single =
-        Math.Abs(settings.RowStepImageY) * _viewer.Zoom
+        Dim rowHeightScreen As Single = GetScanRowDistance()
 
-        Dim targetScreenY As Single =
-        _viewer.ClientSize.Height - rowHeightScreen
+        Dim targetScreenY As Single = _viewer.ClientSize.Height - rowHeightScreen
 
-        _viewer.PositionImageYAtScreenY(
-        rowImageY,
-        targetScreenY)
+        _viewer.PositionImageYAtScreenY(rowImageY, targetScreenY)
 
     End Sub
     Public Sub MoveRulerToRow(rowNumber As Integer)
@@ -606,6 +596,11 @@ Public Class ScanView
         End If
 
         _rulerController.MoveToRow(rowNumber)
+
+    End Sub
+    Friend Sub MoveScanByRows(deltaRows As Integer)
+
+        _rulerController.MoveByRows(deltaRows)
 
     End Sub
     Public ReadOnly Property VerifyVisible As Boolean
@@ -635,4 +630,18 @@ Public Class ScanView
             $"RowStepImageY={_rulerController.RowStepImageY:0.###}")
 
     End Sub
+    Friend Sub NudgeViewer(deltaX As Single, deltaY As Single)
+
+        _viewer.NudgeImage(deltaX, deltaY)
+
+    End Sub
+    Friend Function GetScanRowDistance() As Single
+
+        If _rulerController.RowStepImageY = 0.0F Then
+            Return 0.0F
+        End If
+
+        Return Math.Abs(_rulerController.RowStepImageY * _viewer.Zoom)
+
+    End Function
 End Class

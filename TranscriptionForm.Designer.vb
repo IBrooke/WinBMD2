@@ -24,6 +24,7 @@ Partial Class TranscriptionForm
     Private Sub InitializeComponent()
         components = New ComponentModel.Container()
         filePanel = New CollapsiblePanel()
+        categoryBarPanel = New Panel()
         categoryStrip = New FlowLayoutPanel()
         btnCategoryFile = New Button()
         btnCategoryScan = New Button()
@@ -31,6 +32,7 @@ Partial Class TranscriptionForm
         btnCategoryUpload = New Button()
         btnCategoryOptions = New Button()
         btnCategoryHelp = New Button()
+        btnSpecialCharacters = New Button()
         commandStrip = New FlowLayoutPanel()
         btnFileOpen = New Button()
         btnFileSave = New Button()
@@ -45,6 +47,7 @@ Partial Class TranscriptionForm
         statusPositionLabel = New ToolStripStatusLabel()
         uploadToolTip = New ToolTip(components)
         filePanel.SuspendLayout()
+        categoryBarPanel.SuspendLayout()
         categoryStrip.SuspendLayout()
         commandStrip.SuspendLayout()
         CType(transcriptionGrid, ComponentModel.ISupportInitialize).BeginInit()
@@ -53,7 +56,7 @@ Partial Class TranscriptionForm
         ' 
         ' filePanel
         ' 
-        filePanel.Controls.Add(categoryStrip)
+        filePanel.Controls.Add(categoryBarPanel)
         filePanel.Controls.Add(commandStrip)
         filePanel.Dock = DockStyle.Top
         filePanel.HeaderText = ""
@@ -64,20 +67,29 @@ Partial Class TranscriptionForm
         filePanel.Size = New Size(884, 92)
         filePanel.TabIndex = 0
         ' 
+        ' categoryBarPanel
+        ' 
+        categoryBarPanel.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        categoryBarPanel.Controls.Add(categoryStrip)
+        categoryBarPanel.Controls.Add(btnSpecialCharacters)
+        categoryBarPanel.Location = New Point(6, 23)
+        categoryBarPanel.Name = "categoryBarPanel"
+        categoryBarPanel.Size = New Size(872, 28)
+        categoryBarPanel.TabIndex = 0
+        ' 
         ' categoryStrip
         ' 
-        categoryStrip.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         categoryStrip.Controls.Add(btnCategoryFile)
         categoryStrip.Controls.Add(btnCategoryScan)
         categoryStrip.Controls.Add(btnCategoryVerify)
         categoryStrip.Controls.Add(btnCategoryUpload)
         categoryStrip.Controls.Add(btnCategoryOptions)
         categoryStrip.Controls.Add(btnCategoryHelp)
-        categoryStrip.Location = New Point(6, 23)
+        categoryStrip.Location = New Point(0, 0)
         categoryStrip.Margin = New Padding(0)
         categoryStrip.Name = "categoryStrip"
         categoryStrip.Padding = New Padding(2)
-        categoryStrip.Size = New Size(872, 28)
+        categoryStrip.Size = New Size(420, 28)
         categoryStrip.TabIndex = 0
         categoryStrip.WrapContents = False
         ' 
@@ -146,6 +158,17 @@ Partial Class TranscriptionForm
         btnCategoryHelp.TabIndex = 6
         btnCategoryHelp.Text = "Help"
         btnCategoryHelp.UseVisualStyleBackColor = False
+        ' 
+        ' btnSpecialCharacters
+        ' 
+        btnSpecialCharacters.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnSpecialCharacters.Location = New Point(838, 1)
+        btnSpecialCharacters.Name = "btnSpecialCharacters"
+        btnSpecialCharacters.Size = New Size(34, 25)
+        btnSpecialCharacters.TabIndex = 7
+        btnSpecialCharacters.TabStop = False
+        btnSpecialCharacters.Text = "F4"
+        btnSpecialCharacters.UseVisualStyleBackColor = True
         ' 
         ' commandStrip
         ' 
@@ -284,6 +307,7 @@ Partial Class TranscriptionForm
         StartPosition = FormStartPosition.Manual
         Text = "WinBMD2"
         filePanel.ResumeLayout(False)
+        categoryBarPanel.ResumeLayout(False)
         categoryStrip.ResumeLayout(False)
         commandStrip.ResumeLayout(False)
         commandStrip.PerformLayout()
@@ -301,6 +325,7 @@ Partial Class TranscriptionForm
     Friend WithEvents statusMessageLabel As ToolStripStatusLabel
     Friend WithEvents statusSpringLabel As ToolStripStatusLabel
     Friend WithEvents statusPositionLabel As ToolStripStatusLabel
+    Friend WithEvents categoryBarPanel As Panel
     Friend WithEvents categoryStrip As FlowLayoutPanel
     Friend WithEvents commandStrip As FlowLayoutPanel
     Friend WithEvents btnCategoryFile As Button
@@ -315,5 +340,6 @@ Partial Class TranscriptionForm
     Friend WithEvents btnFileExit As Button
     Friend WithEvents btnFileEditHeader As Button
     Friend WithEvents uploadToolTip As ToolTip
+    Friend WithEvents btnSpecialCharacters As Button
 
 End Class

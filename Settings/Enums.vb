@@ -22,7 +22,10 @@ End Enum
 #End Region
 
 #Region "Entry"
-
+Public Enum EntryMode
+    Horizontal
+    Vertical
+End Enum
 Public Enum IgnoreAutoCompleteKey
     None
     Tab

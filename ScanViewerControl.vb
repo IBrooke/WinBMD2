@@ -23,7 +23,7 @@ Public Class ScanViewerControl
 
     Private _showRuler As Boolean
     Private _rulerScreenY As Single
-    Private _rulerBandHeight As Single = 12.0F
+    Private Const _rulerBandHeight As Single = 12.0F
     <DefaultValue(False)>
     Public Property ShowRuler As Boolean
         Get
@@ -197,9 +197,10 @@ Public Class ScanViewerControl
 
         Dim scaledHeight As Single = _image.Height * _zoom
 
-        Dim x As Single = _imageOffsetX + _panX
-
-        Dim y As Single = _imageOffsetY + _panY
+        ' Include the ScrollableControl position so mouse-wheel scrolling and repainting
+        ' use exactly the same image position.
+        Dim x As Single = _imageOffsetX + _panX + AutoScrollPosition.X
+        Dim y As Single = _imageOffsetY + _panY + AutoScrollPosition.Y
 
         e.Graphics.TranslateTransform(
         x + scaledWidth / 2.0F,
@@ -305,10 +306,7 @@ Public Class ScanViewerControl
             _isDragging = True
             _dragStartMouse = e.Location
 
-            _dragStartPan =
-                New PointF(
-                    _panX,
-                    _panY)
+            _dragStartPan = New PointF(_panX, _panY)
 
             Cursor = Cursors.SizeAll
 
@@ -327,11 +325,9 @@ Public Class ScanViewerControl
         Dim dx As Integer = e.X - _dragStartMouse.X
         Dim dy As Integer = e.Y - _dragStartMouse.Y
 
-        _panX =
-    _dragStartPan.X + dx
+        _panX = _dragStartPan.X + dx
 
-        _panY =
-    _dragStartPan.Y + dy
+        _panY = _dragStartPan.Y + dy
 
         Invalidate()
 
@@ -370,18 +366,13 @@ Public Class ScanViewerControl
         Return (screenY - _imageOffsetY - _panY) / _zoom
 
     End Function
-    Public Sub PositionImageYAtScreenY(
-    imageY As Single,
-    screenY As Single)
+    Public Sub PositionImageYAtScreenY(imageY As Single, screenY As Single)
 
         If _image Is Nothing Then
             Return
         End If
 
-        _panY =
-            screenY -
-            _imageOffsetY -
-            (imageY * _zoom)
+        _panY = screenY - _imageOffsetY - (imageY * _zoom)
 
         Invalidate()
 

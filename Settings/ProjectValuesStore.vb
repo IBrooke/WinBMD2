@@ -12,6 +12,7 @@ Public Module ProjectValuesStore
     End Sub
 
     Public Sub Load()
+        ProjectValues.LoadingPersistedValues = False    ' This is set to True only after these initial checks
         Try
             If Not File.Exists(AppPaths.SettingsFilePath) Then
                 Save()
@@ -32,6 +33,8 @@ Public Module ProjectValuesStore
                 Return
             End If
 
+            ProjectValues.LoadingPersistedValues = True
+
             ProjectValues.FilePanelExpanded = values.FilePanelExpanded
             ProjectValues.TranscriptionFormBounds =
             If(
@@ -50,7 +53,10 @@ Public Module ProjectValuesStore
             ProjectValues.UserName = If(values.UserName, "")
             ProjectValues.UserEmail = If(values.UserEmail, "")
             ProjectValues.UserPW = If(values.UserPW, "")
-
+            ProjectValues.FormatPicklistSelections = values.FormatPicklistSelections
+            ProjectValues.PickListCompletion = values.PickListCompletion
+            ProjectValues.ShowForenamePickList = values.ShowForenamePickList
+            ProjectValues.ShowDistrictPickList = values.ShowDistrictPickList
             ProjectValues.Creator = If(values.Creator, "")
             ProjectValues.CreatorEmail = If(values.CreatorEmail, "")
 
@@ -72,6 +78,11 @@ Public Module ProjectValuesStore
             ProjectValues.SourceRef = If(values.SourceRef, "")
             ProjectValues.Syndicate = If(values.Syndicate, "")
             ProjectValues.Comments = If(values.Comments, "")
+            ProjectValues.SkipSurname = values.SkipSurname
+            ProjectValues.SaveFolder = If(values.SaveFolder, "")
+            ProjectValues.OutputCharacterSet = If(String.IsNullOrWhiteSpace(values.OutputCharacterSet), "ISO-8859-1", values.OutputCharacterSet)
+            ProjectValues.UploadServerUrl = If(values.UploadServerUrl, "www.freebmd.org.uk")
+            ProjectValues.Match3VolChars = values.Match3VolChars
             ProjectValues.ScanViewSettings =
             If(
                 values.ScanViewSettings,
@@ -93,6 +104,7 @@ Public Module ProjectValuesStore
                 values.SequenceType)
             ProjectValues.ColourScheme = values.ColourScheme
             ProjectValues.IgnoreAutoComplete = values.IgnoreAutoComplete
+            ProjectValues.EntryMode = values.EntryMode
             ProjectValues.UiFontName =
             If(
                 String.IsNullOrWhiteSpace(values.UiFontName),
@@ -123,7 +135,10 @@ Public Module ProjectValuesStore
                 values.RecentFiles,
                 New List(Of String))
         Catch ex As Exception
+            ProjectValues.LoadingPersistedValues = False
             Save()
+        Finally
+            ProjectValues.LoadingPersistedValues = False
         End Try
     End Sub
 
@@ -159,6 +174,11 @@ Public Module ProjectValuesStore
                 .CreatorEmail = ProjectValues.CreatorEmail,
                 .EnableDiagnosticLogging = ProjectValues.EnableDiagnosticLogging,
                 .IgnoreAutoComplete = ProjectValues.IgnoreAutoComplete,
+                .FormatPicklistSelections = ProjectValues.FormatPicklistSelections,
+                .PickListCompletion = ProjectValues.PickListCompletion,
+                .ShowForenamePickList = ProjectValues.ShowForenamePickList,
+                .ShowDistrictPickList = ProjectValues.ShowDistrictPickList,
+                .EntryMode = ProjectValues.EntryMode,
                 .BatchType = ProjectValues.BatchType,
                 .Year = ProjectValues.Year,
                 .Quarter = ProjectValues.Quarter,
@@ -171,13 +191,18 @@ Public Module ProjectValuesStore
                 .SourceRef = ProjectValues.SourceRef,
                 .Syndicate = ProjectValues.Syndicate,
                 .Comments = ProjectValues.Comments,
+                .Match3VolChars = ProjectValues.Match3VolChars,
                 .AutoShowScan = ProjectValues.AutoShowScan,
                 .AutoShowRuler = ProjectValues.AutoShowRuler,
                 .SequenceType = ProjectValues.SequenceType,
                 .BatchName = ProjectValues.BatchName,
                 .Created = ProjectValues.Created,
                 .DateModified = ProjectValues.DateModified,
-                .RecentFiles = ProjectValues.RecentFiles
+                .RecentFiles = ProjectValues.RecentFiles,
+                .SaveFolder = ProjectValues.SaveFolder,
+                .OutputCharacterSet = ProjectValues.OutputCharacterSet,
+                .UploadServerUrl = ProjectValues.UploadServerUrl,
+                .SkipSurname = ProjectValues.SkipSurname
             }
 
             Dim options As New JsonSerializerOptions With {
@@ -217,6 +242,7 @@ Public Module ProjectValuesStore
         Public Property CreatorEmail As String = ""
         Public Property EnableDiagnosticLogging As Boolean = True
         Public Property IgnoreAutoComplete As IgnoreAutoCompleteKey = IgnoreAutoCompleteKey.Tab
+        Public Property EntryMode As EntryMode = EntryMode.Horizontal
         Public Property BatchType As String = ""
         Public Property Year As Integer
         Public Property Quarter As Integer
@@ -232,8 +258,17 @@ Public Module ProjectValuesStore
         Public Property BatchName As String = ""
         Public Property Created As String = ""
         Public Property DateModified As Date = Date.Today
+        Public Property SkipSurname As Boolean = False
+        Public Property SaveFolder As String = ""
+        Public Property UploadServerUrl As String = "www.freebmd.org.uk"
+        Public Property OutputCharacterSet As String = "ISO-8859-1"
         Public Property AutoShowScan As Boolean = True
         Public Property AutoShowRuler As Boolean = True
+        Public Property FormatPicklistSelections As Boolean = False
+        Public Property PickListCompletion As Boolean = True    ' The picklist column auto-complete characters
+        Public Property ShowForenamePickList As Boolean = True
+        Public Property ShowDistrictPickList As Boolean = True
+        Public Property Match3VolChars As Boolean = False
         Public Property SequenceType As String = "SEQUENCED"
         Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
         Public Property UiFontName As String = SystemFonts.MessageBoxFont.FontFamily.Name

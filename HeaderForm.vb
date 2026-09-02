@@ -2,6 +2,9 @@
 Imports System.Net.Mail
 Imports System.Linq
 Imports WinBMD2.My.Resources
+Imports System.ComponentModel
+Imports System.Threading
+Imports System.Runtime.CompilerServices
 
 Public Class HeaderForm
 
@@ -13,6 +16,8 @@ Public Class HeaderForm
     Private _loadingValues As Boolean
     Private ReadOnly _openBatchMenu As New ContextMenuStrip()
     Private ReadOnly _editMode As Boolean
+    Private _showVnfWarningWhenShown As Boolean
+    Private _vnfWarningShown As Boolean
 
     Public Sub New(Optional editMode As Boolean = False)
 
@@ -35,8 +40,16 @@ Public Class HeaderForm
         HookValidationEvents()
 
         UpdateQuarterVisibility()
-        SuggestVolumeFormat()
+        _showVnfWarningWhenShown = SuggestVolumeFormat()
         ValidateForm()
+    End Sub
+    Private Sub HeaderForm_Shown(sender As Object, e As EventArgs) Handles Me.Shown
+
+        If _showVnfWarningWhenShown Then
+            ShowVnfWarning()
+            _showVnfWarningWhenShown = False
+        End If
+
     End Sub
     Public Sub ApplyColourScheme()
 
@@ -325,7 +338,7 @@ Public Class HeaderForm
             "Open Existing Batch"
 
             dialog.InitialDirectory =
-            AppPaths.OutputFolder
+            AppPaths.SaveFolder
 
             If dialog.ShowDialog(Me) <> DialogResult.OK Then
                 Return
@@ -336,20 +349,17 @@ Public Class HeaderForm
         End Using
 
     End Sub
-    Private Sub OpenExistingBatch(
-    filePath As String)
+    Private Sub OpenExistingBatch(filePath As String)
 
         If Not File.Exists(filePath) Then
             Return
         End If
 
-        ProjectValues.BatchName =
-        Path.GetFileName(filePath)
+        ProjectValues.BatchName = Path.GetFileName(filePath)
 
         ProjectValuesStore.Save()
 
-        DialogResult =
-        DialogResult.OK
+        DialogResult = DialogResult.OK
 
         Tag = filePath
 
@@ -465,7 +475,9 @@ Public Class HeaderForm
         sourceRefTextBox.Clear()
 
         UpdateQuarterVisibility()
-        SuggestVolumeFormat()
+        If SuggestVolumeFormat() Then
+            ShowVnfWarning()
+        End If
         ValidateForm()
 
     End Sub
@@ -480,7 +492,9 @@ Public Class HeaderForm
 
         sourceRefTextBox.Clear()
 
-        SuggestVolumeFormat()
+        If SuggestVolumeFormat() Then
+            ShowVnfWarning()
+        End If
         ValidateForm()
 
     End Sub
@@ -495,7 +509,9 @@ Public Class HeaderForm
 
         sourceRefTextBox.Clear()
 
-        SuggestVolumeFormat()
+        If SuggestVolumeFormat() Then
+            ShowVnfWarning()
+        End If
         ValidateForm()
 
     End Sub
@@ -532,54 +548,110 @@ Public Class HeaderForm
 
     End Sub
 
-    Private Sub SuggestVolumeFormat()
+    Private Function SuggestVolumeFormat() As Boolean
 
+        Dim quarter As Integer = If(quarterComboBox.SelectedIndex >= 0, quarterComboBox.SelectedIndex + 1, 0)
         Dim year As Integer
 
-        If Not Integer.TryParse(yearTextBox.Text.Trim(), year) Then
-            Return
+        ' Do not suggest a volume format until the year and, where required, the quarter are complete.
+        ' The routine will be called again automatically when either value changes.
+
+        If yearTextBox.Text.Trim().Length <> 4 OrElse Not Integer.TryParse(yearTextBox.Text.Trim(), year) Then
+            Return False
         End If
 
-        Dim quarter As Integer =
-            If(quarterComboBox.SelectedIndex >= 0,
-               quarterComboBox.SelectedIndex + 1,
-               0)
+        If year < FirstYearWithoutQuarters AndAlso quarterComboBox.SelectedIndex < 0 Then
+            Return False
+        End If
+
+        If yearTextBox.Text.Trim().Length <> 4 OrElse Not Integer.TryParse(yearTextBox.Text.Trim(), year) Then
+            Return False
+        End If
+
+        If year < FirstYearWithoutQuarters AndAlso quarterComboBox.SelectedIndex < 0 Then
+            Return False
+        End If
 
         Dim batchType As String = GetSelectedBatchType()
+        Dim suggestedFormat As String = ""
+        Dim warningNeeded As Boolean = False
+        Dim earlyPeriod As Boolean = False
 
-        Dim suggestedFormat As String
+        Select Case batchType
+            Case "B"
+                If year < 1839 Then
+                    suggestedFormat = "99"
+                    warningNeeded = True
+                    earlyPeriod = True
+                ElseIf year < 1860 Then
+                    suggestedFormat = "XX"
+                    warningNeeded = True
+                    earlyPeriod = True
+                End If
 
-        If year < 1852 Then
-            suggestedFormat = "XX"
+            Case "M"
+                If year < 1843 Then
+                    suggestedFormat = "99"
+                    warningNeeded = True
+                    earlyPeriod = True
+                ElseIf year < 1866 Then
+                    suggestedFormat = "XX"
+                    warningNeeded = True
+                    earlyPeriod = True
+                End If
 
-        ElseIf year < 1946 OrElse
-               (year = 1946 AndAlso quarter <= 2) Then
+            Case "D"
+                If year < 1837 Then
+                    suggestedFormat = "99"
+                    warningNeeded = True
+                    earlyPeriod = True
+                ElseIf year < 1842 Then
+                    suggestedFormat = "XX"
+                    warningNeeded = True
+                    earlyPeriod = True
+                End If
+        End Select
 
-            suggestedFormat = "9Z"
-
-        ElseIf year < 1965 OrElse
-               (year = 1965 AndAlso quarter <= 1) Then
-
-            suggestedFormat = "9Z"
-
-        ElseIf year < 1974 OrElse
-               (year = 1974 AndAlso quarter <= 1) Then
-
-            suggestedFormat = "9Z"
-
-        ElseIf batchType = "M" Then
-            suggestedFormat =
-                If(year >= 1994, "999", "99")
-
-        Else
-            suggestedFormat =
-                If(year >= 1993, "999", "99")
+        If Not earlyPeriod Then
+            If year < 1946 OrElse (year = 1946 AndAlso quarter <= 2) Then
+                suggestedFormat = "9Z"
+            ElseIf year < 1965 OrElse (year = 1965 AndAlso quarter <= 1) Then
+                suggestedFormat = "9Z"
+            ElseIf year < 1974 OrElse (year = 1974 AndAlso quarter <= 1) Then
+                suggestedFormat = "9Z"
+            ElseIf batchType = "M" Then
+                suggestedFormat = If(year >= 1994, "999", "99")
+            Else
+                suggestedFormat = If(year >= 1993, "999", "99")
+            End If
         End If
 
         vnfComboBox.SelectedItem = suggestedFormat
 
-    End Sub
+        Return warningNeeded
 
+    End Function
+    Private Sub ShowVnfWarning()
+        ' Ensure the warning message is only shown once
+
+        If _vnfWarningShown Then
+            Return
+        End If
+
+        _vnfWarningShown = True
+
+        MessageBox.Show(
+        Me,
+        "Early FreeBMD scans may exist in more than one volume-number format." & Environment.NewLine & Environment.NewLine &
+        "Handwritten scans normally use Roman volume numbers (XX), while typed scans normally use Arabic volume numbers (99)." & Environment.NewLine & Environment.NewLine &
+        "WinBMD2 has selected the most likely Volume Number Format for this year, quarter and record type, but this cannot always be determined in advance." & Environment.NewLine & Environment.NewLine &
+        "Please check the scan carefully and change the Volume Number Format if necessary." & Environment.NewLine &
+        "You can do this by clicking Edit Header on the transcription form.",
+        "Check Volume Number Format",
+        MessageBoxButtons.OK,
+        MessageBoxIcon.Warning)
+
+    End Sub
     Private Sub ValidateForm()
 
         Dim problems As New List(Of String)
@@ -1089,9 +1161,7 @@ Public Class HeaderForm
 
     End Sub
 
-    Private Sub btnStart_Click(
-    sender As Object,
-    e As EventArgs)
+    Private Sub btnStart_Click(sender As Object, e As EventArgs)
 
         ValidateForm()
 
@@ -1109,8 +1179,7 @@ Public Class HeaderForm
 
         SaveToProjectValues()
 
-        DialogResult =
-        DialogResult.OK
+        DialogResult = DialogResult.OK
 
         Close()
 
@@ -1142,7 +1211,7 @@ Public Class HeaderForm
 
             Dim newFilePath As String =
         Path.Combine(
-            AppPaths.OutputFolder,
+            AppPaths.SaveFolder,
             newBatchName)
 
             If File.Exists(newFilePath) Then
@@ -1169,12 +1238,9 @@ Public Class HeaderForm
         Return True
 
     End Function
-    Private Sub btnCancel_Click(
-        sender As Object,
-        e As EventArgs)
+    Private Sub btnCancel_Click(sender As Object, e As EventArgs)
 
-        DialogResult =
-            DialogResult.Cancel
+        DialogResult = DialogResult.Cancel
 
         Close()
 

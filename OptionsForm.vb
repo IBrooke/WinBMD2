@@ -1,4 +1,5 @@
-﻿Imports WinBMD2.My.Resources
+﻿Imports System.IO
+Imports WinBMD2.My.Resources
 
 Public Class OptionsForm
 
@@ -19,11 +20,22 @@ Public Class OptionsForm
     Private ReadOnly _uiFontSizeNumeric As New NumericUpDown()
     Private ReadOnly _verifyFontSizeNumeric As New NumericUpDown()
     Private ReadOnly _entryPanel As New Panel()
+    Private ReadOnly _picklistsPanel As New Panel()
     Private ReadOnly _capitalisationPanel As New Panel()
     Private ReadOnly _capitalisationTable As New TableLayoutPanel()
     Private ReadOnly _ignoreAutoCompleteComboBox As New ComboBox()
     Private ReadOnly _autoShowScanToggle As New ToggleSwitch()
     Private ReadOnly _autoShowRulerToggle As New ToggleSwitch()
+    Private ReadOnly _verticalTabToggle As New ToggleSwitch()
+    Private ReadOnly _skipSurnameToggle As New ToggleSwitch()
+    Private ReadOnly _formatPicklistSelectionsToggle As New ToggleSwitch()
+    Private ReadOnly _originalCapitalisation As New Dictionary(Of GridField, CapitalisationMode)
+    Private ReadOnly _outputCharacterSetComboBox As New ComboBox()
+    Private ReadOnly _pickListCompletionToggle As New ToggleSwitch()
+    Private ReadOnly _showForenamePickListToggle As New ToggleSwitch()
+    Private ReadOnly _showDistrictPickListToggle As New ToggleSwitch()
+    Private ReadOnly _match3VolCharsToggle As New ToggleSwitch()
+    Public ReadOnly Property CapitalisationChanges As New List(Of CapitalisationChange)
     Public Sub New(Optional allowCapitalisation As Boolean = False)
 
         InitializeComponent()
@@ -37,6 +49,7 @@ Public Class OptionsForm
 
         BuildGeneralPage()
         BuildEntryPage()
+        BuildPicklistsPage()
         BuildCapitalisationPage()
         LoadOptionValues()
 
@@ -108,6 +121,8 @@ Public Class OptionsForm
         Dim fields() As GridField = GridLayout.GetVisibleFields().Where(Function(field) FieldMetaData.Meta(field).IsDataColumn).ToArray()
         Dim savedValues As String = CapitalisationData.GetSettings(ProjectValues.BatchType, ProjectValues.Year)
 
+        _originalCapitalisation.Clear()
+
         _capitalisationTable.RowCount = fields.Length + 1
         _capitalisationTable.RowStyles.Clear()
 
@@ -132,6 +147,8 @@ Public Class OptionsForm
                 End If
 
             End If
+
+            _originalCapitalisation(field) = selectedMode
 
             Dim fieldLabel As New Label With {
             .Text = FieldMetaData.Meta(field).Header,
@@ -191,21 +208,46 @@ Public Class OptionsForm
 
         _entryPanel.Name = "entryOptionsPanel"
         _entryPanel.Location = New Point(24, 56)
+        _entryPanel.Size = New Size(Math.Max(300, mainSplitContainer.Panel2.ClientSize.Width - 48), Math.Max(200, mainSplitContainer.Panel2.ClientSize.Height - 136))
+        _entryPanel.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
 
-        _entryPanel.Size =
-        New Size(
-            Math.Max(
-                300,
-                mainSplitContainer.Panel2.ClientSize.Width - 48),
-            Math.Max(
-                200,
-                mainSplitContainer.Panel2.ClientSize.Height - 136))
+        Dim verticalTabLabel As New Label With {
+        .Name = "verticalTabLabel",
+        .Text = "Use vertical tab entry mode",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 40)
+    }
 
-        _entryPanel.Anchor =
-        AnchorStyles.Top Or
-        AnchorStyles.Bottom Or
-        AnchorStyles.Left Or
-        AnchorStyles.Right
+        _verticalTabToggle.Name = "verticalTabToggle"
+        _verticalTabToggle.Location = New Point(250, 35)
+
+        Dim skipSurnameLabel As New Label With {
+        .Name = "skipSurnameLabel",
+        .Text = "Automatically copy and skip surname",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 81)
+    }
+
+        _skipSurnameToggle.Name = "skipSurnameToggle"
+        _skipSurnameToggle.Location = New Point(250, 76)
+
+        _entryPanel.Controls.Add(verticalTabLabel)
+        _entryPanel.Controls.Add(_verticalTabToggle)
+        _entryPanel.Controls.Add(skipSurnameLabel)
+        _entryPanel.Controls.Add(_skipSurnameToggle)
+
+        mainSplitContainer.Panel2.Controls.Add(_entryPanel)
+
+    End Sub
+
+    Private Sub BuildPicklistsPage()
+
+        _picklistsPanel.Name = "picklistsOptionsPanel"
+        _picklistsPanel.Location = New Point(24, 56)
+        _picklistsPanel.Size = New Size(Math.Max(300, mainSplitContainer.Panel2.ClientSize.Width - 48), Math.Max(200, mainSplitContainer.Panel2.ClientSize.Height - 136))
+        _picklistsPanel.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
 
         Dim titleLabel As New Label With {
         .Name = "ignoreAutoCompleteTitleLabel",
@@ -218,8 +260,7 @@ Public Class OptionsForm
 
         Dim descriptionLabel As New Label With {
         .Name = "ignoreAutoCompleteDescriptionLabel",
-        .Text =
-            "Choose which navigation keys ignore the highlighted picklist suggestion.",
+        .Text = "Choose how the Forename and District picklists behave.",
         .AutoSize = True,
         .ForeColor = UiColors.TextSecondary,
         .Location = New Point(22, 40)
@@ -230,51 +271,105 @@ Public Class OptionsForm
         .Text = "Ignore the picklist when pressing",
         .AutoSize = True,
         .ForeColor = UiColors.TextPrimary,
-        .Location = New Point(22, 106)
+        .Location = New Point(22, 76)
     }
 
-        _ignoreAutoCompleteComboBox.Name =
-        "ignoreAutoCompleteComboBox"
+        _ignoreAutoCompleteComboBox.Name = "ignoreAutoCompleteComboBox"
+        _ignoreAutoCompleteComboBox.DropDownStyle = ComboBoxStyle.DropDownList
+        _ignoreAutoCompleteComboBox.Location = New Point(250, 72)
+        _ignoreAutoCompleteComboBox.Size = New Size(190, 23)
 
-        _ignoreAutoCompleteComboBox.DropDownStyle =
-        ComboBoxStyle.DropDownList
-
-        _ignoreAutoCompleteComboBox.Location =
-        New Point(22, 118)
-
-        _ignoreAutoCompleteComboBox.Size =
-        New Size(190, 23)
-
-        _ignoreAutoCompleteComboBox.Items.AddRange(
-        New Object() {
-            IgnoreAutoCompleteKey.None,
-            IgnoreAutoCompleteKey.Tab,
-            IgnoreAutoCompleteKey.Return,
-            IgnoreAutoCompleteKey.All
-        })
+        _ignoreAutoCompleteComboBox.Items.AddRange(New Object() {
+        IgnoreAutoCompleteKey.None,
+        IgnoreAutoCompleteKey.Tab,
+        IgnoreAutoCompleteKey.Return,
+        IgnoreAutoCompleteKey.All
+    })
 
         Dim helpLabel As New Label With {
         .Name = "ignoreAutoCompleteHelpLabel",
-        .Text =
-            "If a key ignores the suggestion and the cell is empty, " &
-            "the value from the cell above will be copied instead.",
+        .Text = "If a key ignores the suggestion and the cell is empty, the value from the cell above will be copied instead.",
         .AutoSize = False,
         .ForeColor = UiColors.TextSecondary,
-        .Location = New Point(22, 146),
-        .Size = New Size(460, 48),
-        .Anchor =
-            AnchorStyles.Top Or
-            AnchorStyles.Left Or
-            AnchorStyles.Right
+        .Location = New Point(22, 108),
+        .Size = New Size(460, 36),
+        .Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
     }
 
-        _entryPanel.Controls.Add(titleLabel)
-        _entryPanel.Controls.Add(descriptionLabel)
-        _entryPanel.Controls.Add(optionLabel)
-        _entryPanel.Controls.Add(_ignoreAutoCompleteComboBox)
-        _entryPanel.Controls.Add(helpLabel)
+        Dim showForenamePickListLabel As New Label With {
+        .Name = "showForenamePickListLabel",
+        .Text = "Show Forename picklist",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 158)
+    }
 
-        mainSplitContainer.Panel2.Controls.Add(_entryPanel)
+        _showForenamePickListToggle.Name = "showForenamePickListToggle"
+        _showForenamePickListToggle.Location = New Point(250, 153)
+
+        Dim showDistrictPickListLabel As New Label With {
+        .Name = "showDistrictPickListLabel",
+        .Text = "Show District picklist",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 198)
+    }
+
+        _showDistrictPickListToggle.Name = "showDistrictPickListToggle"
+        _showDistrictPickListToggle.Location = New Point(250, 193)
+
+        Dim formatPicklistLabel As New Label With {
+        .Name = "formatPicklistLabel",
+        .Text = "Format picklist selections",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 238)
+    }
+
+        _formatPicklistSelectionsToggle.Name = "formatPicklistSelectionsToggle"
+        _formatPicklistSelectionsToggle.Location = New Point(250, 233)
+
+        Dim pickListCompletionLabel As New Label With {
+        .Name = "pickListCompletionLabel",
+        .Text = "Show completion characters",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 278)
+    }
+
+        _pickListCompletionToggle.Name = "pickListCompletionToggle"
+        _pickListCompletionToggle.Location = New Point(250, 273)
+
+        Dim match3VolCharsLabel As New Label With {
+            .Name = "match3VolCharsLabel",
+            .Text = "Match first 3 characters of Volume Code",
+            .AutoSize = True,
+            .ForeColor = UiColors.TextPrimary,
+            .Location = New Point(22, 318)
+        }
+
+        _match3VolCharsToggle.Name = "match3VolCharsToggle"
+        _match3VolCharsToggle.Location = New Point(250, 313)
+
+        AddHandler _match3VolCharsToggle.CheckedChanged, AddressOf Match3VolCharsToggle_CheckedChanged
+
+        _picklistsPanel.Controls.Add(titleLabel)
+        _picklistsPanel.Controls.Add(descriptionLabel)
+        _picklistsPanel.Controls.Add(optionLabel)
+        _picklistsPanel.Controls.Add(_ignoreAutoCompleteComboBox)
+        _picklistsPanel.Controls.Add(helpLabel)
+        _picklistsPanel.Controls.Add(showForenamePickListLabel)
+        _picklistsPanel.Controls.Add(_showForenamePickListToggle)
+        _picklistsPanel.Controls.Add(showDistrictPickListLabel)
+        _picklistsPanel.Controls.Add(_showDistrictPickListToggle)
+        _picklistsPanel.Controls.Add(formatPicklistLabel)
+        _picklistsPanel.Controls.Add(_formatPicklistSelectionsToggle)
+        _picklistsPanel.Controls.Add(pickListCompletionLabel)
+        _picklistsPanel.Controls.Add(_pickListCompletionToggle)
+        _picklistsPanel.Controls.Add(match3VolCharsLabel)
+        _picklistsPanel.Controls.Add(_match3VolCharsToggle)
+
+        mainSplitContainer.Panel2.Controls.Add(_picklistsPanel)
 
     End Sub
     Private Sub ConfigureGeneralPanel()
@@ -509,35 +604,204 @@ Public Class OptionsForm
     Private Sub BuildUploadTab()
 
         _uploadTab.Name = "uploadTab"
-        _uploadTab.Text = "Upload"
+        _uploadTab.Text = "Files & Upload"
         _uploadTab.Padding = New Padding(20)
 
         Dim titleLabel As New Label With {
-            .Name = "uploadTitleLabel",
-            .Text = "Upload and file settings",
-            .AutoSize = True,
-            .Font = UiFonts.SectionHeading,
-            .ForeColor = UiColors.TextPrimary,
-            .Location = New Point(20, 20)
-        }
+        .Name = "uploadTitleLabel",
+        .Text = "File and upload settings",
+        .AutoSize = True,
+        .Font = UiFonts.SectionHeading,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(20, 20)
+    }
 
         Dim descriptionLabel As New Label With {
-            .Name = "uploadDescriptionLabel",
-            .Text =
-                "Upload server and saved-file character-set settings " &
-                "will be added here.",
-            .AutoSize = False,
-            .ForeColor = UiColors.TextSecondary,
-            .Location = New Point(22, 54),
-            .Size = New Size(420, 50),
-            .Anchor =
-                AnchorStyles.Top Or
-                AnchorStyles.Left Or
-                AnchorStyles.Right
+        .Name = "uploadDescriptionLabel",
+        .Text = "Choose where transcription files are saved and configure file and upload settings.",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextSecondary,
+        .Location = New Point(22, 54)
+    }
+
+        Dim savedFilesLabel As New Label With {
+        .Name = "savedFilesLabel",
+        .Text = "Saved files",
+        .AutoSize = True,
+        .Font = UiFonts.SectionHeading,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 94)
+    }
+
+        Dim saveFolderLabel As New Label With {
+        .Name = "saveFolderLabel",
+        .Text = "Save folder",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 130)
+    }
+
+        Dim saveFolderTextBox As New TextBox With {
+    .Name = "saveFolderTextBox",
+    .Text = AppPaths.SaveFolder,
+    .Location = New Point(22, 154),
+    .Size = New Size(400, 23)
+}
+
+        Dim browseSaveFolderButton As New Button With {
+    .Name = "browseSaveFolderButton",
+    .Text = "Browse...",
+    .Location = New Point(432, 152),
+    .Size = New Size(75, 27)
+}
+
+        Dim updateSaveFolderButton As New Button With {
+    .Name = "updateSaveFolderButton",
+    .Text = "Update",
+    .Location = New Point(517, 152),
+    .Size = New Size(75, 27)
+}
+
+        AddHandler browseSaveFolderButton.Click,
+        Sub()
+
+            Using dialog As New FolderBrowserDialog()
+
+                dialog.Description = "Select the folder used to save transcription files."
+                dialog.SelectedPath = saveFolderTextBox.Text
+
+                If dialog.ShowDialog(Me) = DialogResult.OK Then
+                    saveFolderTextBox.Text = dialog.SelectedPath
+                End If
+
+            End Using
+
+        End Sub
+
+        AddHandler updateSaveFolderButton.Click,
+        Sub()
+
+            Dim folder As String = saveFolderTextBox.Text.Trim()
+
+            If String.IsNullOrWhiteSpace(folder) Then
+                ' Temporarily clear the saved value so AppPaths.SaveFolder returns the default folder.
+                ProjectValues.SaveFolder = ""
+                folder = AppPaths.SaveFolder
+            End If
+
+            If String.IsNullOrWhiteSpace(folder) OrElse Not Directory.Exists(folder) Then
+
+                MessageBox.Show(
+                    Me,
+                    "The selected save folder does not exist.",
+                    "Save Folder",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning)
+
+                Return
+
+            End If
+
+            ProjectValues.SaveFolder = folder
+            saveFolderTextBox.Text = folder
+
+            MessageBox.Show(
+                Me,
+                "The save folder has been updated.",
+                "Save Folder",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information)
+
+        End Sub
+
+        Dim uploadServerLabel As New Label With {
+    .Name = "uploadServerLabel",
+    .Text = "Upload server",
+    .AutoSize = True,
+    .ForeColor = UiColors.TextPrimary,
+    .Location = New Point(22, 200)
+}
+
+        Dim uploadServerUrlTextBox As New TextBox With {
+            .Name = "uploadServerUrlTextBox",
+            .Text = ProjectValues.UploadServerUrl,
+            .Location = New Point(22, 224),
+            .Size = New Size(400, 23)
         }
+
+        Dim updateUploadServerButton As New Button With {
+            .Name = "updateUploadServerButton",
+            .Text = "Update",
+            .Location = New Point(432, 222),
+            .Size = New Size(75, 27)
+        }
+
+        AddHandler updateUploadServerButton.Click,
+Sub()
+
+    Dim uploadServerUrl As String = uploadServerUrlTextBox.Text.Trim()
+
+    If String.IsNullOrWhiteSpace(uploadServerUrl) Then
+        ' Restore the default FreeBMD upload server if the box has been cleared.
+        uploadServerUrl = "www.freebmd.org.uk"
+    End If
+
+    If Uri.CheckHostName(uploadServerUrl) = UriHostNameType.Unknown Then
+
+        MessageBox.Show(
+            Me,
+            "The upload server address is not valid.",
+            "Upload Server",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning)
+
+        Return
+
+    End If
+
+    ProjectValues.UploadServerUrl = uploadServerUrl
+    uploadServerUrlTextBox.Text = uploadServerUrl
+    ProjectValuesStore.Save()
+
+    MessageBox.Show(
+        Me,
+        "The upload server has been updated.",
+        "Upload Server",
+        MessageBoxButtons.OK,
+        MessageBoxIcon.Information)
+End Sub
+
+        Dim outputCharacterSetLabel As New Label With {
+        .Name = "outputCharacterSetLabel",
+        .Text = "Output character set",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(22, 274)
+    }
+
+        _outputCharacterSetComboBox.Name = "outputCharacterSetComboBox"
+        _outputCharacterSetComboBox.DropDownStyle = ComboBoxStyle.DropDownList
+        _outputCharacterSetComboBox.Location = New Point(160, 270)
+        _outputCharacterSetComboBox.Size = New Size(160, 23)
+
+        _outputCharacterSetComboBox.Items.AddRange(New Object() {
+            "FreeBMD",
+            "Input Format",
+            "UTF-8"
+        })
 
         _uploadTab.Controls.Add(titleLabel)
         _uploadTab.Controls.Add(descriptionLabel)
+        _uploadTab.Controls.Add(savedFilesLabel)
+        _uploadTab.Controls.Add(saveFolderLabel)
+        _uploadTab.Controls.Add(saveFolderTextBox)
+        _uploadTab.Controls.Add(browseSaveFolderButton)
+        _uploadTab.Controls.Add(updateSaveFolderButton)
+        _uploadTab.Controls.Add(uploadServerLabel)
+        _uploadTab.Controls.Add(uploadServerUrlTextBox)
+        _uploadTab.Controls.Add(updateUploadServerButton)
+        _uploadTab.Controls.Add(outputCharacterSetLabel)
+        _uploadTab.Controls.Add(_outputCharacterSetComboBox)
 
     End Sub
 
@@ -611,8 +875,7 @@ Public Class OptionsForm
         _loadingOptionValues = True
 
         Try
-            _colourSchemeComboBox.SelectedItem =
-            ProjectValues.ColourScheme
+            _colourSchemeComboBox.SelectedItem = ProjectValues.ColourScheme
             _ignoreAutoCompleteComboBox.SelectedItem = ProjectValues.IgnoreAutoComplete
             If _uiFontComboBox.Items.Contains(ProjectValues.UiFontName) Then
                 _uiFontComboBox.SelectedItem = ProjectValues.UiFontName
@@ -620,24 +883,41 @@ Public Class OptionsForm
                 _uiFontComboBox.Items.Add(ProjectValues.UiFontName)
                 _uiFontComboBox.SelectedItem = ProjectValues.UiFontName
             End If
+            _verticalTabToggle.Checked = ProjectValues.EntryMode = EntryMode.Vertical
             _autoShowScanToggle.Checked = ProjectValues.AutoShowScan
             _autoShowRulerToggle.Checked = ProjectValues.AutoShowRuler
+            _skipSurnameToggle.Checked = ProjectValues.SkipSurname
+            _formatPicklistSelectionsToggle.Checked = ProjectValues.FormatPicklistSelections
+            _pickListCompletionToggle.Checked = ProjectValues.PickListCompletion
+            _match3VolCharsToggle.Checked = ProjectValues.Match3VolChars
+            _showForenamePickListToggle.Checked = ProjectValues.ShowForenamePickList
+            _showDistrictPickListToggle.Checked = ProjectValues.ShowDistrictPickList
             _uiFontSizeNumeric.Value =
-    Math.Min(
-        _uiFontSizeNumeric.Maximum,
-        Math.Max(
-            _uiFontSizeNumeric.Minimum,
-            CDec(ProjectValues.UiFontSize)))
+                Math.Min(
+                    _uiFontSizeNumeric.Maximum,
+                    Math.Max(
+                        _uiFontSizeNumeric.Minimum,
+                        CDec(ProjectValues.UiFontSize)))
 
             _verifyFontSizeNumeric.Value =
-    Math.Min(
-        _verifyFontSizeNumeric.Maximum,
-        Math.Max(
-            _verifyFontSizeNumeric.Minimum,
-            CDec(ProjectValues.VerifyFontSize)))
+                Math.Min(
+                    _verifyFontSizeNumeric.Maximum,
+                    Math.Max(
+                        _verifyFontSizeNumeric.Minimum,
+                        CDec(ProjectValues.VerifyFontSize)))
 
-            _diagnosticLoggingCheckBox.Checked =
-            ProjectValues.EnableDiagnosticLogging
+            _diagnosticLoggingCheckBox.Checked = ProjectValues.EnableDiagnosticLogging
+
+            Select Case ProjectValues.OutputCharacterSet
+                Case "Input Format"
+                    _outputCharacterSetComboBox.SelectedItem = "Input Format"
+
+                Case "UTF-8"
+                    _outputCharacterSetComboBox.SelectedItem = "UTF-8"
+
+                Case Else
+                    _outputCharacterSetComboBox.SelectedItem = "FreeBMD"
+            End Select
 
         Finally
             _loadingOptionValues = False
@@ -696,31 +976,46 @@ Public Class OptionsForm
 
         End If
 
+        If _verticalTabToggle.Checked Then
+            ProjectValues.EntryMode = EntryMode.Vertical
+        Else
+            ProjectValues.EntryMode = EntryMode.Horizontal
+        End If
+
         ProjectValues.AutoShowScan = _autoShowScanToggle.Checked
         ProjectValues.AutoShowRuler = _autoShowRulerToggle.Checked
+        ProjectValues.SkipSurname = _skipSurnameToggle.Checked
+        ProjectValues.FormatPicklistSelections = _formatPicklistSelectionsToggle.Checked
+        ProjectValues.PickListCompletion = _pickListCompletionToggle.Checked
+        ProjectValues.Match3VolChars = _match3VolCharsToggle.Checked
+        ProjectValues.ShowForenamePickList = _showForenamePickListToggle.Checked
+        ProjectValues.ShowDistrictPickList = _showDistrictPickListToggle.Checked
 
         If _uiFontComboBox.SelectedItem IsNot Nothing Then
-            ProjectValues.UiFontName =
-        _uiFontComboBox.SelectedItem.ToString()
+            ProjectValues.UiFontName = _uiFontComboBox.SelectedItem.ToString()
         End If
 
-        ProjectValues.UiFontSize =
-    CSng(_uiFontSizeNumeric.Value)
+        ProjectValues.UiFontSize = CSng(_uiFontSizeNumeric.Value)
 
-        ProjectValues.VerifyFontSize =
-    CSng(_verifyFontSizeNumeric.Value)
-        Dim diagnosticLoggingWasEnabled As Boolean =
-            ProjectValues.EnableDiagnosticLogging
+        ProjectValues.VerifyFontSize = CSng(_verifyFontSizeNumeric.Value)
+        Dim diagnosticLoggingWasEnabled As Boolean = ProjectValues.EnableDiagnosticLogging
 
-        ProjectValues.EnableDiagnosticLogging =
-            _diagnosticLoggingCheckBox.Checked
+        ProjectValues.EnableDiagnosticLogging = _diagnosticLoggingCheckBox.Checked
 
-        If Not diagnosticLoggingWasEnabled AndAlso
-           ProjectValues.EnableDiagnosticLogging Then
-
+        If Not diagnosticLoggingWasEnabled AndAlso ProjectValues.EnableDiagnosticLogging Then
             DebugLog.Clear()
-
         End If
+
+        Select Case _outputCharacterSetComboBox.SelectedItem?.ToString()
+            Case "Input Format"
+                ProjectValues.OutputCharacterSet = "Input Format"
+
+            Case "UTF-8"
+                ProjectValues.OutputCharacterSet = "UTF-8"
+
+            Case Else
+                ProjectValues.OutputCharacterSet = "ISO-8859-1"
+        End Select
 
         ProjectValuesStore.Save()
 
@@ -743,6 +1038,8 @@ Public Class OptionsForm
         mainSplitContainer.Panel1.BackColor = UiColors.PanelBackground
 
         mainSplitContainer.Panel2.BackColor = UiColors.PanelBackground
+
+        _picklistsPanel.BackColor = UiColors.PanelBackground
 
         lblTitle.Font = UiFonts.Title
 
@@ -792,6 +1089,7 @@ Public Class OptionsForm
         For Each button As Button In {
             btnGeneral,
             btnEntry,
+            btnPicklists,
             btnCapitalisation,
             btnAdvanced
         }
@@ -818,6 +1116,7 @@ Public Class OptionsForm
         _generalPanel.Visible = False
         _entryPanel.Visible = False
         _capitalisationPanel.Visible = False
+        _picklistsPanel.Visible = False
 
     End Sub
 
@@ -852,7 +1151,18 @@ Public Class OptionsForm
         _entryPanel.BringToFront()
 
     End Sub
+    Private Sub ShowPicklistsPage()
 
+        HideOptionPages()
+        SelectNavigationButton(btnPicklists)
+
+        lblPageTitle.Text = "Picklists"
+        lblPageDescription.Text = "Choose how the Forename and District picklists behave."
+
+        _picklistsPanel.Visible = True
+        _picklistsPanel.BringToFront()
+
+    End Sub
     Private Sub ShowCapitalisationPage()
 
         HideOptionPages()
@@ -866,6 +1176,8 @@ Public Class OptionsForm
 
     End Sub
     Private Sub SaveCapitalisationValues()
+
+        CapitalisationChanges.Clear()
 
         Dim fields() As GridField = GridLayout.GetVisibleFields().Where(Function(field) FieldMetaData.Meta(field).IsDataColumn).ToArray()
         Dim values As New Text.StringBuilder()
@@ -903,6 +1215,12 @@ Public Class OptionsForm
 
             values.Append(CInt(selectedMode).ToString())
 
+            Dim oldMode As CapitalisationMode
+
+            If _originalCapitalisation.TryGetValue(field, oldMode) AndAlso oldMode <> selectedMode Then
+                CapitalisationChanges.Add(New CapitalisationChange With {.Field = field, .OldMode = oldMode, .NewMode = selectedMode})
+            End If
+
         Next
 
         CapitalisationData.SetSettings(ProjectValues.BatchType, ProjectValues.Year, values.ToString())
@@ -926,7 +1244,19 @@ Public Class OptionsForm
 #End Region
 
 #Region "Events"
+    Private Sub Match3VolCharsToggle_CheckedChanged(sender As Object, e As EventArgs)
 
+        If _loadingOptionValues Then
+            Return
+        End If
+
+        If ProjectValues.Year < 1993 AndAlso _match3VolCharsToggle.Checked Then
+            MessageBox.Show(Me, "This option should only be used for batches after 1992." & vbCrLf & vbCrLf & "For batches before 1993 the full volume code should be matched." & vbCrLf & vbCrLf & "WinBMD2 normally sets this option automatically from the batch year.", "Volume matching warning", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        ElseIf ProjectValues.Year >= 1993 AndAlso Not _match3VolCharsToggle.Checked Then
+            MessageBox.Show(Me, "This option should normally be enabled for batches from 1993 onwards." & vbCrLf & vbCrLf & "For these batches only the first 3 characters of the volume code should be matched." & vbCrLf & vbCrLf & "WinBMD2 normally sets this option automatically from the batch year.", "Volume matching warning", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+        End If
+
+    End Sub
     Private Sub btnGeneral_Click(
         sender As Object,
         e As EventArgs) Handles btnGeneral.Click
@@ -942,12 +1272,16 @@ Public Class OptionsForm
         ShowEntryPage()
 
     End Sub
+    Private Sub btnPicklists_Click(sender As Object, e As EventArgs) Handles btnPicklists.Click
 
+        ShowPicklistsPage()
+
+    End Sub
     Private Sub btnCapitalisation_Click(
         sender As Object,
         e As EventArgs) Handles btnCapitalisation.Click
 
-        ShowCapitalisationPage()
+        ShowCapitalisationPage
 
     End Sub
 
@@ -979,6 +1313,13 @@ Public Class OptionsForm
             Me.Field = field
             Me.Mode = mode
         End Sub
+
+    End Class
+    Public Class CapitalisationChange
+
+        Public Property Field As GridField
+        Public Property OldMode As CapitalisationMode
+        Public Property NewMode As CapitalisationMode
 
     End Class
 End Class

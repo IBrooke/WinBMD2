@@ -25,7 +25,7 @@
         Dim currentColumn As Integer =
             _owner.CurrentGridCell.ColumnIndex
 
-        If _owner.PickListIsOpen Then
+        If _owner.PickListIsActive Then
 
             Dim number As Integer = -1
 
@@ -74,10 +74,9 @@
 
         End If
 
-        If _owner.PickListIsOpen Then
+        If _owner.PickListIsActive Then
 
-            If e.KeyCode = Keys.D0 OrElse
-       e.KeyCode = Keys.NumPad0 Then
+            If e.KeyCode = Keys.D0 OrElse e.KeyCode = Keys.NumPad0 Then
 
                 _owner.CopyNextWordFromAbove(editor)
                 Return True
@@ -89,14 +88,14 @@
         Select Case e.KeyCode
             Case Keys.Up
 
-                If _owner.PickListIsOpen Then
+                If _owner.PickListIsActive Then
                     _owner.MovePickListSelectionUp()
                     Return True
                 End If
 
             Case Keys.Down
 
-                If _owner.PickListIsOpen Then
+                If _owner.PickListIsActive Then
                     _owner.MovePickListSelectionDown()
                     Return True
                 End If
@@ -155,7 +154,7 @@
                 ' A Forename field can contain several names. If Enter is
                 ' accepting a picklist entry, append it and remain in the
                 ' Forename cell ready for another name.
-                If _owner.PickListIsOpen AndAlso
+                If _owner.PickListIsActive AndAlso
                    _owner.CurrentField = GridField.Forename AndAlso
                    Not ShouldIgnorePickList(Keys.Enter) Then
 
@@ -208,26 +207,34 @@
         End Select
 
     End Function
-    Private Sub PrepareForForwardMove(
-    editor As TextBox,
-    key As Keys)
+    Private Sub PrepareForForwardMove(editor As TextBox, key As Keys)
 
+        ' District is a special case. If it is completely blank, there is no
+        ' typed value or picklist selection to accept. In that case Tab or
+        ' Return should copy the District from the previous row regardless
+        ' of the Ignore AutoComplete setting.
+        '
+        ' CopyFromAboveIfBlank also copies the associated Volume/DistNum.
+        If _owner.CurrentField = GridField.District AndAlso editor IsNot Nothing AndAlso String.IsNullOrWhiteSpace(editor.Text) Then
+            _owner.CopyFromAboveIfBlank(editor, allowPickList:=True)
+            Return
+        End If
+
+        ' For fields which use a picklist, the Ignore AutoComplete setting
+        ' determines whether Tab/Return accepts the selected picklist entry
+        ' or performs the normal copy-from-above behaviour.
         If _owner.CurrentFieldUsesPickList Then
 
             If ShouldIgnorePickList(key) Then
-
-                _owner.CopyFromAboveIfBlank(
-                    editor,
-                    allowPickList:=True)
-
+                _owner.CopyFromAboveIfBlank(editor, allowPickList:=True)
             Else
-
                 _owner.AcceptCurrentPickListSelection(editor)
-
             End If
 
         Else
 
+            ' Ordinary fields do not have a picklist, so use the normal
+            ' copy-from-above behaviour when the field is blank.
             _owner.CopyFromAboveIfBlank(editor)
 
         End If

@@ -137,7 +137,7 @@ Partial Class HeaderForm
         ' 
         rootLayout.BackColor = Color.FromArgb(CByte(239), CByte(243), CByte(248))
         rootLayout.ColumnCount = 1
-        rootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        rootLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
         rootLayout.Controls.Add(headerPanel, 0, 0)
         rootLayout.Controls.Add(bodyLayout, 0, 1)
         rootLayout.Controls.Add(footerPanel, 0, 2)
@@ -147,9 +147,9 @@ Partial Class HeaderForm
         rootLayout.Name = "rootLayout"
         rootLayout.Padding = New Padding(24)
         rootLayout.RowCount = 3
-        rootLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 94.0F))
-        rootLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        rootLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 82.0F))
+        rootLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 94F))
+        rootLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        rootLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 82F))
         rootLayout.Size = New Size(964, 681)
         rootLayout.TabIndex = 0
         ' 
@@ -191,7 +191,7 @@ Partial Class HeaderForm
         ' headerTitleLabel
         ' 
         headerTitleLabel.AutoSize = True
-        headerTitleLabel.Font = New Font("Segoe UI", 17.0F, FontStyle.Bold)
+        headerTitleLabel.Font = New Font("Segoe UI", 17F, FontStyle.Bold)
         headerTitleLabel.ForeColor = Color.FromArgb(CByte(29), CByte(38), CByte(51))
         headerTitleLabel.Location = New Point(20, 12)
         headerTitleLabel.Name = "headerTitleLabel"
@@ -202,8 +202,8 @@ Partial Class HeaderForm
         ' bodyLayout
         ' 
         bodyLayout.ColumnCount = 2
-        bodyLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 59.0F))
-        bodyLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 41.0F))
+        bodyLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 59F))
+        bodyLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 41F))
         bodyLayout.Controls.Add(batchPanel, 0, 0)
         bodyLayout.Controls.Add(sideLayout, 1, 0)
         bodyLayout.Dock = DockStyle.Fill
@@ -211,7 +211,7 @@ Partial Class HeaderForm
         bodyLayout.Margin = New Padding(0)
         bodyLayout.Name = "bodyLayout"
         bodyLayout.RowCount = 1
-        bodyLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        bodyLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
         bodyLayout.Size = New Size(916, 457)
         bodyLayout.TabIndex = 1
         ' 
@@ -231,7 +231,7 @@ Partial Class HeaderForm
         ' batchLayout
         ' 
         batchLayout.ColumnCount = 1
-        batchLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        batchLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
         batchLayout.Controls.Add(batchTitleLabel, 0, 0)
         batchLayout.Controls.Add(recordTypeLabel, 0, 1)
         batchLayout.Controls.Add(eventPanel, 0, 2)
@@ -246,22 +246,22 @@ Partial Class HeaderForm
         batchLayout.Margin = New Padding(0)
         batchLayout.Name = "batchLayout"
         batchLayout.RowCount = 9
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 34.0F))
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 39.0F))
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 62.0F))
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 62.0F))
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 59.0F))
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 20.0F))
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
-        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 62.0F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 34F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 39F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 62F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 62F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 59F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 20F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
+        batchLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 62F))
         batchLayout.Size = New Size(492, 419)
         batchLayout.TabIndex = 0
         ' 
         ' batchTitleLabel
         ' 
         batchTitleLabel.Dock = DockStyle.Fill
-        batchTitleLabel.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold)
+        batchTitleLabel.Font = New Font("Segoe UI", 12F, FontStyle.Bold)
         batchTitleLabel.ForeColor = Color.FromArgb(CByte(31), CByte(39), CByte(51))
         batchTitleLabel.Location = New Point(0, 0)
         batchTitleLabel.Margin = New Padding(0)
@@ -333,9 +333,9 @@ Partial Class HeaderForm
         ' registrationRow
         ' 
         registrationRow.ColumnCount = 3
-        registrationRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 38.0F))
-        registrationRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 28.0F))
-        registrationRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 34.0F))
+        registrationRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 38F))
+        registrationRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 28F))
+        registrationRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 34F))
         registrationRow.Controls.Add(yearPanel, 0, 0)
         registrationRow.Controls.Add(quarterPanel, 1, 0)
         registrationRow.Controls.Add(pageSourcePanel, 2, 0)
@@ -344,7 +344,7 @@ Partial Class HeaderForm
         registrationRow.Margin = New Padding(0)
         registrationRow.Name = "registrationRow"
         registrationRow.RowCount = 1
-        registrationRow.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        registrationRow.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
         registrationRow.Size = New Size(492, 62)
         registrationRow.TabIndex = 3
         ' 
@@ -448,10 +448,10 @@ Partial Class HeaderForm
         ' pageRow
         ' 
         pageRow.ColumnCount = 4
-        pageRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        pageRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 20.0F))
-        pageRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25.0F))
-        pageRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 30.0F))
+        pageRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        pageRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 20F))
+        pageRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 25F))
+        pageRow.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 30F))
         pageRow.Controls.Add(pagePanel, 0, 0)
         pageRow.Controls.Add(suffixPanel, 1, 0)
         pageRow.Controls.Add(pageLetterPanel, 2, 0)
@@ -461,7 +461,7 @@ Partial Class HeaderForm
         pageRow.Margin = New Padding(0)
         pageRow.Name = "pageRow"
         pageRow.RowCount = 1
-        pageRow.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        pageRow.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
         pageRow.Size = New Size(492, 62)
         pageRow.TabIndex = 4
         ' 
@@ -663,7 +663,7 @@ Partial Class HeaderForm
         creditLayout.Margin = New Padding(0)
         creditLayout.Name = "creditLayout"
         creditLayout.RowCount = 1
-        creditLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        creditLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
         creditLayout.Size = New Size(492, 62)
         creditLayout.TabIndex = 8
         ' 
@@ -763,7 +763,7 @@ Partial Class HeaderForm
         ' sideLayout
         ' 
         sideLayout.ColumnCount = 1
-        sideLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        sideLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
         sideLayout.Controls.Add(contributorPanel, 0, 0)
         sideLayout.Controls.Add(rulesPanel, 0, 1)
         sideLayout.Dock = DockStyle.Fill
@@ -771,8 +771,8 @@ Partial Class HeaderForm
         sideLayout.Margin = New Padding(10, 0, 0, 0)
         sideLayout.Name = "sideLayout"
         sideLayout.RowCount = 2
-        sideLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 375.0F))
-        sideLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100.0F))
+        sideLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 375F))
+        sideLayout.RowStyles.Add(New RowStyle(SizeType.Percent, 100F))
         sideLayout.Size = New Size(366, 457)
         sideLayout.TabIndex = 1
         ' 
@@ -786,13 +786,13 @@ Partial Class HeaderForm
         contributorPanel.Margin = New Padding(0, 0, 0, 14)
         contributorPanel.Name = "contributorPanel"
         contributorPanel.Padding = New Padding(16)
-        contributorPanel.Size = New Size(366, 326)
+        contributorPanel.Size = New Size(366, 361)
         contributorPanel.TabIndex = 0
         ' 
         ' contributorLayout
         ' 
         contributorLayout.ColumnCount = 1
-        contributorLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
+        contributorLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
         contributorLayout.Controls.Add(contributorTitleLabel, 0, 0)
         contributorLayout.Controls.Add(creatorPanel, 0, 1)
         contributorLayout.Controls.Add(creatorEmailPanel, 0, 2)
@@ -804,19 +804,19 @@ Partial Class HeaderForm
         contributorLayout.Margin = New Padding(0)
         contributorLayout.Name = "contributorLayout"
         contributorLayout.RowCount = 6
-        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 34.0F))
-        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 55.0F))
-        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 55.0F))
-        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 55.0F))
-        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 55.0F))
-        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 62.0F))
-        contributorLayout.Size = New Size(332, 292)
+        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 34F))
+        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 55F))
+        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 55F))
+        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 55F))
+        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 55F))
+        contributorLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 62F))
+        contributorLayout.Size = New Size(332, 327)
         contributorLayout.TabIndex = 0
         ' 
         ' contributorTitleLabel
         ' 
         contributorTitleLabel.Dock = DockStyle.Fill
-        contributorTitleLabel.Font = New Font("Segoe UI", 12.0F, FontStyle.Bold)
+        contributorTitleLabel.Font = New Font("Segoe UI", 12F, FontStyle.Bold)
         contributorTitleLabel.ForeColor = Color.FromArgb(CByte(31), CByte(39), CByte(51))
         contributorTitleLabel.Location = New Point(0, 0)
         contributorTitleLabel.Margin = New Padding(0)
@@ -958,32 +958,31 @@ Partial Class HeaderForm
         passwordPanel.Location = New Point(0, 254)
         passwordPanel.Margin = New Padding(0)
         passwordPanel.Name = "passwordPanel"
-        passwordPanel.Size = New Size(332, 62)
+        passwordPanel.Size = New Size(332, 73)
         passwordPanel.TabIndex = 5
         ' 
         ' passwordInnerLayout
         ' 
         passwordInnerLayout.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
         passwordInnerLayout.ColumnCount = 2
-        passwordInnerLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100.0F))
-        passwordInnerLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 40.0F))
+        passwordInnerLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Percent, 100F))
+        passwordInnerLayout.ColumnStyles.Add(New ColumnStyle(SizeType.Absolute, 40F))
         passwordInnerLayout.Controls.Add(userPasswordTextBox, 0, 0)
         passwordInnerLayout.Controls.Add(showPasswordButton, 1, 0)
         passwordInnerLayout.Location = New Point(0, 24)
         passwordInnerLayout.Margin = New Padding(0)
         passwordInnerLayout.Name = "passwordInnerLayout"
         passwordInnerLayout.RowCount = 1
-        passwordInnerLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 30.0F))
+        passwordInnerLayout.RowStyles.Add(New RowStyle(SizeType.Absolute, 30F))
         passwordInnerLayout.Size = New Size(332, 30)
         passwordInnerLayout.TabIndex = 1
         ' 
         ' userPasswordTextBox
         ' 
-        userPasswordTextBox.BorderStyle = BorderStyle.FixedSingle
         userPasswordTextBox.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        userPasswordTextBox.Location = New Point(0, 1)
+        userPasswordTextBox.BorderStyle = BorderStyle.FixedSingle
+        userPasswordTextBox.Location = New Point(0, 0)
         userPasswordTextBox.Margin = New Padding(0)
-        userPasswordTextBox.Size = New Size(292, 23)
         userPasswordTextBox.Name = "userPasswordTextBox"
         userPasswordTextBox.Size = New Size(292, 23)
         userPasswordTextBox.TabIndex = 0
@@ -992,7 +991,6 @@ Partial Class HeaderForm
         ' showPasswordButton
         ' 
         showPasswordButton.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        showPasswordButton.Height = 25
         showPasswordButton.FlatStyle = FlatStyle.Flat
         showPasswordButton.Location = New Point(292, 0)
         showPasswordButton.Margin = New Padding(0)
@@ -1021,11 +1019,11 @@ Partial Class HeaderForm
         rulesPanel.Controls.Add(rulesTextLabel)
         rulesPanel.Controls.Add(rulesTitleLabel)
         rulesPanel.Dock = DockStyle.Fill
-        rulesPanel.Location = New Point(0, 340)
+        rulesPanel.Location = New Point(0, 375)
         rulesPanel.Margin = New Padding(0)
         rulesPanel.Name = "rulesPanel"
         rulesPanel.Padding = New Padding(16)
-        rulesPanel.Size = New Size(366, 117)
+        rulesPanel.Size = New Size(366, 82)
         rulesPanel.TabIndex = 1
         ' 
         ' rulesTextLabel
@@ -1034,14 +1032,14 @@ Partial Class HeaderForm
         rulesTextLabel.ForeColor = Color.FromArgb(CByte(116), CByte(90), CByte(34))
         rulesTextLabel.Location = New Point(16, 40)
         rulesTextLabel.Name = "rulesTextLabel"
-        rulesTextLabel.Size = New Size(332, 59)
+        rulesTextLabel.Size = New Size(332, 24)
         rulesTextLabel.TabIndex = 1
         rulesTextLabel.Text = "Quarter is required before 1984. Volume format is suggested from the record type, year and quarter."
         ' 
         ' rulesTitleLabel
         ' 
         rulesTitleLabel.Dock = DockStyle.Top
-        rulesTitleLabel.Font = New Font("Segoe UI", 10.0F, FontStyle.Bold)
+        rulesTitleLabel.Font = New Font("Segoe UI", 10F, FontStyle.Bold)
         rulesTitleLabel.ForeColor = Color.FromArgb(CByte(116), CByte(90), CByte(34))
         rulesTitleLabel.Location = New Point(16, 16)
         rulesTitleLabel.Name = "rulesTitleLabel"
@@ -1123,15 +1121,12 @@ Partial Class HeaderForm
         ' HeaderForm
         ' 
         AcceptButton = btnStart
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         BackColor = Color.FromArgb(CByte(239), CByte(243), CByte(248))
         ClientSize = New Size(964, 681)
-        ControlBox = True
         Controls.Add(rootLayout)
-        Font = New Font("Segoe UI", 9.0F)
-        MaximizeBox = True
-        MinimizeBox = True
+        Font = New Font("Segoe UI", 9F)
         MinimumSize = New Size(880, 640)
         Name = "HeaderForm"
         StartPosition = FormStartPosition.Manual

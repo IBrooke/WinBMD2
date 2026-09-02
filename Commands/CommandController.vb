@@ -16,8 +16,25 @@ Public NotInheritable Class CommandController
         End If
 
     End Sub
+    Public Sub NudgeScan(deltaX As Single, deltaY As Single) Implements ICommandExecutor.NudgeScan
 
-    Private Function HeaderDetailsAreRequired() As Boolean
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then
+            Return
+        End If
+
+        _scanView.NudgeViewer(deltaX, deltaY)
+
+    End Sub
+    Public Sub MoveScanOneRow(direction As Integer) Implements ICommandExecutor.MoveScanOneRow
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then
+            Return
+        End If
+
+        _scanView.MoveScanByRows(direction)
+
+    End Sub
+    Private Shared Function HeaderDetailsAreRequired() As Boolean
 
         ' Temporary until the real header validation is implemented.
         Return True
@@ -209,17 +226,13 @@ Public NotInheritable Class CommandController
         $"[RULER] Setup finished. Returned to grid row {rowNumber}.")
 
     End Sub
-    Private Sub HeaderForm_FormClosed(
-    sender As Object,
-    e As FormClosedEventArgs)
+    Private Sub HeaderForm_FormClosed(sender As Object, e As FormClosedEventArgs)
 
-        Dim headerForm As HeaderForm =
-        DirectCast(sender, HeaderForm)
+        Dim headerForm As HeaderForm = DirectCast(sender, HeaderForm)
 
         If headerForm.DialogResult <> DialogResult.OK Then
 
-            DebugLog.WriteAlways(
-            "[STARTUP] Header form cancelled.")
+            DebugLog.WriteAlways("[STARTUP] Header form cancelled.")
 
             ExitThread()
             Return
@@ -234,8 +247,7 @@ Public NotInheritable Class CommandController
 
         If Not String.IsNullOrWhiteSpace(filePath) Then
 
-            DebugLog.WriteAlways(
-            $"[STARTUP] Existing batch selected: '{filePath}'")
+            DebugLog.WriteAlways($"[STARTUP] Existing batch selected: '{filePath}'")
 
             ShowTranscriptionForms(filePath)
             Return
@@ -245,17 +257,22 @@ Public NotInheritable Class CommandController
         Dim currentFilePath As String = ""
 
         If Not String.IsNullOrWhiteSpace(ProjectValues.BatchName) Then
-            currentFilePath = Path.Combine(AppPaths.OutputFolder, ProjectValues.BatchName)
+            currentFilePath = Path.Combine(AppPaths.SaveFolder, ProjectValues.BatchName)
         End If
 
         If Not String.IsNullOrWhiteSpace(currentFilePath) AndAlso File.Exists(currentFilePath) Then
 
-            DebugLog.WriteAlways(
-            $"[STARTUP] Continuing current batch: '{currentFilePath}'")
+            DebugLog.WriteAlways($"[STARTUP] Continuing current batch: '{currentFilePath}'")
 
             ShowTranscriptionForms(currentFilePath)
             Return
 
+        End If
+
+        If Not DistrictData.LoadAliveDistricts() Then
+            DebugLog.WriteAlways("[STARTUP] New batch cancelled because the district information could not be loaded.")
+            ExitThread()
+            Return
         End If
 
         LogHeaderDetails()
@@ -264,7 +281,7 @@ Public NotInheritable Class CommandController
         ShowTranscriptionForms()
 
     End Sub
-    Private Sub LogHeaderDetails()
+    Private Shared Sub LogHeaderDetails()
 
         DebugLog.WriteAlways("========== HEADER ACCEPTED ==========")
 
@@ -291,7 +308,7 @@ Public NotInheritable Class CommandController
         DebugLog.WriteAlways("=====================================")
 
     End Sub
-    Private Sub LogVisibleGridFields()
+    Private Shared Sub LogVisibleGridFields()
 
         Dim fields() As GridField = GridLayout.GetVisibleFields()
 
@@ -349,7 +366,7 @@ Public NotInheritable Class CommandController
 
                     dialog.Filter = "BMD Files (*.BMD)|*.BMD|All Files (*.*)|*.*"
                     dialog.Title = "Open Batch"
-                    dialog.InitialDirectory = AppPaths.OutputFolder
+                    dialog.InitialDirectory = AppPaths.SaveFolder
 
                     If dialog.ShowDialog(_transcriptionForm) <> DialogResult.OK Then
                         Return
@@ -388,7 +405,7 @@ Public NotInheritable Class CommandController
 
                 Dim filePath As String =
                     Path.Combine(
-                    AppPaths.OutputFolder,
+                    AppPaths.SaveFolder,
                     ProjectValues.BatchName)
 
                 If _transcriptionForm.SaveCurrentBatch(filePath) Then

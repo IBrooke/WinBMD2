@@ -5,20 +5,14 @@ Public Module DistrictData
 
     Private Const DistrictsFileName As String = "WinBMD_Districts.txt"
 
-    Private ReadOnly _districts As New List(Of DistrictRecord)
-
-    Public ReadOnly Property DistrictCount As Integer
-        Get
-            Return _districts.Count
-        End Get
-    End Property
+    Private ReadOnly _districts As New List(Of DistrictRecord)  ' the collection of all districts loaded from the districts file
+    Private ReadOnly _aliveDistricts As New List(Of DistrictEntry)  ' the collection of districts that are alive for the current year and quarter, includes those from _districts and from the Supplementary file
 
     Public Function LoadBaseDistricts() As Boolean
 
         _districts.Clear()
 
-        Dim filePath As String =
-            Path.Combine(AppPaths.FilesFolder, DistrictsFileName)
+        Dim filePath As String = Path.Combine(AppPaths.FilesFolder, DistrictsFileName)
 
         DebugLog.Write($"[DISTRICTS] Loading: {filePath}")
 
@@ -27,13 +21,13 @@ Public Module DistrictData
             DebugLog.WriteAlways($"[DISTRICTS] File not found: {filePath}")
 
             MessageBox.Show(
-                "The districts file could not be found." &
-                Environment.NewLine &
-                Environment.NewLine &
-                filePath,
-                "Districts File Not Found",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error)
+            "The districts file could not be found." &
+            Environment.NewLine &
+            Environment.NewLine &
+            filePath,
+            "Districts File Not Found",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
 
             Return False
 
@@ -52,16 +46,13 @@ Public Module DistrictData
                     Continue For
                 End If
 
-                Dim fields() As String =
-                    rawLine.Split("|"c)
+                Dim fields() As String = rawLine.Split("|"c)
 
                 If fields.Length <> 11 Then
 
                     invalidLines += 1
 
-                    DebugLog.Write(
-                        $"[DISTRICTS] Line {lineNumber}: " &
-                        $"expected 11 fields, found {fields.Length}.")
+                    DebugLog.Write($"[DISTRICTS] Line {lineNumber}: expected 11 fields, found {fields.Length}.")
 
                     Continue For
 
@@ -73,65 +64,48 @@ Public Module DistrictData
                 Dim endQuarter As Integer
 
                 If Not Integer.TryParse(fields(1).Trim(), startYear) OrElse
-                   Not Integer.TryParse(fields(2).Trim(), startQuarter) OrElse
-                   Not Integer.TryParse(fields(3).Trim(), endYear) OrElse
-                   Not Integer.TryParse(fields(4).Trim(), endQuarter) Then
+               Not Integer.TryParse(fields(2).Trim(), startQuarter) OrElse
+               Not Integer.TryParse(fields(3).Trim(), endYear) OrElse
+               Not Integer.TryParse(fields(4).Trim(), endQuarter) Then
 
                     invalidLines += 1
 
-                    DebugLog.Write(
-                        $"[DISTRICTS] Line {lineNumber}: " &
-                        "invalid year or quarter value.")
+                    DebugLog.Write($"[DISTRICTS] Line {lineNumber}: invalid year or quarter value.")
 
                     Continue For
 
                 End If
 
-                Dim districtName As String =
-                    fields(0).Trim()
+                Dim districtName As String = fields(0).Trim()
 
                 If districtName.Length = 0 Then
 
                     invalidLines += 1
 
-                    DebugLog.Write(
-                        $"[DISTRICTS] Line {lineNumber}: " &
-                        "district name is blank.")
+                    DebugLog.Write($"[DISTRICTS] Line {lineNumber}: district name is blank.")
 
                     Continue For
 
                 End If
 
                 _districts.Add(
-                    New DistrictRecord With {
-                        .Name = districtName,
-                        .StartYear = startYear,
-                        .StartQuarter = startQuarter,
-                        .EndYear = endYear,
-                        .EndQuarter = endQuarter,
-                        .VolumeTo1851 = fields(5).Trim(),
-                        .VolumeTo1946 = fields(6).Trim(),
-                        .VolumeTo1965 = fields(7).Trim(),
-                        .VolumeTo1974 = fields(8).Trim(),
-                        .VolumeTo1993 = fields(9).Trim(),
-                        .VolumeAfter1993 = fields(10).Trim()
-                    })
+                New DistrictRecord With {
+                    .Name = districtName,
+                    .StartYear = startYear,
+                    .StartQuarter = startQuarter,
+                    .EndYear = endYear,
+                    .EndQuarter = endQuarter,
+                    .VolumeTo1851 = fields(5).Trim(),
+                    .VolumeTo1946 = fields(6).Trim(),
+                    .VolumeTo1965 = fields(7).Trim(),
+                    .VolumeTo1974 = fields(8).Trim(),
+                    .VolumeTo1993 = fields(9).Trim(),
+                    .VolumeAfter1993 = fields(10).Trim()
+                })
 
             Next
 
-            _districts.Sort(
-                Function(left, right)
-
-                    Return String.Compare(
-                        left.Name,
-                        right.Name,
-                        StringComparison.OrdinalIgnoreCase)
-
-                End Function)
-
-            DebugLog.Write(
-                $"[DISTRICTS] Loaded {_districts.Count} " &
-                $"base district records. Invalid lines: {invalidLines}.")
+            DebugLog.Write($"[DISTRICTS] Loaded {_districts.Count} base district records. Invalid lines: {invalidLines}.")
 
             Return True
 
@@ -139,31 +113,175 @@ Public Module DistrictData
 
             _districts.Clear()
 
-            DebugLog.LogException(
-                "Loading base districts",
-                ex)
+            DebugLog.LogException("Loading base districts", ex)
 
             MessageBox.Show(
-                "The districts file could not be read." &
-                Environment.NewLine &
-                Environment.NewLine &
-                filePath &
-                Environment.NewLine &
-                Environment.NewLine &
-                ex.Message,
-                "Districts File Error",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error)
+            "The districts file could not be read." &
+            Environment.NewLine &
+            Environment.NewLine &
+            filePath &
+            Environment.NewLine &
+            Environment.NewLine &
+            ex.Message,
+            "Districts File Error",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
 
             Return False
 
         End Try
 
     End Function
+    Public Function LoadAliveDistricts() As Boolean
 
-    Public Function GetMatches(
-        prefix As String,
-        Optional maximumResults As Integer = 9) As List(Of DistrictMatch)
+        _aliveDistricts.Clear()
+
+        Dim selectedYear As Integer = ProjectValues.Year
+        Dim selectedQuarter As Integer = ProjectValues.Quarter
+        Dim baseCount As Integer
+        Dim supplementaryCount As Integer
+
+        Try
+
+            ' First add all base districts which are alive for this batch.
+            For Each record As DistrictRecord In _districts
+
+                If Not IsAlive(record, selectedYear, selectedQuarter) Then
+                    Continue For
+                End If
+
+                Dim volume As String = NormalizeVolumeForVnf(GetVolume(record, selectedYear))
+
+                If AddAliveDistrict(record.Name, volume, False) Then
+                    baseCount += 1
+                End If
+
+            Next
+
+            ' Now add the supplementary districts for this batch.
+            Dim supplementaryFileName As String = GetSupplementaryFilename(selectedYear, selectedQuarter)
+            Dim supplementaryFilePath As String = Path.Combine(AppPaths.FilesFolder, supplementaryFileName)
+
+            DebugLog.Write($"[DISTRICTS] Supplementary district file for {selectedYear} Q{selectedQuarter}: {supplementaryFileName}")
+
+            If Not File.Exists(supplementaryFilePath) Then
+                DebugLog.Write($"[DISTRICTS] Supplementary file not found, creating empty file: {supplementaryFilePath}")
+                File.WriteAllText(supplementaryFilePath, "", Encoding.UTF8)
+            End If
+
+            Dim lineNumber As Integer
+            Dim invalidLines As Integer
+
+            For Each rawLine As String In File.ReadLines(supplementaryFilePath)
+
+                lineNumber += 1
+
+                If String.IsNullOrWhiteSpace(rawLine) Then
+                    Continue For
+                End If
+
+                Dim fields() As String = rawLine.Split(","c)
+
+                If fields.Length <> 2 Then
+                    invalidLines += 1
+                    DebugLog.Write($"[DISTRICTS] Supplementary file line {lineNumber}: expected 2 fields, found {fields.Length}.")
+                    Continue For
+                End If
+
+                Dim districtName As String = fields(0).Trim()
+                Dim volume As String = NormalizeVolumeForVnf(fields(1))
+
+                If districtName.Length = 0 OrElse volume.Length = 0 Then
+                    invalidLines += 1
+                    DebugLog.Write($"[DISTRICTS] Supplementary file line {lineNumber}: district or volume is blank.")
+                    Continue For
+                End If
+
+                If AddAliveDistrict(districtName, volume, True) Then
+                    supplementaryCount += 1
+                End If
+
+            Next
+
+            _aliveDistricts.Sort(Function(left, right) String.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase))
+
+            DebugLog.Write($"[DISTRICTS] Alive base districts added: {baseCount}.")
+            DebugLog.Write($"[DISTRICTS] Supplementary districts added from {supplementaryFileName}: {supplementaryCount}. Invalid lines: {invalidLines}.")
+            DebugLog.Write($"[DISTRICTS] Total alive districts: {_aliveDistricts.Count}.")
+
+            Return True
+
+        Catch ex As Exception
+
+            _aliveDistricts.Clear()
+
+            DebugLog.LogException("Loading alive districts", ex)
+
+            MessageBox.Show("The district information for this batch could not be loaded." & Environment.NewLine & Environment.NewLine & ex.Message, "Districts File Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+
+            Return False
+
+        End Try
+
+    End Function
+    Private Function AddAliveDistrict(name As String, volume As String, supplementary As Boolean) As Boolean
+
+        name = If(name, "").Trim()
+        volume = If(volume, "").Trim()
+
+        If name.Length = 0 OrElse volume.Length = 0 Then
+            Return False
+        End If
+
+        Dim duplicateExists As Boolean = _aliveDistricts.Any(Function(existing) String.Equals(existing.Name, name, StringComparison.OrdinalIgnoreCase) AndAlso String.Equals(existing.Volume, volume, StringComparison.OrdinalIgnoreCase))
+
+        If duplicateExists Then
+            Return False
+        End If
+
+        _aliveDistricts.Add(New DistrictEntry With {
+        .Name = name,
+        .Volume = volume,
+        .Supplementary = supplementary
+    })
+
+        Return True
+
+    End Function
+    Private Function GetSupplementaryFilename(year As Integer, quarter As Integer) As String
+
+        If year <= 1945 Then
+            Return "WinBMD_Supp_Districts.txt"
+        End If
+
+        If year = 1946 Then
+            Return If(quarter < 3, "WinBMD_Supp_Districts.txt", "WinBMD_Supp_Districts_1946.txt")
+        End If
+
+        If year <= 1964 Then
+            Return "WinBMD_Supp_Districts_1946.txt"
+        End If
+
+        If year = 1965 Then
+            Return If(quarter < 2, "WinBMD_Supp_Districts_1946.txt", "WinBMD_Supp_Districts_1965.txt")
+        End If
+
+        If year <= 1973 Then
+            Return "WinBMD_Supp_Districts_1965.txt"
+        End If
+
+        If year <= 1992 Then
+            Return If(year = 1974 AndAlso quarter < 2, "WinBMD_Supp_Districts_1965.txt", "WinBMD_Supp_Districts_1974.txt")
+        End If
+
+        If year = 1993 AndAlso String.Equals(ProjectValues.BatchType, "M", StringComparison.OrdinalIgnoreCase) Then
+            Return "WinBMD_Supp_Districts_1974.txt"
+        End If
+
+        Return "WinBMD_Supp_Districts_1993.txt"
+
+    End Function
+    Public Function GetMatches(prefix As String, Optional maximumResults As Integer = 9) As List(Of DistrictMatch)
 
         Dim results As New List(Of DistrictMatch)
 
@@ -173,65 +291,22 @@ Public Module DistrictData
 
         prefix = prefix.Trim()
 
-        Dim selectedYear As Integer =
-            ProjectValues.Year
+        For Each record As DistrictEntry In _aliveDistricts
 
-        Dim selectedQuarter As Integer =
-            ProjectValues.Quarter
-
-        If selectedQuarter < 1 OrElse selectedQuarter > 4 Then
-            selectedQuarter = 1
-        End If
-
-        For Each record As DistrictRecord In _districts
-
-            If Not record.Name.StartsWith(
-                prefix,
-                StringComparison.OrdinalIgnoreCase) Then
-
+            If Not record.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) Then
                 Continue For
-
             End If
 
-            If Not IsAlive(
-                record,
-                selectedYear,
-                selectedQuarter) Then
-
-                Continue For
-
-            End If
-
-            Dim volume As String =
-                GetVolume(record, selectedYear)
-
-            volume =
-                NormalizeVolumeForVnf(volume)
-
-            Dim duplicateExists As Boolean =
-                results.Any(
-                    Function(existing)
-
-                        Return String.Equals(
-                            existing.Name,
-                            record.Name,
-                            StringComparison.OrdinalIgnoreCase) AndAlso
-                               String.Equals(
-                                   existing.Volume,
-                                   volume,
-                                   StringComparison.OrdinalIgnoreCase)
-
-                    End Function)
+            Dim duplicateExists As Boolean = results.Any(Function(existing) String.Equals(existing.Name, record.Name, StringComparison.OrdinalIgnoreCase) AndAlso String.Equals(existing.Volume, record.Volume, StringComparison.OrdinalIgnoreCase))
 
             If duplicateExists Then
                 Continue For
             End If
 
-            results.Add(
-                New DistrictMatch With {
-                    .Name = record.Name,
-                    .Volume = volume
-                })
+            results.Add(New DistrictMatch With {
+            .Name = record.Name,
+            .Volume = record.Volume
+        })
 
             If results.Count >= maximumResults Then
                 Exit For
@@ -308,7 +383,42 @@ Public Module DistrictData
         Return record.VolumeAfter1993
 
     End Function
+    Public Function ContainsDistrictAndCode(district As String, code As String) As Boolean
 
+        district = If(district, "").Trim()
+        code = NormalizeDistrictCodeForMatch(code)
+
+        If district.Length = 0 OrElse code.Length = 0 Then
+            Return False
+        End If
+
+        For Each entry As DistrictEntry In _aliveDistricts
+
+            If Not String.Equals(entry.Name, district, StringComparison.OrdinalIgnoreCase) Then
+                Continue For
+            End If
+
+            If String.Equals(NormalizeDistrictCodeForMatch(entry.Volume), code, StringComparison.OrdinalIgnoreCase) Then
+                Return True
+            End If
+
+        Next
+
+        Return False
+
+    End Function
+
+    Private Function NormalizeDistrictCodeForMatch(code As String) As String
+
+        Dim value As String = If(code, "").Trim()
+
+        If ProjectValues.Match3VolChars AndAlso value.Length > 3 Then
+            value = value.Substring(0, 3)
+        End If
+
+        Return value.ToUpperInvariant()
+
+    End Function
     Private Function NormalizeVolumeForVnf(
         value As String) As String
 
@@ -373,7 +483,140 @@ Public Module DistrictData
         Return result.ToString()
 
     End Function
+    Public Function RomanToInt(roman As String) As Integer
 
+        If String.IsNullOrWhiteSpace(roman) Then
+            Return 0
+        End If
+
+        roman = roman.Trim().ToUpperInvariant()
+
+        Dim values As New Dictionary(Of Char, Integer) From {
+        {"I"c, 1},
+        {"V"c, 5},
+        {"X"c, 10},
+        {"L"c, 50},
+        {"C"c, 100},
+        {"D"c, 500},
+        {"M"c, 1000}
+    }
+
+        Dim total As Integer
+        Dim previous As Integer
+
+        For index As Integer = roman.Length - 1 To 0 Step -1
+
+            Dim current As Integer
+
+            If Not values.TryGetValue(roman(index), current) Then
+                Return 0
+            End If
+
+            If current < previous Then
+                total -= current
+            Else
+                total += current
+                previous = current
+            End If
+
+        Next
+
+        If total <= 0 OrElse total > 3999 Then
+            Return 0
+        End If
+
+        If Not String.Equals(ToRoman(total), roman, StringComparison.Ordinal) Then
+            Return 0
+        End If
+
+        Return total
+
+    End Function
+    Public Function AddSupplementaryDistrict(district As String, code As String) As Boolean
+
+        district = If(district, "").Trim()
+        code = If(code, "").Trim()
+
+        If district.Length = 0 OrElse code.Length = 0 Then
+            Return False
+        End If
+
+        If district.IndexOfAny({"*"c, "?"c, "_"c}) >= 0 OrElse code.IndexOfAny({"*"c, "?"c, "_"c}) >= 0 Then
+            Return False
+        End If
+
+        If ContainsDistrictAndCode(district, code) Then
+            Return False
+        End If
+
+        Dim newEntry As New DistrictEntry With {
+        .Name = district,
+        .Volume = code,
+        .Supplementary = True
+    }
+
+        _aliveDistricts.Add(newEntry)
+        _aliveDistricts.Sort(Function(a, b) String.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase))
+
+        If SaveSupplementaryDistrictFile() Then
+            Return True
+        End If
+
+        _aliveDistricts.Remove(newEntry)
+        Return False
+
+    End Function
+
+    Private Function SaveSupplementaryDistrictFile() As Boolean
+
+        Try
+            Dim fileName As String = GetSupplementaryFilename(ProjectValues.Year, ProjectValues.Quarter)
+            Dim filePath As String = Path.Combine(AppPaths.FilesFolder, fileName)
+
+            Dim lines As List(Of String) = _aliveDistricts.
+            Where(Function(entry) entry.Supplementary).
+            OrderBy(Function(entry) entry.Name, StringComparer.OrdinalIgnoreCase).
+            ThenBy(Function(entry) entry.Volume, StringComparer.OrdinalIgnoreCase).
+            Select(Function(entry) $"{entry.Name},{NormalizeDistrictCodeForSave(entry.Volume)}").
+            ToList()
+
+            File.WriteAllLines(filePath, lines, New UTF8Encoding(False))
+
+            DebugLog.WriteAlways($"[DISTRICTS] Supplementary district file saved: '{fileName}', Entries={lines.Count}")
+            Return True
+
+        Catch ex As Exception
+            DebugLog.WriteAlways($"[DISTRICTS] Failed to save supplementary district file: {ex}")
+
+            MessageBox.Show(
+            "The supplementary district could not be saved.",
+            "WinBMD2",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
+
+            Return False
+
+        End Try
+
+    End Function
+
+    Private Function NormalizeDistrictCodeForSave(code As String) As String
+
+        Dim value As String = If(code, "").Trim()
+
+        If Not String.Equals(ProjectValues.VNF, "XX", StringComparison.OrdinalIgnoreCase) Then
+            Return value
+        End If
+
+        Dim numericValue As Integer = RomanToInt(value)
+
+        If numericValue > 0 Then
+            Return numericValue.ToString()
+        End If
+
+        Return value
+
+    End Function
     Public NotInheritable Class DistrictMatch
 
         Public Property Name As String = ""
@@ -399,5 +642,11 @@ Public Module DistrictData
         Public Property VolumeAfter1993 As String = ""
 
     End Class
+    Private Class DistrictEntry
 
+        Public Property Name As String = ""
+        Public Property Volume As String = ""
+        Public Property Supplementary As Boolean
+
+    End Class
 End Module
