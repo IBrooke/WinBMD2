@@ -1,4 +1,5 @@
 ﻿Imports System.IO
+Imports System.Threading
 Imports WinBMD2.My.Resources
 
 Public Class TranscriptionForm
@@ -11,7 +12,7 @@ Public Class TranscriptionForm
     Private ReadOnly _pickListPopup As New PickListPopup()
     Private ReadOnly _navigationManager As NavigationManager
     Private ReadOnly _statusQueue As New Queue(Of (Message As String, Duration As Integer))
-    Private ReadOnly _statusTimer As New Timer()
+    Private ReadOnly _statusTimer As New System.Windows.Forms.Timer()
     Private ReadOnly _openFileMenu As New ContextMenuStrip()
     Private _statusMessageShowing As Boolean
     Private _baseStatusText As String = "Ready"
@@ -438,8 +439,7 @@ Public Class TranscriptionForm
         ShowDirectiveEditor(e.RowIndex)
 
     End Sub
-    Private Sub CommandCategory_Click(sender As Object, e As EventArgs) Handles btnCategoryFile.Click, btnCategoryScan.Click, btnCategoryVerify.Click, btnCategoryUpload.Click, btnCategoryOptions.Click, btnCategoryHelp.Click
-
+    Private Async Sub CommandCategory_Click(sender As Object, e As EventArgs) Handles btnCategoryFile.Click, btnCategoryScan.Click, btnCategoryVerify.Click, btnCategoryUpload.Click, btnCategoryOptions.Click, btnCategoryHelp.Click
         Dim button As Button = TryCast(sender, Button)
 
         If button Is Nothing Then
@@ -462,6 +462,13 @@ Public Class TranscriptionForm
 
             End Using
 
+            Return
+
+        End If
+
+        If button Is btnCategoryUpload Then
+
+            Await UploadCurrentBatchAsync()
             Return
 
         End If
@@ -587,6 +594,91 @@ Public Class TranscriptionForm
         Next
 
     End Sub
+    Private Async Function UploadCurrentBatchAsync() As Task
+
+        _pickListPopup.Hide()
+
+        If transcriptionGrid.IsCurrentCellInEditMode Then
+            transcriptionGrid.EndEdit()
+        End If
+
+        Dim filePath As String = Path.Combine(AppPaths.SaveFolder, ProjectValues.BatchName)
+
+        ShowStatusMessage("Saving transcription before upload...")
+
+        DebugLog.WriteAlways("===== UPLOAD STARTED =====")
+        DebugLog.WriteAlways($"[UPLOAD] Saving current transcription before upload: '{filePath}'")
+
+        If Not SaveCurrentBatch(filePath) Then
+
+            DebugLog.WriteAlways("[UPLOAD] Save failed. Upload cancelled.")
+            ShowStatusMessage("Upload cancelled because the transcription could not be saved.")
+
+            MessageBox.Show(Me, "The transcription could not be saved, so it has not been uploaded.", "Upload", MessageBoxButtons.OK, MessageBoxIcon.Error)
+
+            Return
+
+        End If
+
+        ShowStatusMessage("Connecting to FreeBMD...")
+
+        Dim uploader As New FreeBmdUploader(
+        Sub(message) ShowStatusMessage(message),
+        Sub(message) DebugLog.WriteAlways($"[UPLOAD] {message}"),
+        Function(message, title) MessageBox.Show(Me, message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question) = DialogResult.Yes)
+
+        Dim request As New FreeBmdUploader.UploadRequest With {
+        .BatchFilePath = filePath,
+        .UploadName = Path.GetFileNameWithoutExtension(ProjectValues.BatchName),
+        .Username = ProjectValues.UserName,
+        .Password = ProjectValues.UserPW,
+        .Site = ProjectValues.UploadServerUrl,
+        .Port = 443,
+        .CurrentDistrictVersion = ProjectValues.DistrictVersion,
+        .DistrictFolderPath = AppPaths.FilesFolder,
+        .Year = ProjectValues.Year,
+        .Quarter = ProjectValues.Quarter,
+        .AskBeforeReplace = True
+    }
+
+        Try
+
+            btnCategoryUpload.Enabled = False
+
+            Dim result As FreeBmdUploader.UploadResult = Await uploader.UploadFileAsync(request, CancellationToken.None)
+
+            DebugLog.WriteAlways($"[UPLOAD] Success: {result.Success}")
+            DebugLog.WriteAlways($"[UPLOAD] Message: {result.Message}")
+
+            If result.Success Then
+
+                ShowStatusMessage("Upload completed successfully.")
+
+                MessageBox.Show(Me, result.Message, "Upload Complete", MessageBoxButtons.OK, MessageBoxIcon.Information)
+
+            Else
+
+                ShowStatusMessage("Upload failed.")
+
+                MessageBox.Show(Me, result.Message, "Upload Failed", MessageBoxButtons.OK, MessageBoxIcon.Error)
+
+            End If
+
+        Catch ex As Exception
+
+            DebugLog.LogException("Uploading transcription", ex)
+
+            ShowStatusMessage("Upload failed.")
+
+            MessageBox.Show(Me, "The upload could not be completed." & Environment.NewLine & Environment.NewLine & ex.Message, "Upload Failed", MessageBoxButtons.OK, MessageBoxIcon.Error)
+
+        Finally
+
+            UpdateUploadEnabled()
+
+        End Try
+
+    End Function
     Private Sub btnFileOpen_Click(sender As Object, e As EventArgs) Handles btnFileOpen.Click
 
         BuildOpenFileMenu()
@@ -893,7 +985,8 @@ Public Class TranscriptionForm
 
         Next
 
-        btnCategoryUpload.Enabled = dataRowCount > 0 AndAlso allVerified
+        ' btnCategoryUpload.Enabled = dataRowCount > 0 AndAlso allVerified
+        btnCategoryUpload.Enabled = dataRowCount > 0
 
         If btnCategoryUpload.Enabled Then
             uploadToolTip.SetToolTip(btnCategoryUpload, "Upload the completed transcription.")
@@ -1634,10 +1727,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         e.KeyChar = CapitalisationHelper.ApplyTypedCharacter(e.KeyChar, mode, shiftPressed, typedText, typedPosition)
 
     End Sub
-    Private Sub transcriptionGrid_CellEnter(
-    sender As Object,
-    e As DataGridViewCellEventArgs) _
-    Handles transcriptionGrid.CellEnter
+    Private Sub transcriptionGrid_CellEnter(sender As Object, e As DataGridViewCellEventArgs) Handles transcriptionGrid.CellEnter
 
         If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then
             Return
@@ -2632,11 +2722,14 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
             ' District and its code are interdependent, so changing either
             ' one requires both cells to be validated again.
-            ValidateDistrictCodePair(e.RowIndex)
+            ValidateDistrictCodePair(e.RowIndex, False)
 
             ' Pick up the final result for the cell which was actually edited.
-            result =
-        _cellValidationResults((e.RowIndex, e.ColumnIndex))
+            Dim pairResult As ValidationResult
+
+            If _cellValidationResults.TryGetValue((e.RowIndex, e.ColumnIndex), pairResult) Then
+                result = pairResult
+            End If
 
         Else
 
@@ -2946,7 +3039,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
     '
     ' In addition to each field's normal validation, a warning is produced
     ' when one half of the District/code pair is present and the other is blank.
-    Private Sub ValidateDistrictCodePair(rowIndex As Integer)
+    Private Sub ValidateDistrictCodePair(rowIndex As Integer, Optional promptForNewDistrict As Boolean = True)
 
         Dim districtColumn As Integer = -1
         Dim codeColumn As Integer = GetVolumeColumn()
@@ -2970,6 +3063,10 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         Next
 
         If districtColumn < 0 OrElse codeColumn < 0 Then
+            Return
+        End If
+
+        If Not promptForNewDistrict Then
             Return
         End If
 
@@ -3392,7 +3489,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
             Next
 
-            ValidateDistrictCodePair(rowIndex)
+            ValidateDistrictCodePair(rowIndex, False)
             ValidateSequence(rowIndex)
             UpdateRowValidationState(rowIndex)
             Dim rowState As ValidationState
@@ -3410,6 +3507,21 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
     Private Sub TranscriptionForm_FormClosed(sender As Object, e As FormClosedEventArgs) Handles Me.FormClosed
 
         RemoveHandler ProjectValues.StatusMessageRequested, AddressOf ProjectValues_StatusMessageRequested
+
+    End Sub
+    Private Sub transcriptionGrid_CellLeave(sender As Object, e As DataGridViewCellEventArgs) Handles transcriptionGrid.CellLeave
+
+        If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then Return
+
+        Dim column As DataGridViewColumn = transcriptionGrid.Columns(e.ColumnIndex)
+
+        If column.Tag Is Nothing Then Return
+
+        Dim field As GridField = DirectCast(column.Tag, GridField)
+
+        If field = GridField.District OrElse field = GridField.Volume OrElse field = GridField.DistNum Then
+            ValidateDistrictCodePair(e.RowIndex)
+        End If
 
     End Sub
 End Class

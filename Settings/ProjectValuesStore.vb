@@ -78,6 +78,7 @@ Public Module ProjectValuesStore
             ProjectValues.SourceRef = If(values.SourceRef, "")
             ProjectValues.Syndicate = If(values.Syndicate, "")
             ProjectValues.Comments = If(values.Comments, "")
+            ProjectValues.DistrictVersion = If(values.DistrictVersion, "??")
             ProjectValues.SkipSurname = values.SkipSurname
             ProjectValues.SaveFolder = If(values.SaveFolder, "")
             ProjectValues.OutputCharacterSet = If(String.IsNullOrWhiteSpace(values.OutputCharacterSet), "ISO-8859-1", values.OutputCharacterSet)
@@ -191,6 +192,7 @@ Public Module ProjectValuesStore
                 .SourceRef = ProjectValues.SourceRef,
                 .Syndicate = ProjectValues.Syndicate,
                 .Comments = ProjectValues.Comments,
+                .DistrictVersion = ProjectValues.DistrictVersion,
                 .Match3VolChars = ProjectValues.Match3VolChars,
                 .AutoShowScan = ProjectValues.AutoShowScan,
                 .AutoShowRuler = ProjectValues.AutoShowRuler,
@@ -255,6 +257,7 @@ Public Module ProjectValuesStore
         Public Property SourceRef As String = ""
         Public Property Syndicate As String = ""
         Public Property Comments As String = ""
+        Public Property DistrictVersion As String = "??"
         Public Property BatchName As String = ""
         Public Property Created As String = ""
         Public Property DateModified As Date = Date.Today

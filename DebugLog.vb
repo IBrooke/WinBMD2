@@ -9,9 +9,16 @@ Public Module DebugLog
 
             AppPaths.EnsureFoldersExist()
 
+            Dim localNow As DateTimeOffset = DateTimeOffset.Now
+            Dim utcNow As DateTimeOffset = localNow.ToUniversalTime()
+
             File.WriteAllText(
-                AppPaths.DebugLogFilePath,
-                $"===== NEW SESSION {DateTime.Now:yyyy-MM-dd HH:mm:ss} ====={Environment.NewLine}")
+            AppPaths.DebugLogFilePath,
+            $"===== NEW SESSION {localNow:yyyy-MM-dd HH:mm:ss.fff} ====={Environment.NewLine}" &
+            $"Local time zone: {TimeZoneInfo.Local.DisplayName}{Environment.NewLine}" &
+            $"UTC offset: {localNow:zzz}{Environment.NewLine}" &
+            $"UTC time: {utcNow:yyyy-MM-dd HH:mm:ss.fff}Z{Environment.NewLine}",
+            Encoding.UTF8)
 
         Catch
             ' Logging must never prevent the program running.

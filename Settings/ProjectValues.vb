@@ -5,6 +5,10 @@ Public Module ProjectValues
     Public Property LoadingPersistedValues As Boolean = True
     Public Event StatusMessageRequested(message As String, duration As Integer)
 
+#Region "Districts"
+    Public Property DistrictVersion As String = ""
+#End Region
+
 #Region "Command Panels"
 
     Public Property FilePanelExpanded As Boolean = True
@@ -87,7 +91,7 @@ Public Module ProjectValues
 
 #End Region
 
-#Region "Header"
+#Region "Header Form"
 
     Public Property BatchType As String = ""
     Public Property BatchName As String = ""
@@ -136,7 +140,6 @@ Public Module ProjectValues
     Public Property Comments As String = ""
 
 #End Region
-
 #Region "Appearance"
 
     Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
