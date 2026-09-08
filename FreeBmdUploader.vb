@@ -105,13 +105,15 @@ Friend NotInheritable Class FreeBmdUploader
         End Try
 
     End Function
-    Private Async Function SendOneRequestAsync(uri As Uri, content As HttpContent, cancellationToken As CancellationToken) As Task(Of ServerResponse)
+    Private Async Function SendOneRequestAsync(uri As Uri, content As MultipartFormDataContent, cancellationToken As CancellationToken) As Task(Of ServerResponse)
 
         Using client As HttpClient = CreateHttpClient()
 
-            _log("----- OUTGOING REQUEST -----")
-            _log($"POST {uri}")
-            _log($"Host: {uri.Host}:{uri.Port}")
+            Dim version As Version = Reflection.Assembly.GetExecutingAssembly().GetName().Version
+            client.DefaultRequestHeaders.UserAgent.ParseAdd($"WinBMD2/{version.Major}.{version.Minor}.{version.Build}")
+            client.DefaultRequestHeaders.Accept.Add(New MediaTypeWithQualityHeaderValue("text/html"))
+
+            Await LogRequestAsync(uri, client, content, cancellationToken)
 
             Using response As HttpResponseMessage = Await client.PostAsync(uri, content, cancellationToken)
 
@@ -230,7 +232,6 @@ Friend NotInheritable Class FreeBmdUploader
         Return Await RunAsync(request, cancellationToken)
 
     End Function
-
     Private Async Function RunAsync(request As UploadRequest, cancellationToken As CancellationToken) As Task(Of UploadResult)
 
         Dim mode As RequestMode = RequestMode.NewUpload
@@ -313,7 +314,6 @@ Friend NotInheritable Class FreeBmdUploader
         Loop
 
     End Function
-
     Private Sub ValidateRequest(request As UploadRequest)
 
         If request Is Nothing Then Throw New ArgumentNullException(NameOf(request))
@@ -467,50 +467,62 @@ Friend NotInheritable Class FreeBmdUploader
     Private Function BuildUploadContent(request As UploadRequest, mode As RequestMode) As MultipartFormDataContent
 
         Dim fileBytes As Byte() = File.ReadAllBytes(request.BatchFilePath)
-        Dim lines As String() = File.ReadAllLines(request.BatchFilePath, Encoding.GetEncoding("ISO-8859-1"))
         Dim form As New MultipartFormDataContent()
-        Dim lineNumber As Integer = 0
 
-        _log("----- DATA SENT -----")
-
-        AddLoggedFormValue(form, "UploadAgent", "InterfaceVersion1.5", lineNumber)
-        AddLoggedFormValue(form, "user", request.Username, lineNumber)
-        AddLoggedFormValue(form, "password", request.Password, lineNumber)
+        AddFormValue(form, "UploadAgent", "InterfaceVersion1.5")
+        AddFormValue(form, "user", request.Username)
+        AddFormValue(form, "password", request.Password)
 
         If mode = RequestMode.ReplaceExisting Then
-            AddLoggedFormValue(form, "file_update", request.UploadName, lineNumber)
+            AddFormValue(form, "file_update", request.UploadName)
         Else
-            AddLoggedFormValue(form, "file", request.UploadName, lineNumber)
+            AddFormValue(form, "file", request.UploadName)
         End If
 
-        AddLoggedFormValue(form, "data_version", $"{DistrictIntro}:{request.CurrentDistrictVersion}", lineNumber)
+        AddFormValue(form, "data_version", $"{DistrictIntro}:{request.CurrentDistrictVersion}")
 
         Dim fileContent As New ByteArrayContent(fileBytes)
-        fileContent.Headers.ContentType = New MediaTypeHeaderValue("text/plain")
-        form.Add(fileContent, "content2", request.UploadName)
-
-        lineNumber += 1
-        _log($"{lineNumber:0000}: content2={request.UploadName}")
-
-        For Each line As String In lines
-            lineNumber += 1
-            _log($"{lineNumber:0000}: {line}")
-        Next
-
-        _log($"----- END DATA SENT: {lineNumber} lines, {fileBytes.Length} file bytes -----")
+        fileContent.Headers.ContentType = New MediaTypeHeaderValue("application/octet-stream")
+        form.Add(fileContent, "content2", request.UploadName & ".BMD")
 
         Return form
 
     End Function
-    Private Sub AddLoggedFormValue(form As MultipartFormDataContent, name As String, value As String, ByRef lineNumber As Integer)
+    Private Sub AddFormValue(form As MultipartFormDataContent, name As String, value As String)
 
         Dim actualValue As String = If(value, "")
         form.Add(New StringContent(actualValue), name)
 
-        lineNumber += 1
-        _log($"{lineNumber:0000}: {name}={actualValue}")
-
     End Sub
+    Private Async Function LogRequestAsync(uri As Uri, client As HttpClient, content As MultipartFormDataContent, cancellationToken As CancellationToken) As Task
+
+        Dim requestBytes As Byte() = Await content.ReadAsByteArrayAsync(cancellationToken)
+        Dim contentLength As Long = requestBytes.LongLength
+
+        _log("----- REQUEST SENT -----")
+        _log($"POST {uri.PathAndQuery} HTTP/1.1")
+        _log($"Host: {uri.Host}")
+        _log($"User-Agent: {client.DefaultRequestHeaders.UserAgent}")
+        _log($"Accept: {client.DefaultRequestHeaders.Accept}")
+        _log($"Content-Type: {content.Headers.ContentType}")
+        _log($"Content-Length: {contentLength}")
+        _log("")
+
+        Dim requestText As String = Encoding.GetEncoding("ISO-8859-1").GetString(requestBytes)
+
+        Using reader As New StringReader(requestText)
+
+            Do
+                Dim line As String = reader.ReadLine()
+                If line Is Nothing Then Exit Do
+                _log(line)
+            Loop
+
+        End Using
+
+        _log("----- END REQUEST SENT -----")
+
+    End Function
     Private Function ParseResponse(responseText As String) As ParsedReply
 
         If String.IsNullOrWhiteSpace(responseText) Then Return New ParsedReply()
