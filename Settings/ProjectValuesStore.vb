@@ -1,5 +1,6 @@
 ﻿Imports System.IO
 Imports System.Text.Json
+Imports System.Text.Json.Nodes
 Imports System.Drawing
 Public Module ProjectValuesStore
 
@@ -24,6 +25,29 @@ Public Module ProjectValuesStore
             If String.IsNullOrWhiteSpace(json) Then
                 Save()
                 Return
+            End If
+
+            Dim jsonNode As JsonNode = JsonNode.Parse(json)
+
+            If jsonNode IsNot Nothing AndAlso jsonNode("GridColumnWidths") IsNot Nothing Then
+                Dim widthsObject As JsonObject = TryCast(jsonNode("GridColumnWidths"), JsonObject)
+
+                If widthsObject IsNot Nothing Then
+                    Dim oldFormatFound As Boolean = False
+
+                    For Each item In widthsObject
+                        If TypeOf item.Value Is JsonObject Then
+                            oldFormatFound = True
+                            Exit For
+                        End If
+                    Next
+
+                    If oldFormatFound Then
+                        jsonNode("GridColumnWidths") = New JsonObject()
+                        json = jsonNode.ToJsonString()
+                        DebugLog.WriteAlways("[SETTINGS] Old GridColumnWidths format found; saved column widths discarded.")
+                    End If
+                End If
             End If
 
             Dim values As ProjectValuesData = JsonSerializer.Deserialize(Of ProjectValuesData)(json)
@@ -126,10 +150,7 @@ Public Module ProjectValuesStore
                 values.VerifyFontSize >= 8.0F,
                 values.VerifyFontSize,
                 12.0F)
-            ProjectValues.GridColumnWidths =
-            If(
-                values.GridColumnWidths,
-                New Dictionary(Of String, Dictionary(Of String, Integer)))
+            ProjectValues.GridColumnWidths = If(values.GridColumnWidths, New Dictionary(Of String, List(Of Integer)))
 
             ProjectValues.RecentFiles =
             If(
@@ -236,7 +257,7 @@ Public Module ProjectValuesStore
         Public Property HeaderFormWidth As Integer = 964
         Public Property HeaderFormHeight As Integer = 681
         Public Property HeaderFormMaximized As Boolean
-        Public Property GridColumnWidths As New Dictionary(Of String, Dictionary(Of String, Integer))
+        Public Property GridColumnWidths As New Dictionary(Of String, List(Of Integer))
         Public Property UserName As String = ""
         Public Property UserEmail As String = ""
         Public Property UserPW As String = ""

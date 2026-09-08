@@ -4,18 +4,25 @@ Imports WinBMD2.My.Resources
 
 Public Class TranscriptionForm
 
+    Private ReadOnly _workfile As New Workfile()
+    Private ReadOnly _changeState As New ChangeState()
     Public Event CurrentGridRowChanged As EventHandler
     Private ReadOnly _commandExecutor As ICommandExecutor
     Private _configuringGrid As Boolean
-    Private _hasChanges As Boolean
     Private _refreshingGrid As Boolean
     Private ReadOnly _pickListPopup As New PickListPopup()
     Private ReadOnly _navigationManager As NavigationManager
+    Private Class StatusItem
+        Public Property Message As String
+        Public Property Expires As DateTime
+    End Class
+
+    Private ReadOnly _statusItems As New List(Of StatusItem)
     Private ReadOnly _statusQueue As New Queue(Of (Message As String, Duration As Integer))
     Private ReadOnly _statusTimer As New System.Windows.Forms.Timer()
     Private ReadOnly _openFileMenu As New ContextMenuStrip()
-    Private _statusMessageShowing As Boolean
     Private _baseStatusText As String = "Ready"
+
     ' Stores the latest validation result for each grid cell.
     Private ReadOnly _cellValidationResults As New Dictionary(Of (Row As Integer, Column As Integer), ValidationResult)
 
@@ -26,7 +33,6 @@ Public Class TranscriptionForm
     Private _lastGridRowIndex As Integer = -1
     Private _uploadTooltipShowing As Boolean
     Private _verifyRowIndex As Integer = -1
-    Private ReadOnly _verifiedRows As New HashSet(Of Integer)
     Private Shared ReadOnly WordSeparators() As Char = {" "c, "."c}
     Private _settingCompletionCharacters As Boolean
     Private _suppressNextAutoComplete As Boolean
@@ -38,7 +44,7 @@ Public Class TranscriptionForm
         InitializeComponent()
 
         uploadToolTip.SetToolTip(btnSpecialCharacters, "Show the special character form")
-        _statusTimer.Interval = 5000
+        _statusTimer.Interval = 250
         AddHandler _statusTimer.Tick, AddressOf StatusTimer_Tick
         AddHandler ProjectValues.StatusMessageRequested, AddressOf ProjectValues_StatusMessageRequested
         AddHandler _pickListPopup.ItemClicked, AddressOf PickListPopup_ItemClicked
@@ -53,7 +59,7 @@ Public Class TranscriptionForm
         Text = "WinBMD2"
         filePanel.Expanded = ProjectValues.FilePanelExpanded
 
-        LoadCurrentBatch()
+        InitialiseTranscriptionForm()
 
         DebugLog.WriteAlways("======= TRANSCRIPTION FORM OPENED =======")
         DebugLog.WriteAlways($"Batch Type  : '{ProjectValues.BatchType}'")
@@ -195,8 +201,7 @@ Public Class TranscriptionForm
         _uploadTooltipShowing = False
 
     End Sub
-    Public Function LoadBatchFile(
-    filePath As String) As Boolean
+    Public Function LoadBatchFile(filePath As String) As Boolean
 
         SaveFormBounds()
 
@@ -208,27 +213,13 @@ Public Class TranscriptionForm
                 Return False
             End If
 
-            Dim verificationState As String = VerificationData.Load(ProjectValues.BatchName)
+            FinishLoadingBatch()
 
-            ApplyVerificationState(verificationState)
-            ValidateLoadedRows()
-
-            UpdateUploadEnabled()
-
-            RestoreFormBounds()
-
-            Dim fields() As GridField = GridLayout.GetVisibleFields()
-
-            AddBlankEntryRow(fields)
-
-            ValidateLoadedRows()
-
-            For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
-                UpdateDirectiveCell(rowIndex)
-            Next
-
-            _hasChanges = False
+            _changeState.FileSaved()
             ProjectValuesStore.Save()
+
+            _workfile.CreateOrReplace(transcriptionGrid)
+
             UpdateStatusPosition()
             Return True
 
@@ -237,28 +228,44 @@ Public Class TranscriptionForm
         End Try
 
     End Function
-    Friend ReadOnly Property HasChanges As Boolean
-        Get
-            Return _hasChanges
-        End Get
-    End Property
-    Friend Sub ClearChanges()
-        _hasChanges = False
+    Private Sub FinishLoadingBatch()
+
+        Dim verificationState As String = VerificationData.Load(ProjectValues.BatchName)
+
+        ApplyVerificationState(verificationState)
+        ValidateLoadedRows()
+
+        UpdateUploadEnabled()
+
+        RestoreFormBounds()
+
+        Dim fields() As GridField = GridLayout.GetVisibleFields()
+
+        AddBlankEntryRow(fields)
+
+        ValidateLoadedRows()
+
+        For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
+            UpdateDirectiveCell(rowIndex)
+        Next
+
     End Sub
     Friend Function SaveCurrentBatch(filePath As String) As Boolean
+
+        _workfile.FlushCurrentRow(transcriptionGrid, _changeState)
 
         If Not LoadSaveFiles.Save(filePath, transcriptionGrid) Then
             Return False
         End If
 
-        ClearChanges()
+        _changeState.FileSaved()
 
         Return True
 
     End Function
     Friend Function ConfirmSaveChangesIfNeeded() As Boolean
 
-        If Not _hasChanges Then
+        If Not _changeState.FileChanged() Then
             Return True
         End If
 
@@ -279,7 +286,7 @@ Public Class TranscriptionForm
 
             Case DialogResult.Yes
                 _commandExecutor.Execute(AppCommand.SaveFile)
-                Return Not _hasChanges
+                Return Not _changeState.FileChanged()
 
             Case DialogResult.No
                 Return True
@@ -290,22 +297,21 @@ Public Class TranscriptionForm
         End Select
 
     End Function
-    ' Sets the normal status text shown whenever there is no
-    ' temporary message waiting to be displayed.
+    ' Sets the normal status text shown whenever there are no
+    ' temporary messages being displayed.
     Private Sub SetBaseStatus(message As String)
 
         _baseStatusText = message
 
-        If Not _statusMessageShowing Then
+        If _statusItems.Count = 0 Then
             statusMessageLabel.Text = _baseStatusText
+            statusMessageLabel.Visible = True
         End If
 
     End Sub
 
-    ' Displays a temporary status message.
-    '
-    ' If another temporary message is already being shown, this one
-    ' is queued and will be displayed when the current message expires.
+    ' Adds a temporary status message. Up to three messages can be
+    ' displayed simultaneously. Further messages wait in the queue.
     Private Sub ShowStatusMessage(message As String, Optional duration As Integer = 5000)
 
         DebugLog.WriteAlways($"[STATUS] ShowStatusMessage called: '{message}'")
@@ -314,50 +320,72 @@ Public Class TranscriptionForm
             Return
         End If
 
-        _statusQueue.Enqueue((message, duration))
+        If _statusItems.Count < 3 Then
+            _statusItems.Add(New StatusItem With {.Message = message, .Expires = DateTime.Now.AddMilliseconds(duration)})
+        Else
+            _statusQueue.Enqueue((message, duration))
+        End If
 
-        If Not _statusMessageShowing Then
-            ShowNextStatusMessage()
+        UpdateStatusMessages()
+
+        If Not _statusTimer.Enabled Then
+            _statusTimer.Start()
         End If
 
     End Sub
 
-    ' Displays the next queued message, or restores the normal
-    ' status text when there are no messages left.
-    Private Sub ShowNextStatusMessage()
+    ' Removes expired messages, fills any available positions from the
+    ' waiting queue, then updates the three status-message labels.
+    Private Sub UpdateStatusMessages()
 
-        _statusTimer.Stop()
+        Dim now As DateTime = DateTime.Now
 
-        If _statusQueue.Count = 0 Then
+        _statusItems.RemoveAll(Function(item) item.Expires <= now)
 
-            _statusMessageShowing = False
+        While _statusItems.Count < 3 AndAlso _statusQueue.Count > 0
+            Dim queuedItem = _statusQueue.Dequeue()
+            _statusItems.Add(New StatusItem With {.Message = queuedItem.Message, .Expires = now.AddMilliseconds(queuedItem.Duration)})
+        End While
+
+        If _statusItems.Count = 0 Then
+
             statusMessageLabel.Text = _baseStatusText
+            statusMessageLabel.Visible = True
+            statusMessageLabel2.Visible = False
+            statusMessageLabel3.Visible = False
+
+            If _statusQueue.Count = 0 Then
+                _statusTimer.Stop()
+            End If
 
             Return
 
         End If
 
-        Dim item =
-        _statusQueue.Dequeue()
+        statusMessageLabel.Text = _statusItems(0).Message
+        statusMessageLabel.Visible = True
 
-        DebugLog.WriteAlways($"[STATUS] Displaying: '{item.Message}'")
+        If _statusItems.Count >= 2 Then
+            statusMessageLabel2.Text = _statusItems(1).Message
+            statusMessageLabel2.Visible = True
+        Else
+            statusMessageLabel2.Visible = False
+        End If
 
-        _statusMessageShowing = True
-        statusMessageLabel.Text = item.Message
-
-        _statusTimer.Interval = item.Duration
-        _statusTimer.Start()
-
-    End Sub
-
-    Private Sub StatusTimer_Tick(
-    sender As Object,
-    e As EventArgs)
-
-        ShowNextStatusMessage()
+        If _statusItems.Count >= 3 Then
+            statusMessageLabel3.Text = _statusItems(2).Message
+            statusMessageLabel3.Visible = True
+        Else
+            statusMessageLabel3.Visible = False
+        End If
 
     End Sub
-    Private Sub LoadCurrentBatch()
+    Private Sub StatusTimer_Tick(sender As Object, e As EventArgs)
+
+        UpdateStatusMessages()
+
+    End Sub
+    Private Sub InitialiseTranscriptionForm()
 
         RestoreFormBounds()
         ConfigureGridColumns()
@@ -379,7 +407,7 @@ Public Class TranscriptionForm
 
         End Try
 
-        _hasChanges = False
+        _changeState.FileSaved()
 
         UpdateStatusPosition()
 
@@ -475,8 +503,13 @@ Public Class TranscriptionForm
 
         If button Is btnCategoryVerify Then
 
-            Dim verifyVisible As Boolean =
-        _selectedCommandCategory <> button.Text
+            Dim verifyVisible As Boolean = _selectedCommandCategory <> button.Text
+
+            ' Do not open the Verify strip when there is nothing left to verify.
+            If verifyVisible AndAlso FindNextUnverifiedRow(0) < 0 Then
+                ShowStatusMessage("All rows have already been verified.")
+                Return
+            End If
 
             If verifyVisible Then
                 _selectedCommandCategory = button.Text
@@ -503,6 +536,7 @@ Public Class TranscriptionForm
         UpdateCommandStrip()
 
     End Sub
+
     Private Sub ApplyCapitalisationChanges(changes As IEnumerable(Of OptionsForm.CapitalisationChange))
 
         For Each change As OptionsForm.CapitalisationChange In changes
@@ -534,6 +568,7 @@ Public Class TranscriptionForm
 
         Next
 
+        If _workfile.CreateOrReplace(transcriptionGrid) Then _changeState.WorkfileSaved()
     End Sub
     Private Function CapitalisationColumnHasData(field As GridField) As Boolean
 
@@ -602,6 +637,105 @@ Public Class TranscriptionForm
             transcriptionGrid.EndEdit()
         End If
 
+        ' Find the last actual transcription row, ignoring the blank entry row.
+        Dim lastDataRowIndex As Integer = -1
+
+        For rowIndex As Integer = transcriptionGrid.Rows.Count - 1 To 0 Step -1
+
+            If Not IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then
+                lastDataRowIndex = rowIndex
+                Exit For
+            End If
+
+        Next
+
+        ' Check that the last transcription row has a +PAGE directive.
+        If lastDataRowIndex >= 0 Then
+
+            Dim directiveCell As DataGridViewCell = transcriptionGrid.Rows(lastDataRowIndex).Cells(GridField.Directive.ToString())
+            Dim directives As List(Of RowDirective) = TryCast(directiveCell.Tag, List(Of RowDirective))
+            Dim hasPageDirective As Boolean = False
+
+            If directives IsNot Nothing Then
+
+                For Each directive As RowDirective In directives
+
+                    If directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) Then
+                        hasPageDirective = True
+                        Exit For
+                    End If
+
+                Next
+
+            End If
+
+            If Not hasPageDirective Then
+
+                Dim answer As DialogResult = MessageBox.Show(Me,
+                "The last transcription row does not have a +PAGE directive." & Environment.NewLine & Environment.NewLine &
+                "Do you want WinBMD2 to add one?",
+                "Missing PAGE Directive",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question)
+
+                If answer = DialogResult.Yes Then
+
+                    ' Find the most recent preceding +PAGE and increment its page number.
+                    Dim previousPageNumber As Integer = ProjectValues.Page
+
+                    For previousRowIndex As Integer = 0 To lastDataRowIndex - 1
+
+                        Dim previousCell As DataGridViewCell = transcriptionGrid.Rows(previousRowIndex).Cells(GridField.Directive.ToString())
+                        Dim previousDirectives As List(Of RowDirective) = TryCast(previousCell.Tag, List(Of RowDirective))
+
+                        If previousDirectives Is Nothing Then
+                            Continue For
+                        End If
+
+                        For Each directive As RowDirective In previousDirectives
+
+                            If Not directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) Then
+                                Continue For
+                            End If
+
+                            Dim pageNumber As Integer
+
+                            If Integer.TryParse(directive.Text, pageNumber) Then
+                                previousPageNumber = pageNumber
+                            End If
+
+                        Next
+
+                    Next
+
+                    Dim nextPageNumber As Integer = previousPageNumber + 1
+
+                    If directives Is Nothing Then
+                        directives = New List(Of RowDirective)()
+                    End If
+
+                    directives.Add(New RowDirective With {
+                    .RowIndex = lastDataRowIndex,
+                    .DirectiveType = "+PAGE",
+                    .Lines = Nothing,
+                    .Text = nextPageNumber.ToString()
+                })
+
+                    directiveCell.Tag = directives
+                    UpdateDirectiveCell(lastDataRowIndex)
+
+                    _changeState.SetFileChanged()
+
+                    If _workfile.CreateOrReplace(transcriptionGrid) Then
+                        _changeState.WorkfileSaved()
+                    End If
+
+                End If
+
+            End If
+
+        End If
+
         Dim filePath As String = Path.Combine(AppPaths.SaveFolder, ProjectValues.BatchName)
 
         ShowStatusMessage("Saving transcription before upload...")
@@ -653,13 +787,11 @@ Public Class TranscriptionForm
             If result.Success Then
 
                 ShowStatusMessage("Upload completed successfully.")
-
                 MessageBox.Show(Me, result.Message, "Upload Complete", MessageBoxButtons.OK, MessageBoxIcon.Information)
 
             Else
 
                 ShowStatusMessage("Upload failed.")
-
                 MessageBox.Show(Me, result.Message, "Upload Failed", MessageBoxButtons.OK, MessageBoxIcon.Error)
 
             End If
@@ -667,9 +799,7 @@ Public Class TranscriptionForm
         Catch ex As Exception
 
             DebugLog.LogException("Uploading transcription", ex)
-
             ShowStatusMessage("Upload failed.")
-
             MessageBox.Show(Me, "The upload could not be completed." & Environment.NewLine & Environment.NewLine & ex.Message, "Upload Failed", MessageBoxButtons.OK, MessageBoxIcon.Error)
 
         Finally
@@ -684,8 +814,7 @@ Public Class TranscriptionForm
         BuildOpenFileMenu()
 
         _openFileMenu.Show(
-        btnFileOpen,
-        New Point(0, btnFileOpen.Height))
+        btnFileOpen, New Point(0, btnFileOpen.Height))
 
         _selectedCommandCategory = ""
         UpdateCommandCategoryAppearance()
@@ -721,8 +850,7 @@ Public Class TranscriptionForm
         UpdateCommandCategoryAppearance()
         UpdateCommandStrip()
 
-        Dim oldBatchName As String =
-        ProjectValues.BatchName
+        Dim oldBatchName As String = ProjectValues.BatchName
 
         Using form As New HeaderForm(True)
 
@@ -733,9 +861,7 @@ Public Class TranscriptionForm
         End Using
 
         Dim newFilePath As String =
-        Path.Combine(
-            AppPaths.SaveFolder,
-            ProjectValues.BatchName)
+        Path.Combine(AppPaths.SaveFolder, ProjectValues.BatchName)
 
         If Not SaveCurrentBatch(newFilePath) Then
 
@@ -767,6 +893,10 @@ Public Class TranscriptionForm
         $"[HEADER EDIT] Header updated. OldBatchName='{oldBatchName}', NewBatchName='{ProjectValues.BatchName}'.")
 
     End Sub
+    Friend Sub CreateWorkfile()
+        _workfile.CreateOrReplace(transcriptionGrid)
+    End Sub
+
     Private Sub btnFileExit_Click(sender As Object, e As EventArgs) Handles btnFileExit.Click
 
         Close
@@ -931,7 +1061,8 @@ Public Class TranscriptionForm
         End Using
 
         UpdateDirectiveCell(rowIndex)
-        _hasChanges = True
+        _changeState.FileSaved()
+        If _workfile.CreateOrReplace(transcriptionGrid) Then _changeState.WorkfileSaved()
 
     End Sub
     Private Sub UpdateDirectiveCell(
@@ -972,21 +1103,21 @@ Public Class TranscriptionForm
 
         For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
 
-            If IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then
-                Continue For
-            End If
+            DebugLog.Write("Upload check: Row=" & rowIndex & ", Last=" & (transcriptionGrid.Rows.Count - 1) & ", IsNewRow=" & transcriptionGrid.Rows(rowIndex).IsNewRow & ", Blank=" & IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) & ", Verified=" & IsRowVerified(rowIndex))
+
+            ' Ignore only the final blank row, which is provided for entering the next record.
+            If rowIndex = transcriptionGrid.Rows.Count - 1 AndAlso IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then Continue For
 
             dataRowCount += 1
 
-            If Not _verifiedRows.Contains(rowIndex) Then
+            If Not IsRowVerified(rowIndex) Then
                 allVerified = False
                 Exit For
             End If
 
         Next
 
-        ' btnCategoryUpload.Enabled = dataRowCount > 0 AndAlso allVerified
-        btnCategoryUpload.Enabled = dataRowCount > 0
+        btnCategoryUpload.Enabled = dataRowCount > 0 AndAlso allVerified
 
         If btnCategoryUpload.Enabled Then
             uploadToolTip.SetToolTip(btnCategoryUpload, "Upload the completed transcription.")
@@ -1034,22 +1165,28 @@ Public Class TranscriptionForm
 
         _configuringGrid = True
 
-        transcriptionGrid.Columns.Clear()
-        transcriptionGrid.AutoGenerateColumns = False
-        transcriptionGrid.AllowUserToAddRows = False
-
-        AddRowNumberColumn()
-
-        Dim fields() As GridField = GridLayout.GetVisibleFields()
-        Dim layoutKey As String = GetGridLayoutKey()
-        Dim savedWidths As Dictionary(Of String, Integer) = Nothing
-
-        ProjectValues.GridColumnWidths.TryGetValue(layoutKey, savedWidths)
-
         Try
+            transcriptionGrid.Columns.Clear()
+            transcriptionGrid.AutoGenerateColumns = False
+            transcriptionGrid.AllowUserToAddRows = False
 
-            For Each field As GridField In fields
+            AddRowNumberColumn()
 
+            Dim fields() As GridField = GridLayout.GetVisibleFields()
+            Dim layoutKey As String = GetGridLayoutKey()
+            Dim savedWidths As List(Of Integer) = Nothing
+
+            ProjectValues.GridColumnWidths.TryGetValue(layoutKey, savedWidths)
+
+            If savedWidths IsNot Nothing AndAlso savedWidths.Count <> fields.Length Then
+                ProjectValues.GridColumnWidths.Remove(layoutKey)
+                savedWidths = Nothing
+                DebugLog.WriteAlways("[GRID] Saved column widths for " & layoutKey & " do not match the current layout and have been discarded.")
+            End If
+
+            For fieldIndex As Integer = 0 To fields.Length - 1
+
+                Dim field As GridField = fields(fieldIndex)
                 Dim fieldInformation As FieldMeta = FieldMetaData.Meta(field)
 
                 Dim column As New DataGridViewTextBoxColumn With {
@@ -1061,25 +1198,30 @@ Public Class TranscriptionForm
                 .ReadOnly = Not fieldInformation.IsDataColumn,
                 .Tag = field
             }
-                If savedWidths IsNot Nothing Then
-
-                    Dim savedWidth As Integer
-
-                    If savedWidths.TryGetValue(field.ToString(), savedWidth) Then
-                        column.Width = Math.Max(column.MinimumWidth, savedWidth)
-                    End If
-
+                If field = GridField.Directive OrElse field = GridField.Verified Then
+                    column.MinimumWidth = 30
+                    column.Width = 60
                 End If
-                column.DefaultCellStyle.Alignment = GetGridAlignment(fieldInformation.Align)
+                If field = GridField.Directive OrElse field = GridField.Verified Then column.MinimumWidth = 30
 
+                If savedWidths IsNot Nothing Then column.Width = Math.Max(column.MinimumWidth, savedWidths(fieldIndex))
+
+                column.DefaultCellStyle.Alignment = GetGridAlignment(fieldInformation.Align)
                 column.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter
 
-                If field = GridField.Verified Then
+                If field = GridField.Directive Then
+                    column.HeaderText = "+"
+                    column.HeaderCell.ToolTipText = "Directives — click to add or edit directives to be inserted after this row."
+                ElseIf field = GridField.Verified Then
+                    column.HeaderText = "✓"
+                    column.HeaderCell.ToolTipText = "Verified — indicates that this transcription row has been verified."
+                End If
 
+                If field = GridField.Directive OrElse field = GridField.Verified Then column.MinimumWidth = 30
+                If field = GridField.Verified Then
                     column.DefaultCellStyle.ForeColor = Color.Green
                     column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter
                     column.DefaultCellStyle.Font = New Font(transcriptionGrid.Font, FontStyle.Bold)
-
                 End If
 
                 transcriptionGrid.Columns.Add(column)
@@ -1088,10 +1230,7 @@ Public Class TranscriptionForm
 
             ThemeManager.ApplyDataGrid(transcriptionGrid)
 
-            DebugLog.WriteAlways(
-                "[GRID] Created " &
-                transcriptionGrid.Columns.Count.ToString() &
-                " columns.")
+            DebugLog.WriteAlways("[GRID] Created " & transcriptionGrid.Columns.Count.ToString() & " columns.")
 
         Finally
             _configuringGrid = False
@@ -1137,48 +1276,27 @@ Public Class TranscriptionForm
 
     End Function
     Private Function GetGridLayoutKey() As String
-
-        Return ProjectValues.BatchType & "|" &
-           ProjectValues.Year.ToString() & "|" &
-           ProjectValues.Quarter.ToString()
-
+        Return GridLayout.GetLayoutStartYear().ToString() & "|" & ProjectValues.BatchType
     End Function
-    Private Sub transcriptionGrid_ColumnWidthChanged(
-    sender As Object,
-    e As DataGridViewColumnEventArgs) Handles transcriptionGrid.ColumnWidthChanged
+    Private Sub transcriptionGrid_ColumnWidthChanged(sender As Object, e As DataGridViewColumnEventArgs) Handles transcriptionGrid.ColumnWidthChanged
 
-        If _configuringGrid Then
-            Return
-        End If
-
-        If e.Column Is Nothing Then
-            Return
-        End If
-
-        If e.Column.Name = "RowNumber" Then
-            Return
-        End If
-
-        If e.Column.Tag Is Nothing Then
-            Return
-        End If
+        If _configuringGrid Then Return
+        If e.Column Is Nothing Then Return
+        If e.Column.Name = "RowNumber" Then Return
+        If e.Column.Tag Is Nothing Then Return
 
         Dim layoutKey As String = GetGridLayoutKey()
-        Dim savedWidths As Dictionary(Of String, Integer) = Nothing
+        Dim savedWidths As New List(Of Integer)
 
-        If Not ProjectValues.GridColumnWidths.TryGetValue(layoutKey, savedWidths) Then
-            savedWidths = New Dictionary(Of String, Integer)
-            ProjectValues.GridColumnWidths(layoutKey) = savedWidths
-        End If
+        For Each column As DataGridViewColumn In transcriptionGrid.Columns
+            If column.Name <> "RowNumber" Then savedWidths.Add(column.Width)
+        Next
 
-        savedWidths(e.Column.Name) = e.Column.Width
-
+        ProjectValues.GridColumnWidths(layoutKey) = savedWidths
         ProjectValuesStore.Save()
 
     End Sub
-    Private Sub transcriptionGrid_CurrentCellChanged(
-    sender As Object,
-    e As EventArgs) Handles transcriptionGrid.CurrentCellChanged
+    Private Sub transcriptionGrid_CurrentCellChanged(sender As Object, e As EventArgs) Handles transcriptionGrid.CurrentCellChanged
 
         _pickListPopup.Hide()
         UpdateStatusPosition()
@@ -1195,6 +1313,8 @@ Public Class TranscriptionForm
         End If
 
         _lastGridRowIndex = rowIndex
+
+        _workfile.SetCurrentRow(rowIndex, transcriptionGrid, _changeState)
 
         RaiseEvent CurrentGridRowChanged(Me, EventArgs.Empty)
 
@@ -1237,7 +1357,7 @@ Public Class TranscriptionForm
             ClearRowVerified(e.RowIndex)
         End If
 
-        _hasChanges = True
+        _changeState.SetCellChanged()
 
         EnsureBlankEntryRow()
         UpdateRowNumbers()
@@ -1245,10 +1365,8 @@ Public Class TranscriptionForm
     End Sub
     ' Shows the row validation message when the mouse is over
     ' the row-number area containing the validation indicator.
-    Private Sub transcriptionGrid_CellMouseEnter(
-    sender As Object,
-    e As DataGridViewCellEventArgs) _
-    Handles transcriptionGrid.CellMouseEnter
+    Private Sub transcriptionGrid_CellMouseEnter(sender As Object, e As DataGridViewCellEventArgs) _
+        Handles transcriptionGrid.CellMouseEnter
 
         If e.RowIndex < 0 OrElse e.ColumnIndex < 0 Then
             Return
@@ -1794,8 +1912,18 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         Dim column As DataGridViewColumn = transcriptionGrid.Columns(transcriptionGrid.CurrentCell.ColumnIndex)
 
-        If Not _startingCellEdit AndAlso column.Tag IsNot Nothing AndAlso DirectCast(column.Tag, GridField) = GridField.District Then
-            ClearLinkedDistrictCodeCell()
+        If Not _startingCellEdit AndAlso column.Tag IsNot Nothing Then
+
+            Dim field As GridField = DirectCast(column.Tag, GridField)
+
+            If FieldMetaData.Meta(field).IsDataColumn Then
+                ClearRowVerified(transcriptionGrid.CurrentCell.RowIndex)
+            End If
+
+            If field = GridField.District Then
+                ClearLinkedDistrictCodeCell()
+            End If
+
         End If
 
         RefreshPickList(editor)
@@ -2725,11 +2853,8 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
             ValidateDistrictCodePair(e.RowIndex, False)
 
             ' Pick up the final result for the cell which was actually edited.
-            Dim pairResult As ValidationResult
-
-            If _cellValidationResults.TryGetValue((e.RowIndex, e.ColumnIndex), pairResult) Then
-                result = pairResult
-            End If
+            Dim pairResult As ValidationResult = Nothing
+            If _cellValidationResults.TryGetValue((e.RowIndex, e.ColumnIndex), pairResult) Then result = pairResult
 
         Else
 
@@ -3220,15 +3345,14 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
             Return
         End If
 
+        _workfile.FlushCurrentRow(transcriptionGrid, _changeState)
+        _workfile.Delete()
         SaveFormBounds()
         _pickListPopup.Dispose()
-        SaveFormBounds()
 
     End Sub
 
-    Private Sub filePanel_ExpandedChanged(
-        sender As Object,
-        e As EventArgs) Handles filePanel.ExpandedChanged
+    Private Sub filePanel_ExpandedChanged(sender As Object, e As EventArgs) Handles filePanel.ExpandedChanged
 
         ProjectValues.FilePanelExpanded = filePanel.Expanded
         ProjectValuesStore.Save()
@@ -3245,7 +3369,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
                 Continue For
             End If
 
-            If Not _verifiedRows.Contains(rowIndex) Then
+            If Not IsRowVerified(rowIndex) Then
                 Return rowIndex
             End If
 
@@ -3254,8 +3378,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         Return -1
 
     End Function
-    Friend Function GetVerifyValues(
-    rowIndex As Integer) As Dictionary(Of GridField, String)
+    Friend Function GetVerifyValues(rowIndex As Integer) As Dictionary(Of GridField, String)
 
         Dim values As New Dictionary(Of GridField, String)
 
@@ -3263,8 +3386,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
             Return values
         End If
 
-        Dim row As DataGridViewRow =
-            transcriptionGrid.Rows(rowIndex)
+        Dim row As DataGridViewRow = transcriptionGrid.Rows(rowIndex)
 
         For Each column As DataGridViewColumn In transcriptionGrid.Columns
 
@@ -3279,8 +3401,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
                 Continue For
             End If
 
-            values(field) =
-                If(row.Cells(column.Index).Value, "").ToString()
+            values(field) = If(row.Cells(column.Index).Value, "").ToString()
 
         Next
 
@@ -3312,42 +3433,38 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
     End Function
     Friend Function IsRowVerified(rowIndex As Integer) As Boolean
 
-        Return _verifiedRows.Contains(rowIndex)
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then Return False
+
+        Dim verifiedCell As DataGridViewCell = transcriptionGrid.Rows(rowIndex).Cells(GridField.Verified.ToString())
+
+        Return verifiedCell.Tag IsNot Nothing AndAlso DirectCast(verifiedCell.Tag, Boolean)
 
     End Function
+
     Friend Sub MarkRowVerified(rowIndex As Integer)
 
-        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then
-            Return
-        End If
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then Return
 
-        _verifiedRows.Add(rowIndex)
+        Dim verifiedCell As DataGridViewCell = transcriptionGrid.Rows(rowIndex).Cells(GridField.Verified.ToString())
 
-        Dim verifiedColumn As DataGridViewColumn =
-        transcriptionGrid.Columns(GridField.Verified.ToString())
-
-        transcriptionGrid.Rows(rowIndex).
-        Cells(verifiedColumn.Index).Value = "✓"
+        verifiedCell.Tag = True
+        verifiedCell.Value = "✓"
 
         VerificationData.Save(ProjectValues.BatchName, BuildVerificationState())
-
         UpdateUploadEnabled()
+
     End Sub
+
     Friend Sub ClearRowVerified(rowIndex As Integer)
 
-        _verifiedRows.Remove(rowIndex)
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then Return
 
-        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then
-            Return
-        End If
+        Dim verifiedCell As DataGridViewCell = transcriptionGrid.Rows(rowIndex).Cells(GridField.Verified.ToString())
 
-        Dim verifiedColumn As DataGridViewColumn =
-        transcriptionGrid.Columns(GridField.Verified.ToString())
+        verifiedCell.Tag = False
+        verifiedCell.Value = ""
 
-        transcriptionGrid.Rows(rowIndex).
-        Cells(verifiedColumn.Index).Value = ""
         VerificationData.Save(ProjectValues.BatchName, BuildVerificationState())
-
         UpdateUploadEnabled()
 
     End Sub
@@ -3380,7 +3497,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         MarkRowVerified(_verifyRowIndex)
 
-        _hasChanges = True
+        _changeState.SetFileChanged()
 
         Dim nextRow As Integer = FindNextUnverifiedRow(_verifyRowIndex + 1)
 
@@ -3393,9 +3510,20 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         If nextRow >= 0 Then
             transcriptionGrid.CurrentCell = transcriptionGrid.Rows(nextRow).Cells(GetFirstDataColumn())
+            Return nextRow
         End If
 
-        Return nextRow
+        ' All transcription rows have now been verified.
+        _selectedCommandCategory = ""
+        _commandExecutor.SetVerifyVisible(False)
+        UpdateCommandCategoryAppearance()
+        UpdateCommandStrip()
+
+        ShowStatusMessage("All rows have been verified.")
+
+        transcriptionGrid.Focus()
+
+        Return -1
 
     End Function
     Friend Function GetCurrentVerifyValues() As Dictionary(Of GridField, String)
@@ -3413,11 +3541,9 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
 
-            If IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then
-                Continue For
-            End If
+            If IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then Continue For
 
-            If _verifiedRows.Contains(rowIndex) Then
+            If IsRowVerified(rowIndex) Then
                 result.Append("1"c)
             Else
                 result.Append("0"c)
@@ -3430,25 +3556,27 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
     End Function
     Private Sub ApplyVerificationState(state As String)
 
-        _verifiedRows.Clear()
+        For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
 
-        If String.IsNullOrEmpty(state) Then
-            Return
-        End If
+            Dim verifiedCell As DataGridViewCell = transcriptionGrid.Rows(rowIndex).Cells(GridField.Verified.ToString())
 
-        Dim rowCount As Integer =
-            Math.Min(state.Length, transcriptionGrid.Rows.Count)
+            verifiedCell.Tag = False
+            verifiedCell.Value = ""
+
+        Next
+
+        If String.IsNullOrEmpty(state) Then Return
+
+        Dim rowCount As Integer = Math.Min(state.Length, transcriptionGrid.Rows.Count)
 
         For rowIndex As Integer = 0 To rowCount - 1
 
-            If state(rowIndex) <> "1"c Then
-                Continue For
-            End If
+            If state(rowIndex) <> "1"c Then Continue For
 
-            _verifiedRows.Add(rowIndex)
+            Dim verifiedCell As DataGridViewCell = transcriptionGrid.Rows(rowIndex).Cells(GridField.Verified.ToString())
 
-            transcriptionGrid.Rows(rowIndex).
-                Cells(GridField.Verified.ToString()).Value = "✓"
+            verifiedCell.Tag = True
+            verifiedCell.Value = "✓"
 
         Next
 
@@ -3495,7 +3623,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
             Dim rowState As ValidationState
 
             If _rowValidationStates.TryGetValue(rowIndex, rowState) AndAlso rowState = ValidationState.Error Then
-                _verifiedRows.Remove(rowIndex)
+                row.Cells(GridField.Verified.ToString()).Tag = False
                 row.Cells(GridField.Verified.ToString()).Value = ""
             End If
 
@@ -3524,4 +3652,37 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         End If
 
     End Sub
+    Friend Function RecoverWorkfile() As Boolean
+
+        Dim result As Workfile.LoadResult = _workfile.TryLoad()
+
+        If Not result.Success OrElse result.Lines Is Nothing Then
+            DebugLog.WriteAlways("[WORKFILE] Recovery failed: " & result.ErrorMessage)
+            Return False
+        End If
+
+        _refreshingGrid = True
+
+        Try
+
+            If Not LoadSaveFiles.LoadLines(result.Lines, transcriptionGrid, AddressOf ConfigureGridColumns) Then
+                DebugLog.WriteAlways("[WORKFILE] Recovered workfile could not be loaded into the transcription form.")
+                Return False
+            End If
+
+            FinishLoadingBatch()
+
+            _changeState.SetFileChanged()
+
+            UpdateStatusPosition()
+
+            DebugLog.WriteAlways("[WORKFILE] Recovery completed successfully.")
+
+            Return True
+
+        Finally
+            _refreshingGrid = False
+        End Try
+
+    End Function
 End Class

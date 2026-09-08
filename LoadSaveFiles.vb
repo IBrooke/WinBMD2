@@ -9,28 +9,43 @@ Public NotInheritable Class LoadSaveFiles
 
     ' Loads a BMD file into ProjectValues and the transcription grid.
     ' Directives are not yet handled; they will be added later.
-    Public Shared Function Load(
-    filePath As String,
-    grid As DataGridView,
-    configureGrid As Action) As Boolean
+    Public Shared Function Load(filePath As String, grid As DataGridView, configureGrid As Action) As Boolean
 
-        If String.IsNullOrWhiteSpace(filePath) Then
-            Return False
-        End If
-
-        If Not File.Exists(filePath) Then
-            Return False
-        End If
+        If String.IsNullOrWhiteSpace(filePath) Then Return False
+        If Not File.Exists(filePath) Then Return False
 
         Try
+            Dim lines As List(Of String) = ReadAllLines(filePath)
 
-            Dim lines As List(Of String) =
-            ReadAllLines(filePath)
+            If Not LoadLines(lines, grid, configureGrid) Then Return False
 
-            If lines.Count < 5 Then
-                Throw New InvalidDataException(
-                "The file does not contain the required BMD header lines.")
-            End If
+            ProjectValues.BatchName = Path.GetFileName(filePath)
+
+            ProjectValues.RecentFiles.RemoveAll(Function(path) String.Equals(path, filePath, StringComparison.OrdinalIgnoreCase))
+            ProjectValues.RecentFiles.Insert(0, filePath)
+
+            While ProjectValues.RecentFiles.Count > 10
+                ProjectValues.RecentFiles.RemoveAt(ProjectValues.RecentFiles.Count - 1)
+            End While
+
+            ProjectValuesStore.Save()
+
+            DebugLog.WriteAlways($"[LOAD] File loaded: '{filePath}', Rows={grid.Rows.Count}")
+
+            Return True
+
+        Catch ex As Exception
+            DebugLog.WriteAlways($"[LOAD] Failed to load '{filePath}': {ex}")
+            Return False
+        End Try
+
+    End Function
+    Friend Shared Function LoadLines(lines As List(Of String), grid As DataGridView, configureGrid As Action) As Boolean
+
+        If lines Is Nothing Then Return False
+
+        Try
+            If lines.Count < 5 Then Throw New InvalidDataException("The file does not contain the required BMD header lines.")
 
             ValidateHeaderLines(lines)
 
@@ -40,52 +55,20 @@ Public NotInheritable Class LoadSaveFiles
             ParseSourceLine(lines(3))
             ParseOpeningPage(lines(4))
 
-            If Not DistrictData.LoadAliveDistricts() Then
-                Throw New InvalidDataException("The district information for this batch could not be loaded.")
-            End If
+            If Not DistrictData.LoadAliveDistricts() Then Throw New InvalidDataException("The district information for this batch could not be loaded.")
 
             configureGrid()
 
-            LoadGridRows(
-                lines,
-                grid,
-                firstDataLine:=5)
-
-            ProjectValues.BatchName =
-            Path.GetFileName(filePath)
-
-            ProjectValues.RecentFiles.RemoveAll(
-                Function(path)
-                    Return String.Equals(
-                        path,
-                        filePath,
-                        StringComparison.OrdinalIgnoreCase)
-                End Function)
-
-            ProjectValues.RecentFiles.Insert(0, filePath)
-
-            While ProjectValues.RecentFiles.Count > 10
-                ProjectValues.RecentFiles.RemoveAt(ProjectValues.RecentFiles.Count - 1)
-            End While
-
-            ProjectValuesStore.Save()
-
-            DebugLog.WriteAlways(
-                $"[LOAD] File loaded: '{filePath}', Rows={grid.Rows.Count}")
+            LoadGridRows(lines, grid, firstDataLine:=5)
 
             Return True
 
         Catch ex As Exception
-
-            DebugLog.WriteAlways(
-            $"[LOAD] Failed to load '{filePath}': {ex}")
-
+            DebugLog.WriteAlways("[LOAD] Failed to load transcription lines: " & ex.ToString())
             Return False
-
         End Try
 
     End Function
-
 
     ' Saves the current transcription grid as a BMD file.
     ' Directives are not yet handled; they will be added later.
@@ -182,7 +165,7 @@ Public NotInheritable Class LoadSaveFiles
     ' Returns only genuine transcription-data fields.
     ' Directive and Verified are grid-only columns and are not
     ' written as comma-separated data fields.
-    Private Shared Function GetDataFields() As GridField()
+    Friend Shared Function GetDataFields() As GridField()
 
         Return GridLayout.GetVisibleFields().
             Where(
@@ -369,7 +352,7 @@ Public NotInheritable Class LoadSaveFiles
         Next
 
     End Sub
-    Private Shared Function BuildDataLine(
+    Friend Shared Function BuildDataLine(
         row As DataGridViewRow,
         fields() As GridField) As String
 
@@ -725,7 +708,7 @@ Public NotInheritable Class LoadSaveFiles
         End If
 
     End Sub
-    Private Shared Function BuildDirectiveLine(
+    Friend Shared Function BuildDirectiveLine(
     directive As RowDirective) As String
 
         Dim directiveType As String =
@@ -755,7 +738,7 @@ Public NotInheritable Class LoadSaveFiles
         Return directiveType & "," & text
 
     End Function
-    Private Shared Function BuildInfoLine() As String
+    Friend Shared Function BuildInfoLine() As String
 
         Dim recordType As String
 
@@ -797,7 +780,7 @@ Public NotInheritable Class LoadSaveFiles
 
     End Function
 
-    Private Shared Function BuildHeaderLine1() As String
+    Friend Shared Function BuildHeaderLine1() As String
 
         Return String.Join(
             ",",
@@ -817,15 +800,14 @@ Public NotInheritable Class LoadSaveFiles
     End Function
 
 
-    Private Shared Function BuildHeaderLine2() As String
+    Friend Shared Function BuildHeaderLine2() As String
 
-        Return "#," &
-               ReQuote(ProjectValues.Comments)
+        Return "#," & ReQuote(ProjectValues.Comments)
 
     End Function
 
 
-    Private Shared Function BuildSourceLine() As String
+    Friend Shared Function BuildSourceLine() As String
 
         Dim quarter As String
 

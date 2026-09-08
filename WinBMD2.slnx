@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="../WinBMD2Launcher/WinBMD2Launcher.vbproj" Id="dcfb5767-bc0a-4de3-b6d6-aef86390ed24" />
   <Project Path="WinBMD2.vbproj" />
 </Solution>

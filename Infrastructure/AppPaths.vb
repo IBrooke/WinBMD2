@@ -11,7 +11,8 @@ Public Module AppPaths
 
     Public ReadOnly Property FilesFolder As String =
         Path.Combine(BaseFolder, "Files")
-
+    Public ReadOnly Property WorkFilePath As String =
+    Path.Combine(FilesFolder, "WinBMD2.work")
     Public ReadOnly Property SaveFolder As String
         Get
 

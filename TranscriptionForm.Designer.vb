@@ -43,6 +43,8 @@ Partial Class TranscriptionForm
         transcriptionGrid = New DataGridView()
         statusStrip = New StatusStrip()
         statusMessageLabel = New ToolStripStatusLabel()
+        statusMessageLabel2 = New ToolStripStatusLabel()
+        statusMessageLabel3 = New ToolStripStatusLabel()
         statusSpringLabel = New ToolStripStatusLabel()
         statusPositionLabel = New ToolStripStatusLabel()
         uploadToolTip = New ToolTip(components)
@@ -266,7 +268,7 @@ Partial Class TranscriptionForm
         ' 
         ' statusStrip
         ' 
-        statusStrip.Items.AddRange(New ToolStripItem() {statusMessageLabel, statusSpringLabel, statusPositionLabel})
+        statusStrip.Items.AddRange(New ToolStripItem() {statusMessageLabel, statusMessageLabel2, statusMessageLabel3, statusSpringLabel, statusPositionLabel})
         statusStrip.Location = New Point(0, 459)
         statusStrip.Name = "statusStrip"
         statusStrip.Size = New Size(884, 22)
@@ -279,6 +281,20 @@ Partial Class TranscriptionForm
         statusMessageLabel.Size = New Size(39, 17)
         statusMessageLabel.Text = "Ready"
         statusMessageLabel.TextAlign = ContentAlignment.MiddleLeft
+        '
+        ' statusMessageLabel2
+        '
+        statusMessageLabel2.Name = "statusMessageLabel2"
+        statusMessageLabel2.Size = New Size(0, 17)
+        statusMessageLabel2.TextAlign = ContentAlignment.MiddleLeft
+        statusMessageLabel2.Visible = False
+        '
+        ' statusMessageLabel3
+        '
+        statusMessageLabel3.Name = "statusMessageLabel3"
+        statusMessageLabel3.Size = New Size(0, 17)
+        statusMessageLabel3.TextAlign = ContentAlignment.MiddleLeft
+        statusMessageLabel3.Visible = False
         ' 
         ' statusSpringLabel
         ' 
@@ -323,6 +339,8 @@ Partial Class TranscriptionForm
     Friend WithEvents transcriptionGrid As DataGridView
     Friend WithEvents statusStrip As StatusStrip
     Friend WithEvents statusMessageLabel As ToolStripStatusLabel
+    Friend WithEvents statusMessageLabel2 As ToolStripStatusLabel
+    Friend WithEvents statusMessageLabel3 As ToolStripStatusLabel
     Friend WithEvents statusSpringLabel As ToolStripStatusLabel
     Friend WithEvents statusPositionLabel As ToolStripStatusLabel
     Friend WithEvents categoryBarPanel As Panel

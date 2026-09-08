@@ -9,11 +9,47 @@ Public NotInheritable Class CommandController
 
     Public Sub Start()
 
-        If HeaderDetailsAreRequired() Then
-            ShowHeaderForm()
-        Else
-            ShowTranscriptionForms()
+        ' A surviving workfile means the previous session did not close normally.
+        If File.Exists(AppPaths.WorkFilePath) Then
+
+            Dim answer As DialogResult = MessageBox.Show(
+            "WinBMD2 found a workfile from a previous session." & Environment.NewLine & Environment.NewLine &
+            "Do you want to recover it?",
+            "Recover Previous Work",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question)
+
+            If answer = DialogResult.Yes Then
+                ShowTranscriptionForms(recoveringWorkfile:=True)
+                Return
+            End If
+
         End If
+
+        ' If the previous batch still exists, offer to continue working on it.
+        If Not String.IsNullOrWhiteSpace(ProjectValues.BatchName) Then
+
+            Dim filePath As String = Path.Combine(AppPaths.SaveFolder, ProjectValues.BatchName)
+
+            If File.Exists(filePath) Then
+
+                Dim answer As DialogResult = MessageBox.Show(
+                "Do you want to resume the previous batch?" & Environment.NewLine & Environment.NewLine &
+                ProjectValues.BatchName,
+                "Resume Previous Batch",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question)
+
+                If answer = DialogResult.Yes Then
+                    ShowTranscriptionForms(filePath)
+                    Return
+                End If
+
+            End If
+
+        End If
+
+        ShowHeaderForm()
 
     End Sub
     Public Sub NudgeScan(deltaX As Single, deltaY As Single) Implements ICommandExecutor.NudgeScan
@@ -34,12 +70,6 @@ Public NotInheritable Class CommandController
         _scanView.MoveScanByRows(direction)
 
     End Sub
-    Private Shared Function HeaderDetailsAreRequired() As Boolean
-
-        ' Temporary until the real header validation is implemented.
-        Return True
-
-    End Function
     Public Sub ApplyScanViewColourScheme() Implements ICommandExecutor.ApplyScanViewColourScheme
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then
@@ -60,7 +90,7 @@ Public NotInheritable Class CommandController
 
     End Sub
 
-    Private Async Sub ShowTranscriptionForms(Optional filePath As String = "")
+    Private Async Sub ShowTranscriptionForms(Optional filePath As String = "", Optional recoveringWorkfile As Boolean = False)
 
         _transcriptionForm = New TranscriptionForm(Me)
         _scanView = New ScanView(Me)
@@ -74,20 +104,41 @@ Public NotInheritable Class CommandController
         _transcriptionForm.Show()
         _scanView.Show()
 
-        If Not String.IsNullOrWhiteSpace(filePath) Then
+        If recoveringWorkfile Then
 
-            If Not _transcriptionForm.LoadBatchFile(filePath) Then
+            If Not _transcriptionForm.RecoverWorkfile() Then
 
                 MessageBox.Show(
-                "The selected batch could not be loaded.",
-                "Open Batch",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error)
+            "The previous workfile could not be recovered.",
+            "Recover Previous Work",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error)
 
                 ExitThread()
                 Return
 
             End If
+
+        End If
+
+        If Not String.IsNullOrWhiteSpace(filePath) Then
+
+            If Not _transcriptionForm.LoadBatchFile(filePath) Then
+
+                MessageBox.Show(
+        "The selected batch could not be loaded.",
+        "Open Batch",
+        MessageBoxButtons.OK,
+        MessageBoxIcon.Error)
+
+                ExitThread()
+                Return
+
+            End If
+
+        ElseIf Not recoveringWorkfile Then
+
+            _transcriptionForm.CreateWorkfile()
 
         End If
 

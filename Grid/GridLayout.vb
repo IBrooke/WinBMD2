@@ -225,89 +225,70 @@ Public Module GridLayout
 
     Public Function GetVisibleFields() As GridField()
 
-        Return GetVisibleFields(
-        ProjectValues.BatchType,
-        ProjectValues.Year,
-        ProjectValues.Quarter)
+        Return GetVisibleFields(ProjectValues.BatchType, ProjectValues.Year, ProjectValues.Quarter)
 
     End Function
 
-    Public Function GetVisibleFields(
-    batchType As String,
-    year As Integer,
-    quarter As Integer) As GridField()
+    Public Function GetVisibleFields(batchType As String, year As Integer, quarter As Integer) As GridField()
 
-        If year <= 0 OrElse
-       String.IsNullOrWhiteSpace(batchType) Then
-
+        If year <= 0 OrElse String.IsNullOrWhiteSpace(batchType) Then
             Return New GridField() {
-            GridField.Surname,
-            GridField.Forename,
-            GridField.District,
-            GridField.Volume,
-            GridField.Page,
-            GridField.Directive,
-            GridField.Verified
-        }
-
+                GridField.Surname,
+                GridField.Forename,
+                GridField.District,
+                GridField.Volume,
+                GridField.Page,
+                GridField.Directive,
+                GridField.Verified
+            }
         End If
 
-        Dim layout As LayoutDefinition =
-        Layouts.FirstOrDefault(
+        Dim layout As LayoutDefinition = GetLayoutDefinition(batchType, year, quarter)
+
+        Return layout.Fields.Concat(New GridField() {GridField.Directive, GridField.Verified}).ToArray()
+
+    End Function
+
+    Public Function GetLayoutStartYear() As Integer
+
+        Return GetLayoutStartYear(ProjectValues.BatchType, ProjectValues.Year, ProjectValues.Quarter)
+
+    End Function
+
+    Public Function GetLayoutStartYear(batchType As String, year As Integer, quarter As Integer) As Integer
+
+        If year <= 0 OrElse String.IsNullOrWhiteSpace(batchType) Then Return 0
+
+        Return GetLayoutDefinition(batchType, year, quarter).FromYear
+
+    End Function
+
+    Private Function GetLayoutDefinition(batchType As String, year As Integer, quarter As Integer) As LayoutDefinition
+
+        Dim layout As LayoutDefinition = Layouts.FirstOrDefault(
             Function(item)
                 Return item.BatchType = batchType AndAlso
-                       IsOnOrAfter(
-                           year,
-                           quarter,
-                           item.FromYear,
-                           item.FromQuarter) AndAlso
-                       IsOnOrBefore(
-                           year,
-                           quarter,
-                           item.ToYear,
-                           item.ToQuarter)
+                       IsOnOrAfter(year, quarter, item.FromYear, item.FromQuarter) AndAlso
+                       IsOnOrBefore(year, quarter, item.ToYear, item.ToQuarter)
             End Function)
 
         If layout Is Nothing Then
-            Throw New InvalidOperationException(
-            "Unsupported layout: " &
-            "BatchType=" & batchType &
-            ", Year=" & year.ToString() &
-            ", Quarter=" & quarter.ToString())
+            Throw New InvalidOperationException("Unsupported layout: BatchType=" & batchType & ", Year=" & year.ToString() & ", Quarter=" & quarter.ToString())
         End If
 
-        Return layout.Fields.
-        Concat(
-            New GridField() {
-                GridField.Directive,
-                GridField.Verified
-            }).
-        ToArray()
+        Return layout
 
     End Function
 
-    Private Function IsOnOrAfter(
-        year As Integer,
-        quarter As Integer,
-        fromYear As Integer,
-        fromQuarter As Integer) As Boolean
+    Private Function IsOnOrAfter(year As Integer, quarter As Integer, fromYear As Integer, fromQuarter As Integer) As Boolean
 
-        Return year > fromYear OrElse
-               (year = fromYear AndAlso
-                (quarter = 0 OrElse quarter >= fromQuarter))
+        Return year > fromYear OrElse (year = fromYear AndAlso (quarter = 0 OrElse quarter >= fromQuarter))
 
     End Function
 
-    Private Function IsOnOrBefore(
-        year As Integer,
-        quarter As Integer,
-        toYear As Integer,
-        toQuarter As Integer) As Boolean
+    Private Function IsOnOrBefore(year As Integer, quarter As Integer, toYear As Integer, toQuarter As Integer) As Boolean
 
-        Return year < toYear OrElse
-               (year = toYear AndAlso
-                (quarter = 0 OrElse quarter <= toQuarter))
+        Return year < toYear OrElse (year = toYear AndAlso (quarter = 0 OrElse quarter <= toQuarter))
 
     End Function
-
 End Module
