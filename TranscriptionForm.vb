@@ -23,6 +23,11 @@ Public Class TranscriptionForm
     Private ReadOnly _openFileMenu As New ContextMenuStrip()
     Private _baseStatusText As String = "Ready"
 
+    Private ReadOnly _gridRowMenu As New ContextMenuStrip()
+    Private ReadOnly _gridInsertRowItem As New ToolStripMenuItem("Insert Row")
+    Private ReadOnly _gridDeleteRowItem As New ToolStripMenuItem("Delete Row")
+    Private _gridContextRowIndex As Integer = -1
+
     ' Stores the latest validation result for each grid cell.
     Private ReadOnly _cellValidationResults As New Dictionary(Of (Row As Integer, Column As Integer), ValidationResult)
 
@@ -42,6 +47,12 @@ Public Class TranscriptionForm
     Public Sub New(commandExecutor As ICommandExecutor)
 
         InitializeComponent()
+
+        _gridRowMenu.Items.Add(_gridInsertRowItem)
+        _gridRowMenu.Items.Add(_gridDeleteRowItem)
+
+        AddHandler _gridInsertRowItem.Click, AddressOf GridInsertRow_Click
+        AddHandler _gridDeleteRowItem.Click, AddressOf GridDeleteRow_Click
 
         uploadToolTip.SetToolTip(btnSpecialCharacters, "Show the special character form")
         _statusTimer.Interval = 250
@@ -69,6 +80,213 @@ Public Class TranscriptionForm
         DebugLog.WriteAlways($"Page Letter : '{ProjectValues.PageLetter}'")
         DebugLog.WriteAlways($"Source Ref  : '{ProjectValues.SourceRef}'")
         DebugLog.WriteAlways("=========================================")
+
+    End Sub
+    Private Sub GridInsertRow_Click(sender As Object, e As EventArgs)
+
+        If _gridContextRowIndex < 0 OrElse _gridContextRowIndex >= transcriptionGrid.Rows.Count Then Return
+
+        _pickListPopup.Hide()
+
+        If transcriptionGrid.IsCurrentCellInEditMode Then transcriptionGrid.EndEdit()
+
+        Dim insertIndex As Integer = _gridContextRowIndex
+
+        ' A +PAGE belongs after its row. Inserting immediately after such a row
+        ' may therefore leave the page break in the wrong place.
+        If insertIndex > 0 Then
+
+            Dim previousDirectiveCell As DataGridViewCell = transcriptionGrid.Rows(insertIndex - 1).Cells(GridField.Directive.ToString())
+            Dim previousDirectives As List(Of RowDirective) = TryCast(previousDirectiveCell.Tag, List(Of RowDirective))
+            Dim hasPageDirective As Boolean = False
+
+            If previousDirectives IsNot Nothing Then
+                For Each directive As RowDirective In previousDirectives
+                    If directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) Then
+                        hasPageDirective = True
+                        Exit For
+                    End If
+                Next
+            End If
+
+            If hasPageDirective Then
+                Dim result As DialogResult = MessageBox.Show(Me,
+                "The row immediately before this position has a +PAGE directive." & Environment.NewLine & Environment.NewLine &
+                "Inserting a row here may leave the +PAGE in the wrong position." & Environment.NewLine & Environment.NewLine &
+                "Do you want to insert the row anyway?",
+                "Insert Row",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning)
+
+                If result <> DialogResult.Yes Then Return
+            End If
+
+        End If
+
+        _refreshingGrid = True
+
+        Try
+
+            transcriptionGrid.Rows.Insert(insertIndex, 1)
+
+            Dim newRow As DataGridViewRow = transcriptionGrid.Rows(insertIndex)
+            newRow.Tag = Nothing
+
+            For Each column As DataGridViewColumn In transcriptionGrid.Columns
+
+                If column.Name = "RowNumber" Then Continue For
+
+                If column.Tag Is Nothing Then Continue For
+
+                Dim field As GridField = DirectCast(column.Tag, GridField)
+
+                If field = GridField.Directive Then
+                    newRow.Cells(column.Index).Tag = New List(Of RowDirective)()
+                    newRow.Cells(column.Index).Value = "+"
+                ElseIf field = GridField.Verified Then
+                    newRow.Cells(column.Index).Tag = False
+                    newRow.Cells(column.Index).Value = ""
+                Else
+                    newRow.Cells(column.Index).Value = ""
+                End If
+
+            Next
+
+            ' The RowDirective objects move with their rows, but their stored
+            ' RowIndex values must also be brought up to date.
+            For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
+
+                Dim directiveCell As DataGridViewCell = transcriptionGrid.Rows(rowIndex).Cells(GridField.Directive.ToString())
+                Dim directives As List(Of RowDirective) = TryCast(directiveCell.Tag, List(Of RowDirective))
+
+                If directives Is Nothing Then Continue For
+
+                For Each directive As RowDirective In directives
+                    directive.RowIndex = rowIndex
+                Next
+
+            Next
+
+            UpdateRowNumbers()
+
+        Finally
+            _refreshingGrid = False
+        End Try
+
+        _changeState.SetFileChanged()
+
+        ' Row numbers have changed, so rebuild validation and verification state.
+        ValidateLoadedRows()
+
+        If _workfile.CreateOrReplace(transcriptionGrid) Then _changeState.WorkfileSaved()
+
+        _lastGridRowIndex = -1
+
+        transcriptionGrid.CurrentCell = transcriptionGrid.Rows(insertIndex).Cells(GetFirstDataColumn())
+        transcriptionGrid.Focus()
+
+    End Sub
+
+    Private Sub GridDeleteRow_Click(sender As Object, e As EventArgs)
+
+        If _gridContextRowIndex < 0 OrElse _gridContextRowIndex >= transcriptionGrid.Rows.Count Then Return
+
+        _pickListPopup.Hide()
+
+        If transcriptionGrid.IsCurrentCellInEditMode Then transcriptionGrid.EndEdit()
+
+        Dim deleteIndex As Integer = _gridContextRowIndex
+        Dim deleteRow As DataGridViewRow = transcriptionGrid.Rows(deleteIndex)
+        Dim hasData As Boolean = False
+        Dim hasDirectives As Boolean = False
+
+        ' Determine whether the row contains any transcription data.
+        For Each column As DataGridViewColumn In transcriptionGrid.Columns
+
+            If column.Tag Is Nothing Then Continue For
+
+            Dim field As GridField = DirectCast(column.Tag, GridField)
+
+            If FieldMetaData.Meta(field).IsDataColumn Then
+                Dim value As String = If(deleteRow.Cells(column.Index).Value, "").ToString()
+                If Not String.IsNullOrWhiteSpace(value) Then
+                    hasData = True
+                    Exit For
+                End If
+            End If
+
+        Next
+
+        ' Directives belong to the row and will also disappear if it is deleted.
+        Dim directiveCell As DataGridViewCell = deleteRow.Cells(GridField.Directive.ToString())
+        Dim directives As List(Of RowDirective) = TryCast(directiveCell.Tag, List(Of RowDirective))
+
+        If directives IsNot Nothing AndAlso directives.Count > 0 Then hasDirectives = True
+
+        If hasData OrElse hasDirectives Then
+
+            Dim message As String
+
+            If hasData AndAlso hasDirectives Then
+                message = "This row contains transcription data and directives." & Environment.NewLine & Environment.NewLine & "Deleting the row will permanently remove both." & Environment.NewLine & Environment.NewLine & "Do you want to delete the row?"
+            ElseIf hasDirectives Then
+                message = "This row contains directives." & Environment.NewLine & Environment.NewLine & "Deleting the row will permanently remove them." & Environment.NewLine & Environment.NewLine & "Do you want to delete the row?"
+            Else
+                message = "This row contains transcription data." & Environment.NewLine & Environment.NewLine & "Do you want to delete the row?"
+            End If
+
+            Dim result As DialogResult = MessageBox.Show(Me, message, "Delete Row", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
+
+            If result <> DialogResult.Yes Then Return
+
+        End If
+
+        _refreshingGrid = True
+
+        Try
+
+            transcriptionGrid.Rows.RemoveAt(deleteIndex)
+
+            EnsureBlankEntryRow()
+
+            ' The directives move with their rows, but their stored RowIndex
+            ' values must be corrected after the deletion.
+            For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
+
+                Dim cell As DataGridViewCell = transcriptionGrid.Rows(rowIndex).Cells(GridField.Directive.ToString())
+                Dim rowDirectives As List(Of RowDirective) = TryCast(cell.Tag, List(Of RowDirective))
+
+                If rowDirectives Is Nothing Then Continue For
+
+                For Each directive As RowDirective In rowDirectives
+                    directive.RowIndex = rowIndex
+                Next
+
+            Next
+
+            UpdateRowNumbers()
+
+        Finally
+            _refreshingGrid = False
+        End Try
+
+        _changeState.SetFileChanged()
+
+        ' Row indexes have changed, so rebuild validation and verification state.
+        ValidateLoadedRows()
+
+        If _workfile.CreateOrReplace(transcriptionGrid) Then _changeState.WorkfileSaved()
+
+        _lastGridRowIndex = -1
+
+        ' Leave the cursor on the row which replaced the deleted row.
+        Dim targetRow As Integer = Math.Min(deleteIndex, transcriptionGrid.Rows.Count - 1)
+
+        If targetRow >= 0 Then
+            transcriptionGrid.CurrentCell = transcriptionGrid.Rows(targetRow).Cells(GetFirstDataColumn())
+        End If
+
+        transcriptionGrid.Focus()
 
     End Sub
     Friend ReadOnly Property CurrentVerifyRowIndex As Integer
@@ -108,6 +326,19 @@ Public Class TranscriptionForm
             MoveToNextDataCell()
 
         End If
+
+    End Sub
+    Private Sub transcriptionGrid_CellMouseDown(sender As Object, e As DataGridViewCellMouseEventArgs) Handles transcriptionGrid.CellMouseDown
+
+        If e.Button <> MouseButtons.Right OrElse e.RowIndex < 0 Then Return
+
+        _pickListPopup.Hide()
+
+        _gridContextRowIndex = e.RowIndex
+
+        If e.ColumnIndex >= 0 Then transcriptionGrid.CurrentCell = transcriptionGrid.Rows(e.RowIndex).Cells(e.ColumnIndex)
+
+        _gridRowMenu.Show(transcriptionGrid, transcriptionGrid.PointToClient(Cursor.Position))
 
     End Sub
     Private Sub RestoreFormBounds()
@@ -1774,6 +2005,9 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         RemoveHandler editor.TextChanged, AddressOf Editor_TextChanged
         AddHandler editor.TextChanged, AddressOf Editor_TextChanged
 
+        RemoveHandler editor.MouseDown, AddressOf GridEditor_MouseDown
+        AddHandler editor.MouseDown, AddressOf GridEditor_MouseDown
+
         editor.BackColor = UiColors.EditBackground
         editor.ForeColor = UiColors.UserText
 
@@ -1782,6 +2016,18 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         End If
 
         RefreshPickList(editor)
+
+    End Sub
+    Private Sub GridEditor_MouseDown(sender As Object, e As MouseEventArgs)
+
+        If e.Button <> MouseButtons.Right OrElse transcriptionGrid.CurrentCell Is Nothing Then Return
+
+        _pickListPopup.Hide()
+
+        _gridContextRowIndex = transcriptionGrid.CurrentCell.RowIndex
+
+        Dim editor As TextBox = DirectCast(sender, TextBox)
+        editor.ContextMenuStrip = _gridRowMenu
 
     End Sub
     Private Sub Capitalisation_KeyPress(sender As Object, e As KeyPressEventArgs)
@@ -2044,6 +2290,11 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
     End Function
     Private Sub RefreshPickList(editor As TextBox)
+
+        If _gridRowMenu.Visible Then
+            _pickListPopup.Hide()
+            Return
+        End If
 
         _pickListActive = False
 
@@ -2812,15 +3063,13 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
             Return
         End If
 
-        Dim column As DataGridViewColumn =
-        transcriptionGrid.Columns(e.ColumnIndex)
+        Dim column As DataGridViewColumn = transcriptionGrid.Columns(e.ColumnIndex)
 
         If column.Tag Is Nothing Then
             Return
         End If
 
-        Dim field As GridField =
-        DirectCast(column.Tag, GridField)
+        Dim field As GridField = DirectCast(column.Tag, GridField)
 
         If Not FieldMetaData.Meta(field).IsDataColumn Then
             Return
@@ -2858,10 +3107,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         Else
 
-            ApplyCellValidationResult(
-        e.RowIndex,
-        e.ColumnIndex,
-        result)
+            ApplyCellValidationResult(e.RowIndex, e.ColumnIndex, result)
 
         End If
 
@@ -2888,16 +3134,17 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         ' Recalculate the overall warning/error state of the row.
         UpdateRowValidationState(e.RowIndex)
 
-        If field = GridField.Surname OrElse
-            field = GridField.Forename Then
+        If field = GridField.Surname OrElse field = GridField.Forename Then
 
-            ' Changing a name can affect both this row and the row below it.
+            ValidateNamePair(e.RowIndex)
             ValidateSequence(e.RowIndex)
 
             If e.RowIndex + 1 < transcriptionGrid.Rows.Count Then
                 ValidateSequence(e.RowIndex + 1)
                 UpdateRowValidationState(e.RowIndex + 1)
             End If
+
+            If Not _cellValidationResults.TryGetValue((e.RowIndex, e.ColumnIndex), result) Then Return
 
         End If
 
@@ -3000,136 +3247,121 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         End If
 
     End Sub
-    ' Checks the alphabetical sequence of Surname and Forename against
-    ' the previous populated row. A Surname warning is produced when
-    ' surnames go backwards; when surnames are equal, Forename order
-    ' is checked instead.
-    Private Sub ValidateSequence(rowIndex As Integer)
+    ' Revalidates Surname and Forename as a pair.
+    ' A completely blank name pair is allowed, but if either name is present
+    ' the other field is validated normally and may therefore report blank.
+    Private Sub ValidateNamePair(rowIndex As Integer)
 
-        If rowIndex <= 0 Then
-            Return
-        End If
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then Return
 
         Dim surnameColumn As Integer = -1
         Dim forenameColumn As Integer = -1
 
         For columnIndex As Integer = 0 To transcriptionGrid.Columns.Count - 1
 
-            Dim column As DataGridViewColumn =
-            transcriptionGrid.Columns(columnIndex)
+            Dim column As DataGridViewColumn = transcriptionGrid.Columns(columnIndex)
 
-            If column.Tag Is Nothing Then
-                Continue For
-            End If
+            If column.Tag Is Nothing Then Continue For
 
-            Dim field As GridField =
-            DirectCast(column.Tag, GridField)
+            Dim field As GridField = DirectCast(column.Tag, GridField)
 
             If field = GridField.Surname Then
                 surnameColumn = columnIndex
-
             ElseIf field = GridField.Forename Then
                 forenameColumn = columnIndex
-
             End If
 
         Next
 
-        If surnameColumn < 0 OrElse forenameColumn < 0 Then
-            Return
+        If surnameColumn < 0 OrElse forenameColumn < 0 Then Return
+
+        Dim row As DataGridViewRow = transcriptionGrid.Rows(rowIndex)
+        Dim surname As String = If(row.Cells(surnameColumn).Value, "").ToString().Trim()
+        Dim forename As String = If(row.Cells(forenameColumn).Value, "").ToString().Trim()
+
+        If String.IsNullOrWhiteSpace(surname) AndAlso String.IsNullOrWhiteSpace(forename) Then
+
+            _cellValidationResults.Remove((rowIndex, surnameColumn))
+            _cellValidationResults.Remove((rowIndex, forenameColumn))
+
+            row.Cells(surnameColumn).ErrorText = ""
+            row.Cells(surnameColumn).ToolTipText = ""
+            row.Cells(forenameColumn).ErrorText = ""
+            row.Cells(forenameColumn).ToolTipText = ""
+
+        Else
+
+            ApplyCellValidationResult(rowIndex, surnameColumn, Validator.Validate(GridField.Surname, surname))
+            ApplyCellValidationResult(rowIndex, forenameColumn, Validator.Validate(GridField.Forename, forename))
+
         End If
 
-        Dim row As DataGridViewRow =
-        transcriptionGrid.Rows(rowIndex)
+        UpdateRowValidationState(rowIndex)
 
-        Dim surname As String =
-        If(row.Cells(surnameColumn).Value, "").ToString().Trim()
+    End Sub
+    ' Checks the alphabetical sequence of Surname and Forename against
+    ' the previous populated row. This routine performs sequence checking only;
+    ' ordinary Surname/Forename validation is handled by ValidateNamePair.
+    Private Sub ValidateSequence(rowIndex As Integer)
 
-        Dim forename As String =
-        If(row.Cells(forenameColumn).Value, "").ToString().Trim()
+        If rowIndex <= 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then Return
 
-        ' Restore the ordinary field validation first.
-        ' This removes any sequence warning left from an earlier value.
-        Dim surnameResult As ValidationResult =
-        Validator.Validate(GridField.Surname, surname)
+        Dim surnameColumn As Integer = -1
+        Dim forenameColumn As Integer = -1
 
-        Dim forenameResult As ValidationResult =
-        Validator.Validate(GridField.Forename, forename)
+        For columnIndex As Integer = 0 To transcriptionGrid.Columns.Count - 1
 
-        ApplyCellValidationResult(
-        rowIndex,
-        surnameColumn,
-        surnameResult)
+            Dim column As DataGridViewColumn = transcriptionGrid.Columns(columnIndex)
 
-        ApplyCellValidationResult(
-        rowIndex,
-        forenameColumn,
-        forenameResult)
+            If column.Tag Is Nothing Then Continue For
 
-        ' Sequence checking is not meaningful until both names exist.
-        If String.IsNullOrWhiteSpace(surname) OrElse
-       String.IsNullOrWhiteSpace(forename) Then
+            Dim field As GridField = DirectCast(column.Tag, GridField)
 
-            Return
-        End If
-
-        ' Look backwards for the previous populated surname row.
-        For previousIndex As Integer = rowIndex - 1 To 0 Step -1
-
-            Dim previousRow As DataGridViewRow =
-            transcriptionGrid.Rows(previousIndex)
-
-            Dim previousSurname As String =
-            If(previousRow.Cells(surnameColumn).Value, "").ToString().Trim()
-
-            ' Ignore blank rows and continue looking backwards.
-            If String.IsNullOrWhiteSpace(previousSurname) Then
-                Continue For
+            If field = GridField.Surname Then
+                surnameColumn = columnIndex
+            ElseIf field = GridField.Forename Then
+                forenameColumn = columnIndex
             End If
 
-            Dim surnameCompare As Integer =
-            String.Compare(
-                surname,
-                previousSurname,
-                StringComparison.OrdinalIgnoreCase)
+        Next
+
+        If surnameColumn < 0 OrElse forenameColumn < 0 Then Return
+
+        Dim row As DataGridViewRow = transcriptionGrid.Rows(rowIndex)
+        Dim surname As String = If(row.Cells(surnameColumn).Value, "").ToString().Trim()
+        Dim forename As String = If(row.Cells(forenameColumn).Value, "").ToString().Trim()
+
+        ' Sequence checking requires both names.
+        If String.IsNullOrWhiteSpace(surname) OrElse String.IsNullOrWhiteSpace(forename) Then Return
+
+        For previousIndex As Integer = rowIndex - 1 To 0 Step -1
+
+            Dim previousRow As DataGridViewRow = transcriptionGrid.Rows(previousIndex)
+            Dim previousSurname As String = If(previousRow.Cells(surnameColumn).Value, "").ToString().Trim()
+
+            If String.IsNullOrWhiteSpace(previousSurname) Then Continue For
+
+            Dim surnameCompare As Integer = String.Compare(surname, previousSurname, StringComparison.OrdinalIgnoreCase)
 
             If surnameCompare < 0 Then
-
-                ApplySequenceWarning(
-                rowIndex,
-                surnameColumn,
-                $"Surname '{surname}' is before previous surname '{previousSurname}'.")
-
+                ApplySequenceWarning(rowIndex, surnameColumn, $"Surname '{surname}' is before previous surname '{previousSurname}'.")
+                UpdateRowValidationState(rowIndex)
                 Return
-
             End If
 
             If surnameCompare = 0 Then
 
-                Dim previousForename As String =
-                If(previousRow.Cells(forenameColumn).Value, "").ToString().Trim()
-
-                Dim forenameCompare As Integer =
-                String.Compare(
-                    forename,
-                    previousForename,
-                    StringComparison.OrdinalIgnoreCase)
+                Dim previousForename As String = If(previousRow.Cells(forenameColumn).Value, "").ToString().Trim()
+                Dim forenameCompare As Integer = String.Compare(forename, previousForename, StringComparison.OrdinalIgnoreCase)
 
                 If forenameCompare < 0 Then
-
-                    ApplySequenceWarning(
-                    rowIndex,
-                    forenameColumn,
-                    $"Forename '{forename}' is before previous forename '{previousForename}' for surname '{surname}'.")
-
+                    ApplySequenceWarning(rowIndex, forenameColumn, $"Forename '{forename}' is before previous forename '{previousForename}' for surname '{surname}'.")
+                    UpdateRowValidationState(rowIndex)
                     Return
-
                 End If
 
             End If
 
-            ' We have found and compared against the nearest previous
-            ' populated surname row, so there is nothing further to check.
             Return
 
         Next
@@ -3617,7 +3849,8 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
             Next
 
-            ValidateDistrictCodePair(rowIndex, False)
+            ValidateDistrictCodePair(rowIndex)
+            ValidateNamePair(rowIndex)
             ValidateSequence(rowIndex)
             UpdateRowValidationState(rowIndex)
             Dim rowState As ValidationState
