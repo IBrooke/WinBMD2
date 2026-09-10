@@ -7,6 +7,8 @@ Public Enum UiColourScheme
     Violet
     Gold
     Green
+    Yellow
+    Orange
 End Enum
 
 #End Region

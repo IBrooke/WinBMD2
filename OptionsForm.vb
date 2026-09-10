@@ -460,14 +460,16 @@ Public Class OptionsForm
         _colourSchemeComboBox.Size = New Size(190, 23)
 
         _colourSchemeComboBox.Items.AddRange(
-        New Object() {
-            UiColourScheme.Blue,
-            UiColourScheme.Teal,
-            UiColourScheme.Magenta,
-            UiColourScheme.Violet,
-            UiColourScheme.Gold,
-            UiColourScheme.Green
-        })
+            New Object() {
+                UiColourScheme.Blue,
+                UiColourScheme.Teal,
+                UiColourScheme.Magenta,
+                UiColourScheme.Violet,
+                UiColourScheme.Yellow,
+                UiColourScheme.Gold,
+                UiColourScheme.Orange,
+                UiColourScheme.Green
+            })
 
         AddHandler _colourSchemeComboBox.SelectedIndexChanged,
         AddressOf ColourSchemeComboBox_SelectedIndexChanged

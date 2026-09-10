@@ -32,10 +32,16 @@ Public Module UiColors
                     Return New UiPalette(Color.FromArgb(246, 241, 251), Color.FromArgb(220, 207, 239), Color.FromArgb(104, 78, 164))
 
                 Case UiColourScheme.Gold
-                    Return New UiPalette(Color.FromArgb(254, 248, 230), Color.FromArgb(239, 222, 170), Color.FromArgb(166, 126, 36))
+                    Return New UiPalette(Color.FromArgb(255, 250, 225), Color.FromArgb(255, 226, 125), Color.FromArgb(245, 191, 3))
 
                 Case UiColourScheme.Green
                     Return New UiPalette(Color.FromArgb(239, 248, 239), Color.FromArgb(207, 231, 208), Color.FromArgb(62, 132, 76))
+
+                Case UiColourScheme.Yellow
+                    Return New UiPalette(Color.FromArgb(255, 253, 235), Color.FromArgb(250, 239, 180), Color.FromArgb(255, 255, 0))
+
+                Case UiColourScheme.Orange
+                    Return New UiPalette(Color.FromArgb(255, 246, 230), Color.FromArgb(246, 216, 175), Color.FromArgb(255, 140, 0))
 
                 Case Else
                     Return New UiPalette(Color.FromArgb(238, 246, 252), Color.FromArgb(203, 226, 241), Color.FromArgb(38, 116, 158))
@@ -142,7 +148,14 @@ Public Module UiColors
 
     Public ReadOnly Property TextOnDark As Color
         Get
+
+            If ProjectValues.ColourScheme = UiColourScheme.Yellow OrElse
+           ProjectValues.ColourScheme = UiColourScheme.Gold Then
+                Return TextPrimary
+            End If
+
             Return Color.White
+
         End Get
     End Property
 

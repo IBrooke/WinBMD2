@@ -84,6 +84,8 @@ Public Class TranscriptionForm
     End Sub
     Private Sub GridInsertRow_Click(sender As Object, e As EventArgs)
 
+        Throw New Exception("Test of WinBMD2 global exception handler.")
+
         If _gridContextRowIndex < 0 OrElse _gridContextRowIndex >= transcriptionGrid.Rows.Count Then Return
 
         _pickListPopup.Hide()
@@ -664,7 +666,6 @@ Public Class TranscriptionForm
 
         gridRow.Cells("RowNumber").Value = gridRowIndex + 1
 
-        gridRow.Tag = "NewRow"
         UpdateDirectiveCell(gridRowIndex)
 
         For Each field As GridField In fields
@@ -728,6 +729,16 @@ Public Class TranscriptionForm
         If button Is btnCategoryUpload Then
 
             Await UploadCurrentBatchAsync()
+            Return
+
+        End If
+
+        If button Is btnCategoryHelp Then
+
+            Using form As New HelpForm()
+                form.ShowDialog(Me)
+            End Using
+
             Return
 
         End If
@@ -1568,21 +1579,7 @@ Public Class TranscriptionForm
 
         Dim field As GridField = DirectCast(column.Tag, GridField)
         Dim cell As DataGridViewCell = transcriptionGrid.Rows(e.RowIndex).Cells(e.ColumnIndex)
-        Dim value As String = If(cell.Value, "").ToString()
-        Dim gridRow As DataGridViewRow = transcriptionGrid.Rows(e.RowIndex)
         Dim isDataColumn As Boolean = FieldMetaData.Meta(field).IsDataColumn
-
-        If IsBlankEntryRow(gridRow) Then
-
-            ' Only entering transcription data can turn the blank entry row
-            ' into a genuine transcription row.
-            If Not isDataColumn OrElse String.IsNullOrEmpty(value) Then
-                Return
-            End If
-
-            gridRow.Tag = Nothing
-
-        End If
 
         If isDataColumn Then
             ClearRowVerified(e.RowIndex)
@@ -1687,13 +1684,25 @@ Public Class TranscriptionForm
         Next
 
     End Sub
-    Private Shared Function IsBlankEntryRow(
-    gridRow As DataGridViewRow) As Boolean
+    Friend Shared Function IsBlankEntryRow(gridRow As DataGridViewRow) As Boolean
 
-        Return String.Equals(
-        TryCast(gridRow.Tag, String),
-        "NewRow",
-        StringComparison.Ordinal)
+        For Each cell As DataGridViewCell In gridRow.Cells
+
+            Dim column As DataGridViewColumn = cell.OwningColumn
+
+            If column.Tag Is Nothing Then Continue For
+
+            Dim field As GridField = DirectCast(column.Tag, GridField)
+
+            If Not FieldMetaData.Meta(field).IsDataColumn Then Continue For
+
+            Dim value As String = If(cell.Value, "").ToString()
+
+            If Not String.IsNullOrWhiteSpace(value) Then Return False
+
+        Next
+
+        Return True
 
     End Function
     ' Returns the index of the visible Volume or DistNum column.
@@ -3568,16 +3577,22 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         e.Handled = True
 
     End Sub
-    Private Sub TranscriptionForm_FormClosing(
-    sender As Object,
-    e As FormClosingEventArgs) Handles Me.FormClosing
+    Private Sub TranscriptionForm_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
+
+        If AbnormalShutdown Then
+
+            DebugLog.WriteAlways("[RECOVERY] Abnormal shutdown - workfile retained for recovery.")
+            SaveFormBounds()
+            _pickListPopup.Dispose()
+            Return
+
+        End If
 
         If Not ConfirmSaveChangesIfNeeded() Then
             e.Cancel = True
             Return
         End If
 
-        _workfile.FlushCurrentRow(transcriptionGrid, _changeState)
         _workfile.Delete()
         SaveFormBounds()
         _pickListPopup.Dispose()

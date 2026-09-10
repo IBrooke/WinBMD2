@@ -1,73 +1,107 @@
-﻿Imports System.Text
+﻿Imports System.IO
+Imports System.Text
 Imports System.Threading
 
 Friend Module Program
-
+    Public AbnormalShutdown As Boolean = False
     <STAThread>
-    Public Sub Main()
+    Public Sub Main(args() As String)
 
-        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException)
-        AddHandler Application.ThreadException, AddressOf Application_ThreadException
-        AddHandler AppDomain.CurrentDomain.UnhandledException, AddressOf CurrentDomain_UnhandledException
-        AddHandler TaskScheduler.UnobservedTaskException, AddressOf TaskScheduler_UnobservedTaskException
+        Dim createdNew As Boolean
 
-        Application.EnableVisualStyles()
-        Application.SetCompatibleTextRenderingDefault(False)
+        Using singleInstanceMutex As New Mutex(initiallyOwned:=True, name:="Local\WinBMD2_SingleInstance", createdNew:=createdNew)
 
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)
-
-        DebugLog.Clear()
-        DebugLog.WriteAlways("WinBMD2 starting.")
-
-        Try
-
-            ProjectValuesStore.Initialise()
-            CapitalisationData.Load()
-
-            If Not ForenameData.Load() Then
-                DebugLog.WriteAlways("Startup cancelled because the forenames file could not be loaded.")
+            If Not createdNew Then
                 Return
             End If
 
-            If Not DistrictData.LoadBaseDistricts() Then
-                DebugLog.WriteAlways("Startup cancelled because the districts file could not be loaded.")
-                Return
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException)
+            AddHandler Application.ThreadException, AddressOf Application_ThreadException
+            AddHandler AppDomain.CurrentDomain.UnhandledException, AddressOf CurrentDomain_UnhandledException
+            AddHandler TaskScheduler.UnobservedTaskException, AddressOf TaskScheduler_UnobservedTaskException
+
+            Application.EnableVisualStyles()
+            Application.SetCompatibleTextRenderingDefault(False)
+
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)
+
+            DebugLog.Clear()
+            DebugLog.WriteAlways("WinBMD2 starting.")
+
+            Dim startupFile As String = Nothing
+
+            If args.Length > 0 Then
+
+                startupFile = args(0)
+
+                DebugLog.WriteAlways("[STARTUP] Command-line file argument: " & startupFile)
+
+                If Not File.Exists(startupFile) Then
+                    DebugLog.WriteAlways("[STARTUP] Command-line file argument ignored: file does not exist")
+                    startupFile = Nothing
+                End If
+
             End If
 
-            Dim controller As New CommandController()
+            Try
 
-            controller.Start()
+                ProjectValuesStore.Initialise()
+                CapitalisationData.Load()
 
-            Application.Run(controller)
+                If Not ForenameData.Load() Then
+                    DebugLog.WriteAlways("Startup cancelled because the forenames file could not be loaded.")
+                    Return
+                End If
 
-        Catch ex As Exception
+                If Not DistrictData.LoadBaseDistricts() Then
+                    DebugLog.WriteAlways("Startup cancelled because the districts file could not be loaded.")
+                    Return
+                End If
 
-            ShowUnhandledException("A program error occurred during startup.", ex)
+                Dim controller As New CommandController()
 
-        End Try
+                controller.Start(startupFile)
+
+                Application.Run(controller)
+
+            Catch ex As Exception
+
+                ShowUnhandledException("A program error occurred during startup.", ex)
+
+            End Try
+
+        End Using
 
     End Sub
     Private Sub Application_ThreadException(sender As Object, e As ThreadExceptionEventArgs)
 
-        ShowUnhandledException("An unexpected program error occurred.", e.Exception)
+        AbnormalShutdown = True
+        ShowUnhandledException("An unexpected program error occurred. WinBMD2 must now close.", e.Exception)
+
+        Application.Exit()
 
     End Sub
 
     Private Sub CurrentDomain_UnhandledException(sender As Object, e As UnhandledExceptionEventArgs)
 
+        AbnormalShutdown = True
+
         Dim ex As Exception = TryCast(e.ExceptionObject, Exception)
 
         If ex IsNot Nothing Then
-            ShowUnhandledException("A serious program error occurred.", ex)
+            ShowUnhandledException("A serious program error occurred. WinBMD2 must now close.", ex)
         Else
-            DebugLog.WriteAlways("[FATAL] Unknown unhandled exception: " & e.ExceptionObject.ToString())
+            Try
+                DebugLog.WriteAlways("[FATAL] Unknown unhandled exception: " & e.ExceptionObject.ToString())
+            Catch
+            End Try
         End If
 
     End Sub
 
     Private Sub TaskScheduler_UnobservedTaskException(sender As Object, e As UnobservedTaskExceptionEventArgs)
 
-        ShowUnhandledException("An unexpected background task error occurred.", e.Exception)
+        ShowUnhandledException("A background task encountered an unexpected error.", e.Exception)
         e.SetObserved()
 
     End Sub

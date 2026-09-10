@@ -74,6 +74,7 @@ Public Module ProjectValuesStore
             ProjectValues.HeaderFormWidth = values.HeaderFormWidth
             ProjectValues.HeaderFormHeight = values.HeaderFormHeight
             ProjectValues.HeaderFormMaximized = values.HeaderFormMaximized
+            ProjectValues.HelpFormBounds = If(values.HelpFormBounds, New FormBoundsData())
             ProjectValues.UserName = If(values.UserName, "")
             ProjectValues.UserEmail = If(values.UserEmail, "")
             ProjectValues.UserPW = If(values.UserPW, "")
@@ -183,6 +184,7 @@ Public Module ProjectValuesStore
                 .HeaderFormWidth = ProjectValues.HeaderFormWidth,
                 .HeaderFormHeight = ProjectValues.HeaderFormHeight,
                 .HeaderFormMaximized = ProjectValues.HeaderFormMaximized,
+                .HelpFormBounds = ProjectValues.HelpFormBounds,
                 .GridColumnWidths = ProjectValues.GridColumnWidths,
                 .ColourScheme = ProjectValues.ColourScheme,
                 .UiFontName = ProjectValues.UiFontName,
@@ -300,6 +302,7 @@ Public Module ProjectValuesStore
         Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
         Public Property VerifyFontSize As Single = 12.0F
         Public Property RecentFiles As New List(Of String)
+        Public Property HelpFormBounds As New FormBoundsData()
     End Class
 
 End Module

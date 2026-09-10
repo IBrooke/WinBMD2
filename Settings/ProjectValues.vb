@@ -52,16 +52,6 @@ Public Module ProjectValues
     Public Property SkipSurname As Boolean = False
 #End Region
 
-#Region "Header Form"
-
-    Public Property HeaderFormLeft As Integer = -1
-    Public Property HeaderFormTop As Integer = -1
-    Public Property HeaderFormWidth As Integer = 964
-    Public Property HeaderFormHeight As Integer = 681
-    Public Property HeaderFormMaximized As Boolean
-
-#End Region
-
 #Region "Grid"
 
     Public Property GridColumnWidths As New Dictionary(Of String, List(Of Integer))
@@ -85,6 +75,11 @@ Public Module ProjectValues
 
 #End Region
 
+#Region "Form Sizings"
+
+    Public Property HelpFormBounds As New FormBoundsData()
+#End Region
+
 #Region "Diagnostics"
 
     Public Property EnableDiagnosticLogging As Boolean = True
@@ -92,7 +87,11 @@ Public Module ProjectValues
 #End Region
 
 #Region "Header Form"
-
+    Public Property HeaderFormLeft As Integer = -1
+    Public Property HeaderFormTop As Integer = -1
+    Public Property HeaderFormWidth As Integer = 964
+    Public Property HeaderFormHeight As Integer = 681
+    Public Property HeaderFormMaximized As Boolean
     Public Property BatchType As String = ""
     Public Property BatchName As String = ""
     Private _year As Integer
@@ -140,6 +139,7 @@ Public Module ProjectValues
     Public Property Comments As String = ""
 
 #End Region
+
 #Region "Appearance"
 
     Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal

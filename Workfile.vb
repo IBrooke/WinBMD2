@@ -84,6 +84,7 @@ Public Class Workfile
                 For rowIndex As Integer = 0 To grid.Rows.Count - 1
                     Dim row As DataGridViewRow = grid.Rows(rowIndex)
                     If row.IsNewRow Then Continue For
+                    If rowIndex = grid.Rows.Count - 1 AndAlso TranscriptionForm.IsBlankEntryRow(row) Then Continue For
 
                     Dim dataLine As String = LoadSaveFiles.BuildDataLine(row, fields)
                     WriteRecord(stream, FirstRowRecord + rowIndex, "L" & rowIndex.ToString("00000") & "|" & dataLine)
@@ -138,11 +139,37 @@ Public Class Workfile
         If rowIndex < 0 Then Return False
         If rowIndex >= grid.Rows.Count Then Return False
         If grid.Rows(rowIndex).IsNewRow Then Return False
+        If rowIndex = grid.Rows.Count - 1 AndAlso TranscriptionForm.IsBlankEntryRow(grid.Rows(rowIndex)) Then
+            RemoveFinalRowRecord(rowIndex)
+            Return False
+        End If
 
         Return SaveRow(rowIndex, grid.Rows(rowIndex))
 
     End Function
+    Private Sub RemoveFinalRowRecord(rowIndex As Integer)
 
+        Try
+            Dim workFilePath As String = AppPaths.WorkFilePath
+
+            If Not File.Exists(workFilePath) Then Return
+
+            Dim newLength As Long = CLng(FirstRowRecord + rowIndex) * RecordSize
+
+            Using stream As New FileStream(workFilePath, FileMode.Open, FileAccess.Write, FileShare.Read)
+                If stream.Length > newLength Then
+                    stream.SetLength(newLength)
+                    stream.Flush()
+                End If
+            End Using
+
+            DebugLog.Write("[WORKFILE] Removed final blank row " & (rowIndex + 1).ToString())
+
+        Catch ex As Exception
+            DebugLog.Write("[WORKFILE] Failed to remove final blank row " & (rowIndex + 1).ToString() & ": " & ex.Message)
+        End Try
+
+    End Sub
     Private Function SaveRow(rowIndex As Integer, row As DataGridViewRow) As Boolean
 
         Try

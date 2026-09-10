@@ -225,6 +225,12 @@ Public Module ThemeManager
         grid.RowTemplate.Height = 26
 
     End Sub
+    Public Sub ApplyNavigationPanel(control As Control)
+
+        control.BackColor = UiColors.ThemeSoft
+        control.ForeColor = UiColors.TextPrimary
+
+    End Sub
     Public Sub ApplyLozengeButton(button As Button)
 
         ApplyStandardButton(button)

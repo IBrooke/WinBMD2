@@ -25,6 +25,43 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="HelpTopics\Help_About.rtf" />
+    <None Remove="HelpTopics\Help_Directives.rtf" />
+    <None Remove="HelpTopics\Help_Files.rtf" />
+    <None Remove="HelpTopics\Help_FindingScans.rtf" />
+    <None Remove="HelpTopics\Help_GettingStarted.rtf" />
+    <None Remove="HelpTopics\Help_Grid.rtf" />
+    <None Remove="HelpTopics\Help_HeaderForm.rtf" />
+    <None Remove="HelpTopics\Help_KeyboardShortcuts.rtf" />
+    <None Remove="HelpTopics\Help_Options.rtf" />
+    <None Remove="HelpTopics\Help_Ruler.rtf" />
+    <None Remove="HelpTopics\Help_Scans.rtf" />
+    <None Remove="HelpTopics\Help_Transcribing.rtf" />
+    <None Remove="HelpTopics\Help_Troubleshooting.rtf" />
+    <None Remove="HelpTopics\Help_Verification.rtf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="HelpTopics\Help_About.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_Files.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_HeaderForm.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_KeyboardShortcuts.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_Options.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_Ruler.rtf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="HelpTopics\Help_Directives.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_FindingScans.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_GettingStarted.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_Grid.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_Scans.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_Transcribing.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_Troubleshooting.rtf" />
+    <EmbeddedResource Include="HelpTopics\Help_Verification.rtf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Import Include="System.Data" />
     <Import Include="System.Drawing" />
     <Import Include="System.Windows.Forms" />

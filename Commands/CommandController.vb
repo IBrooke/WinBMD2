@@ -7,17 +7,25 @@ Public NotInheritable Class CommandController
     Private _transcriptionForm As TranscriptionForm
     Private _scanView As ScanView
 
-    Public Sub Start()
+    Public Sub Start(Optional startupFile As String = "")
+
+        DebugLog.WriteAlways("[STARTUP] CommandController.Start entered. startupFile='" & startupFile & "'")
+
+        If Not String.IsNullOrWhiteSpace(startupFile) Then
+            DebugLog.WriteAlways($"[STARTUP] Opening command-line file: '{startupFile}'")
+            ShowTranscriptionForms(startupFile)
+            Return
+        End If
 
         ' A surviving workfile means the previous session did not close normally.
         If File.Exists(AppPaths.WorkFilePath) Then
 
             Dim answer As DialogResult = MessageBox.Show(
-            "WinBMD2 found a workfile from a previous session." & Environment.NewLine & Environment.NewLine &
-            "Do you want to recover it?",
-            "Recover Previous Work",
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question)
+        "WinBMD2 found a workfile from a previous session." & Environment.NewLine & Environment.NewLine &
+        "Do you want to recover it?",
+        "Recover Previous Work",
+        MessageBoxButtons.YesNo,
+        MessageBoxIcon.Question)
 
             If answer = DialogResult.Yes Then
                 ShowTranscriptionForms(recoveringWorkfile:=True)
@@ -34,11 +42,11 @@ Public NotInheritable Class CommandController
             If File.Exists(filePath) Then
 
                 Dim answer As DialogResult = MessageBox.Show(
-                "Do you want to resume the previous batch?" & Environment.NewLine & Environment.NewLine &
-                ProjectValues.BatchName,
-                "Resume Previous Batch",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question)
+            "Do you want to resume the previous batch?" & Environment.NewLine & Environment.NewLine &
+            ProjectValues.BatchName,
+            "Resume Previous Batch",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question)
 
                 If answer = DialogResult.Yes Then
                     ShowTranscriptionForms(filePath)
