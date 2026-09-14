@@ -7,4 +7,6 @@
     Sub CompleteVerifyRow()
     Sub NudgeScan(deltaX As Single, deltaY As Single)
     Sub MoveScanOneRow(direction As Integer)
+    Sub MoveScanToRow1()
+    Function ToggleScanViewAsync() As Task
 End Interface

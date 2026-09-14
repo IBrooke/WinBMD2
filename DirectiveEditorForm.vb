@@ -43,13 +43,18 @@ Public Class DirectiveEditorForm
 
         For Each directive As RowDirective In existingDirectives
 
-            Directives.Add(
-                New RowDirective With {
-                    .RowIndex = directive.RowIndex,
-                    .DirectiveType = directive.DirectiveType,
-                    .Lines = directive.Lines,
-                    .Text = directive.Text
-})
+            Dim copiedDirective As New RowDirective With {
+                .RowIndex = directive.RowIndex,
+                .DirectiveType = directive.DirectiveType,
+                .Lines = directive.Lines,
+                .Text = directive.Text
+            }
+
+            For Each warning As DirectiveWarningType In directive.ShownWarnings
+                copiedDirective.ShownWarnings.Add(warning)
+            Next
+
+            Directives.Add(copiedDirective)
 
         Next
 
@@ -426,14 +431,18 @@ Public Class DirectiveEditorForm
             Return
         End If
 
+        If directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) AndAlso Directives.Any(Function(d) d.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase)) Then
+            MessageBox.Show(Me, "This row already has a +PAGE directive.", "Directive", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            Return
+        End If
+
         Directives.Add(directive)
 
         ReloadList()
 
         If directiveList.Items.Count > 0 Then
 
-            Dim index As Integer =
-                Directives.Count - 1
+            Dim index As Integer = Directives.Count - 1
 
             directiveList.Items(index).Selected = True
             directiveList.Items(index).Focused = True
@@ -469,8 +478,11 @@ Public Class DirectiveEditorForm
             Return
         End If
 
-        Directives(selectedIndex) =
-            directive
+        For Each warning As DirectiveWarningType In Directives(selectedIndex).ShownWarnings
+            directive.ShownWarnings.Add(warning)
+        Next
+
+        Directives(selectedIndex) = directive
 
         ReloadList()
 
@@ -769,4 +781,7 @@ Public Class DirectiveEditorForm
 
     End Sub
 
+    Private Sub okButton_Click(sender As Object, e As EventArgs) Handles okButton.Click
+
+    End Sub
 End Class

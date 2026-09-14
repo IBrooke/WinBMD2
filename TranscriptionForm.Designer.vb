@@ -48,6 +48,7 @@ Partial Class TranscriptionForm
         statusSpringLabel = New ToolStripStatusLabel()
         statusPositionLabel = New ToolStripStatusLabel()
         uploadToolTip = New ToolTip(components)
+        btnScanToRow1 = New Button()
         filePanel.SuspendLayout()
         categoryBarPanel.SuspendLayout()
         categoryStrip.SuspendLayout()
@@ -72,6 +73,7 @@ Partial Class TranscriptionForm
         ' categoryBarPanel
         ' 
         categoryBarPanel.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        categoryBarPanel.Controls.Add(btnScanToRow1)
         categoryBarPanel.Controls.Add(categoryStrip)
         categoryBarPanel.Controls.Add(btnSpecialCharacters)
         categoryBarPanel.Location = New Point(6, 23)
@@ -242,6 +244,7 @@ Partial Class TranscriptionForm
         ' gridHostPanel
         ' 
         gridHostPanel.BackColor = SystemColors.Window
+        gridHostPanel.Controls.Add(transcriptionGrid)
         gridHostPanel.Dock = DockStyle.Fill
         gridHostPanel.Location = New Point(0, 92)
         gridHostPanel.Name = "gridHostPanel"
@@ -256,7 +259,7 @@ Partial Class TranscriptionForm
         transcriptionGrid.BorderStyle = BorderStyle.None
         transcriptionGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
         transcriptionGrid.Dock = DockStyle.Fill
-        transcriptionGrid.Location = New Point(0, 92)
+        transcriptionGrid.Location = New Point(0, 0)
         transcriptionGrid.MultiSelect = False
         transcriptionGrid.Name = "transcriptionGrid"
         transcriptionGrid.RowHeadersVisible = False
@@ -281,16 +284,16 @@ Partial Class TranscriptionForm
         statusMessageLabel.Size = New Size(39, 17)
         statusMessageLabel.Text = "Ready"
         statusMessageLabel.TextAlign = ContentAlignment.MiddleLeft
-        '
+        ' 
         ' statusMessageLabel2
-        '
+        ' 
         statusMessageLabel2.Name = "statusMessageLabel2"
         statusMessageLabel2.Size = New Size(0, 17)
         statusMessageLabel2.TextAlign = ContentAlignment.MiddleLeft
         statusMessageLabel2.Visible = False
-        '
+        ' 
         ' statusMessageLabel3
-        '
+        ' 
         statusMessageLabel3.Name = "statusMessageLabel3"
         statusMessageLabel3.Size = New Size(0, 17)
         statusMessageLabel3.TextAlign = ContentAlignment.MiddleLeft
@@ -309,14 +312,25 @@ Partial Class TranscriptionForm
         statusPositionLabel.Text = "Row 1"
         statusPositionLabel.TextAlign = ContentAlignment.MiddleRight
         ' 
+        ' btnScanToRow1
+        ' 
+        btnScanToRow1.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnScanToRow1.Location = New Point(798, 1)
+        btnScanToRow1.Name = "btnScanToRow1"
+        btnScanToRow1.Size = New Size(34, 25)
+        btnScanToRow1.TabIndex = 8
+        btnScanToRow1.TabStop = False
+        btnScanToRow1.Text = "1"
+        uploadToolTip.SetToolTip(btnScanToRow1, "Move the scan to row 1 (needs to have doen ruler setup)")
+        btnScanToRow1.UseVisualStyleBackColor = True
+        ' 
         ' TranscriptionForm
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(884, 481)
-        Controls.Add(statusStrip)
-        Controls.Add(transcriptionGrid)
         Controls.Add(gridHostPanel)
+        Controls.Add(statusStrip)
         Controls.Add(filePanel)
         MinimumSize = New Size(700, 150)
         Name = "TranscriptionForm"
@@ -359,5 +373,6 @@ Partial Class TranscriptionForm
     Friend WithEvents btnFileEditHeader As Button
     Friend WithEvents uploadToolTip As ToolTip
     Friend WithEvents btnSpecialCharacters As Button
+    Friend WithEvents btnScanToRow1 As Button
 
 End Class

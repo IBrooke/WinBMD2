@@ -164,7 +164,7 @@ Partial Class DirectiveEditorForm
         ' DirectiveEditorForm
         ' 
         AcceptButton = okButton
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(594, 341)
         Controls.Add(closeButton)

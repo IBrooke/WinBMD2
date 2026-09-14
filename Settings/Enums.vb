@@ -23,6 +23,22 @@ End Enum
 
 #End Region
 
+#Region "Directives"
+Public Enum DirectiveType
+    Comment
+    Theory
+    TheoryRef
+    InternalComment
+    Break
+    Page
+End Enum
+' Identifies the different warning conditions which may be recorded
+' against an individual directive.
+Public Enum DirectiveWarningType
+    TooManyPageDirectives
+End Enum
+#End Region
+
 #Region "Entry"
 Public Enum EntryMode
     Horizontal

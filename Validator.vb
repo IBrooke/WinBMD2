@@ -1246,6 +1246,34 @@ Public NotInheritable Class Validator
         Return result
 
     End Function
+    Public Shared Function ValidateDirectives(grid As DataGridView, lastDataRowIndex As Integer) As List(Of DirectiveValidationResult)
+
+        Dim results As New List(Of DirectiveValidationResult)
+
+        For rowIndex As Integer = 0 To grid.Rows.Count - 1
+
+            Dim directiveCell As DataGridViewCell = grid.Rows(rowIndex).Cells(GridField.Directive.ToString())
+            Dim directives As List(Of RowDirective) = TryCast(directiveCell.Tag, List(Of RowDirective))
+
+            If directives Is Nothing Then Continue For
+
+            For Each directive As RowDirective In directives
+
+                If directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) Then
+
+                    If rowIndex <> lastDataRowIndex Then
+                        results.Add(New DirectiveValidationResult(directive, DirectiveWarningType.TooManyPageDirectives, ValidationResult.Warning("A +PAGE directive would normally only occur at the end of the transcription.")))
+                    End If
+
+                End If
+
+            Next
+
+        Next
+
+        Return results
+
+    End Function
     Public Shared Function IsDirective(value As String) As Boolean
 
         If String.IsNullOrWhiteSpace(value) Then

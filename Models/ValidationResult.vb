@@ -4,9 +4,7 @@
 
     Public ReadOnly Property Message As String
 
-    Private Sub New(
-        state As ValidationState,
-        message As String)
+    Private Sub New(state As ValidationState, message As String)
 
         Me.State = state
         Me.Message = message
@@ -15,27 +13,19 @@
 
     Public Shared Function Ok() As ValidationResult
 
-        Return New ValidationResult(
-            ValidationState.Ok,
-            "")
+        Return New ValidationResult(ValidationState.Ok, "")
 
     End Function
 
-    Public Shared Function Warning(
-        message As String) As ValidationResult
+    Public Shared Function Warning(message As String) As ValidationResult
 
-        Return New ValidationResult(
-            ValidationState.Warning,
-            message)
+        Return New ValidationResult(ValidationState.Warning, message)
 
     End Function
 
-    Public Shared Function [Error](
-        message As String) As ValidationResult
+    Public Shared Function [Error](message As String) As ValidationResult
 
-        Return New ValidationResult(
-            ValidationState.Error,
-            message)
+        Return New ValidationResult(ValidationState.Error, message)
 
     End Function
 
@@ -56,5 +46,20 @@
             Return State = ValidationState.Error
         End Get
     End Property
+
+End Class
+Public NotInheritable Class DirectiveValidationResult
+
+    Public ReadOnly Property Directive As RowDirective
+    Public ReadOnly Property WarningType As DirectiveWarningType
+    Public ReadOnly Property Result As ValidationResult
+
+    Public Sub New(directive As RowDirective, warningType As DirectiveWarningType, result As ValidationResult)
+
+        Me.Directive = directive
+        Me.WarningType = warningType
+        Me.Result = result
+
+    End Sub
 
 End Class

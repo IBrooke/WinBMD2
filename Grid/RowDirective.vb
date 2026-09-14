@@ -6,6 +6,8 @@
 
     Public Property Text As String = ""
 
+    Public ReadOnly Property ShownWarnings As New HashSet(Of DirectiveWarningType)
+
     ' Lines is used by #COMMENT directives.
     ' Nothing means no line count was supplied.
     Public Property Lines As Integer?

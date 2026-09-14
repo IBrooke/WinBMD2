@@ -135,6 +135,20 @@
         End If
 
         Dim previousRow As Integer = _currentRow
+
+        If rowNumber = 1 Then
+
+            _viewer.PositionImageYAtScreenY(Row1ImageY, _viewer.RulerScreenY)
+
+            _currentRow = 1
+
+            DebugLog.Write(
+            $"[RULER] Grid moved from row {previousRow} to row 1 using absolute position. Row1ImageY={Row1ImageY:0.###}")
+
+            Return
+
+        End If
+
         Dim deltaRows As Integer = rowNumber - _currentRow
 
         If deltaRows = 0 Then
@@ -145,7 +159,8 @@
 
         _currentRow = rowNumber
 
-        DebugLog.Write($"[RULER] Grid moved from row {previousRow} to row {rowNumber}. DeltaRows={deltaRows}, RowStepImageY={_rowStepImageY:0.###}")
+        DebugLog.Write(
+        $"[RULER] Grid moved from row {previousRow} to row {rowNumber}. DeltaRows={deltaRows}, RowStepImageY={_rowStepImageY:0.###}")
 
     End Sub
     Public Sub MoveByRows(deltaRows As Integer)

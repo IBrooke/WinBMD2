@@ -7,11 +7,6 @@ Imports System.Threading
 Imports System.Runtime.CompilerServices
 
 Public Class HeaderForm
-
-    Private Const FirstYearWithoutQuarters As Integer = 1984
-    Private Const FirstAllowedYear As Integer = 1837
-    Private Const LastAllowedYear As Integer = 2000
-
     Private ReadOnly _toolTip As New ToolTip()
     Private _loadingValues As Boolean
     Private ReadOnly _openBatchMenu As New ContextMenuStrip()
@@ -28,10 +23,14 @@ Public Class HeaderForm
 
         ApplyColourScheme()
 
+        Dim appVersion As Version = My.Application.Info.Version
+        Dim versionText As String = appVersion.Major.ToString() & "." & appVersion.Minor.ToString() & "." & appVersion.Build.ToString()
+
         Icon = WinBMDResources.WinBMD2Icon
-        Text = "WinBMD2 Header"
+        Text = "WinBMD2 " & versionText
+
         If _editMode Then
-            Text = "WinBMD2 - Edit Header"
+            Text = "WinBMD2 " & versionText & " - Edit Header"
         End If
 
         ConfigureControls()
@@ -50,6 +49,7 @@ Public Class HeaderForm
             _showVnfWarningWhenShown = False
         End If
 
+        showPasswordButton.BringToFront()
     End Sub
     Public Sub ApplyColourScheme()
 
@@ -125,7 +125,6 @@ Public Class HeaderForm
 
         btnStart.Enabled = False
 
-        AddHandler showPasswordButton.Click, AddressOf ShowPasswordButton_Click
         AddHandler btnStart.Click, AddressOf btnStart_Click
         AddHandler btnCancel.Click, AddressOf btnCancel_Click
         AddHandler openBatchButton.Click, AddressOf OpenBatchButton_Click
@@ -400,7 +399,7 @@ Public Class HeaderForm
             syndicateTextBox.Text = ProjectValues.Syndicate
 
             userNameTextBox.Text = ProjectValues.UserName
-            userPasswordTextBox.Text = ProjectValues.UserPW
+            userPasswordTextBox.Text = PasswordEncryption.Decrypt(ProjectValues.UserPW, ProjectValues.UserName)
 
             birthsRadioButton.Checked = ProjectValues.BatchType = "B"
             marriagesRadioButton.Checked = ProjectValues.BatchType = "M"
@@ -538,7 +537,7 @@ Public Class HeaderForm
         End If
 
         Dim quarterRequired As Boolean =
-            year < FirstYearWithoutQuarters
+            year < FirstYearNoQtrs
 
         quarterPanel.Visible = quarterRequired
 
@@ -560,7 +559,7 @@ Public Class HeaderForm
             Return False
         End If
 
-        If year < FirstYearWithoutQuarters AndAlso quarterComboBox.SelectedIndex < 0 Then
+        If year < FirstYearNoQtrs AndAlso quarterComboBox.SelectedIndex < 0 Then
             Return False
         End If
 
@@ -568,7 +567,7 @@ Public Class HeaderForm
             Return False
         End If
 
-        If year < FirstYearWithoutQuarters AndAlso quarterComboBox.SelectedIndex < 0 Then
+        If year < FirstYearNoQtrs AndAlso quarterComboBox.SelectedIndex < 0 Then
             Return False
         End If
 
@@ -822,7 +821,7 @@ Public Class HeaderForm
                     $"Year between {FirstAllowedYear} and {LastAllowedYear}")
             End If
 
-            If year < FirstYearWithoutQuarters AndAlso
+            If year < FirstYearNoQtrs AndAlso
                quarterComboBox.SelectedIndex < 0 Then
 
                 problems.Add("Quarter")
@@ -1023,71 +1022,36 @@ Public Class HeaderForm
 
     Private Sub SaveToProjectValues()
 
-        ProjectValues.BatchType =
-            GetSelectedBatchType()
+        ProjectValues.BatchType = GetSelectedBatchType()
 
         Dim year As Integer
-        Integer.TryParse(
-            yearTextBox.Text.Trim(),
-            year)
+        Integer.TryParse(yearTextBox.Text.Trim(), year)
+        ProjectValues.Year = year
 
-        ProjectValues.Year =
-            year
+        ProjectValues.Quarter = If(quarterComboBox.SelectedIndex >= 0, quarterComboBox.SelectedIndex + 1, 0)
 
-        ProjectValues.Quarter =
-            If(quarterComboBox.SelectedIndex >= 0,
-               quarterComboBox.SelectedIndex + 1,
-               0)
-
-        ProjectValues.PageSource =
-            pageSourceComboBox.SelectedIndex
+        ProjectValues.PageSource = pageSourceComboBox.SelectedIndex
 
         Dim page As Integer
-        Integer.TryParse(
-            pageTextBox.Text.Trim(),
-            page)
+        Integer.TryParse(pageTextBox.Text.Trim(), page)
+        ProjectValues.Page = page
 
-        ProjectValues.Page =
-            page
+        ProjectValues.PageSuffix = suffixTextBox.Text.Trim().ToUpperInvariant()
+        ProjectValues.PageLetter = pageLetterTextBox.Text.Trim().ToUpperInvariant()
+        ProjectValues.VNF = vnfComboBox.Text.Trim()
+        ProjectValues.SourceRef = sourceRefTextBox.Text.Trim()
+        ProjectValues.Comments = commentsTextBox.Text.Trim()
+        ProjectValues.Creator = creatorTextBox.Text.Trim()
+        ProjectValues.CreatorEmail = creatorEmailTextBox.Text.Trim()
+        ProjectValues.Syndicate = syndicateTextBox.Text.Trim()
 
-        ProjectValues.PageSuffix =
-            suffixTextBox.Text.Trim().ToUpperInvariant()
+        ProjectValues.UserName = userNameTextBox.Text.Trim()    ' This MUST happen before the next line which encrypts the password
+        ProjectValues.UserPW = PasswordEncryption.Encrypt(userPasswordTextBox.Text, ProjectValues.UserName)
 
-        ProjectValues.PageLetter =
-            pageLetterTextBox.Text.Trim().ToUpperInvariant()
-
-        ProjectValues.VNF =
-            vnfComboBox.Text.Trim()
-
-        ProjectValues.SourceRef =
-            sourceRefTextBox.Text.Trim()
-
-        ProjectValues.Comments =
-            commentsTextBox.Text.Trim()
-
-        ProjectValues.Creator =
-            creatorTextBox.Text.Trim()
-
-        ProjectValues.CreatorEmail =
-            creatorEmailTextBox.Text.Trim()
-
-        ProjectValues.Syndicate =
-            syndicateTextBox.Text.Trim()
-
-        ProjectValues.UserName =
-            userNameTextBox.Text.Trim()
-
-        ProjectValues.UserPW =
-            userPasswordTextBox.Text
-
-        ProjectValues.BatchName =
-            BuildBatchName()
+        ProjectValues.BatchName = BuildBatchName()
 
         If String.IsNullOrWhiteSpace(ProjectValues.Created) Then
-            ProjectValues.Created =
-            Date.Today.ToString(
-                "d-MMM-yyyy",
-                Globalization.CultureInfo.InvariantCulture)
+            ProjectValues.Created = Date.Today.ToString("d-MMM-yyyy", Globalization.CultureInfo.InvariantCulture)
         End If
 
         ProjectValues.DateModified = Date.Today
@@ -1095,15 +1059,15 @@ Public Class HeaderForm
         ProjectValuesStore.Save()
 
         DebugLog.Write(
-    $"[HEADER] Accepted. BatchName='{ProjectValues.BatchName}', " &
-    $"Created='{ProjectValues.Created}', " &
-    $"DateModified={ProjectValues.DateModified:d}, " &
-    $"Year={ProjectValues.Year}, " &
-    $"Quarter={ProjectValues.Quarter}, " &
-    $"BatchType={ProjectValues.BatchType}, " &
-    $"Page={ProjectValues.Page}, " &
-    $"PageLetter='{ProjectValues.PageLetter}', " &
-    $"PageSuffix='{ProjectValues.PageSuffix}'")
+        $"[HEADER] Accepted. BatchName='{ProjectValues.BatchName}', " &
+        $"Created='{ProjectValues.Created}', " &
+        $"DateModified={ProjectValues.DateModified:d}, " &
+        $"Year={ProjectValues.Year}, " &
+        $"Quarter={ProjectValues.Quarter}, " &
+        $"BatchType={ProjectValues.BatchType}, " &
+        $"Page={ProjectValues.Page}, " &
+        $"PageLetter='{ProjectValues.PageLetter}', " &
+        $"PageSuffix='{ProjectValues.PageSuffix}'")
 
     End Sub
     Private Function BuildBatchName() As String
@@ -1125,7 +1089,7 @@ Public Class HeaderForm
 
         Dim quarterPart As String =
         If(
-            year >= FirstYearWithoutQuarters,
+            year >= FirstYearNoQtrs,
             "",
             If(
                 quarter > 0,
@@ -1152,14 +1116,6 @@ Public Class HeaderForm
         Return $"{year:0000}{batchType}{quarterPart}{pageLetter}{pageText}{suffix}.BMD"
 
     End Function
-    Private Sub ShowPasswordButton_Click(
-        sender As Object,
-        e As EventArgs)
-
-        userPasswordTextBox.UseSystemPasswordChar =
-            Not userPasswordTextBox.UseSystemPasswordChar
-
-    End Sub
 
     Private Sub btnStart_Click(sender As Object, e As EventArgs)
 
@@ -1246,4 +1202,7 @@ Public Class HeaderForm
 
     End Sub
 
+    Private Sub showPasswordButton_Click_1(sender As Object, e As EventArgs) Handles showPasswordButton.Click
+        userPasswordTextBox.UseSystemPasswordChar = Not userPasswordTextBox.UseSystemPasswordChar
+    End Sub
 End Class

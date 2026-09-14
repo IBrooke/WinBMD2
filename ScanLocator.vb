@@ -60,7 +60,7 @@ Public NotInheritable Class ScanLocator
     End Sub
     Public Function BuildStartUrl() As String
 
-        Dim url As String = ProjectConstants.ScanBaseUrl.TrimEnd("/"c)
+        Dim url As String = Constants.ScanBaseUrl.TrimEnd("/"c)
 
         url &= "/" & ProjectValues.Year.ToString()
 
@@ -302,7 +302,7 @@ Public NotInheritable Class ScanLocator
 
         Dim quarterPart As String
 
-        If ProjectValues.Year >= ProjectConstants.FirstYearNoQtrs Then
+        If ProjectValues.Year >= Constants.FirstYearNoQtrs Then
             quarterPart = ""
         Else
             quarterPart = ProjectValues.Quarter.ToString().Trim()

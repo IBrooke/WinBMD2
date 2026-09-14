@@ -193,7 +193,7 @@ Public Module ProjectValuesStore
                 .VerifyFontSize = ProjectValues.VerifyFontSize,
                 .UserName = ProjectValues.UserName,
                 .UserEmail = ProjectValues.UserEmail,
-                .UserPW = ProjectValues.UserPW,
+                .UserPW = ProjectValues.UserPW,     ' We keep this encrypted
                 .Creator = ProjectValues.Creator,
                 .CreatorEmail = ProjectValues.CreatorEmail,
                 .EnableDiagnosticLogging = ProjectValues.EnableDiagnosticLogging,

@@ -104,6 +104,17 @@ Public Class ScanView
         End Using
 
     End Sub
+    Public ReadOnly Property HasScan As Boolean
+        Get
+            Return _viewer.HasImage
+        End Get
+    End Property
+    Public Sub ClearScan()
+
+        _viewer.ClearImage()
+        Text = "WinBMD2 Scan"
+
+    End Sub
     Private Function GetScanViewKey() As String
 
         Return ProjectValues.BatchType & "|" &
@@ -229,10 +240,7 @@ Public Class ScanView
                 _viewer.LoadImage(result.LocalPath)
                 Text = "WinBMD2 Scan - " & Path.GetFileName(result.LocalPath)
                 RestoreScanViewSettings()
-                scanStatusLabel.Text =
-                    If(
-                        result.Message,
-                        "Scan loaded.")
+                scanStatusLabel.Text = If(result.Message, "Scan loaded.")
 
                 Return
 

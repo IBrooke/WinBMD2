@@ -78,6 +78,15 @@ Public NotInheritable Class CommandController
         _scanView.MoveScanByRows(direction)
 
     End Sub
+    Public Sub MoveScanToRow1() Implements ICommandExecutor.MoveScanToRow1
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then
+            Return
+        End If
+
+        _scanView.MoveRulerToRow(1)
+
+    End Sub
     Public Sub ApplyScanViewColourScheme() Implements ICommandExecutor.ApplyScanViewColourScheme
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then
@@ -110,7 +119,6 @@ Public NotInheritable Class CommandController
         MainForm = _transcriptionForm
 
         _transcriptionForm.Show()
-        _scanView.Show()
 
         If recoveringWorkfile Then
 
@@ -151,6 +159,7 @@ Public NotInheritable Class CommandController
         End If
 
         If ProjectValues.AutoShowScan Then
+            _scanView.Show()
             Await _scanView.FindScanAsync()
         End If
 
@@ -164,6 +173,23 @@ Public NotInheritable Class CommandController
         _scanView.ToggleVerify()
 
     End Sub
+    Public Async Function ToggleScanViewAsync() As Task Implements ICommandExecutor.ToggleScanViewAsync
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then
+            Return
+        End If
+
+        If _scanView.Visible AndAlso _scanView.HasScan Then
+            _scanView.Hide()
+            Return
+        End If
+
+        _scanView.ClearScan()
+        _scanView.Show()
+
+        Await _scanView.FindScanAsync()
+
+    End Function
     Public Sub SetVerifyVisible(visible As Boolean) Implements ICommandExecutor.SetVerifyVisible
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then

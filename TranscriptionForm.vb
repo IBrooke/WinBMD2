@@ -67,7 +67,8 @@ Public Class TranscriptionForm
         UpdateCommandStrip()
 
         Icon = WinBMDResources.WinBMD2Icon
-        Text = "WinBMD2"
+        Dim appVersion As Version = My.Application.Info.Version
+        Text = "WinBMD2 " & appVersion.Major.ToString() & "." & appVersion.Minor.ToString() & "." & appVersion.Build.ToString()
         filePanel.Expanded = ProjectValues.FilePanelExpanded
 
         InitialiseTranscriptionForm()
@@ -768,6 +769,13 @@ Public Class TranscriptionForm
 
         End If
 
+        If button Is btnCategoryScan Then
+
+            Await _commandExecutor.ToggleScanViewAsync()
+            Return
+
+        End If
+
         If _selectedCommandCategory = button.Text Then
             _selectedCommandCategory = ""
         Else
@@ -879,17 +887,20 @@ Public Class TranscriptionForm
             transcriptionGrid.EndEdit()
         End If
 
-        ' Find the last actual transcription row, ignoring the blank entry row.
-        Dim lastDataRowIndex As Integer = -1
+        If String.IsNullOrWhiteSpace(ProjectValues.UserName) OrElse String.IsNullOrWhiteSpace(ProjectValues.UserPW) Then
 
-        For rowIndex As Integer = transcriptionGrid.Rows.Count - 1 To 0 Step -1
+            MessageBox.Show(
+                "Your FreeBMD User ID and password must be specified before you can upload." & Environment.NewLine & Environment.NewLine &
+                "Use Edit Header to enter these details.",
+                "Upload",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information)
 
-            If Not IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then
-                lastDataRowIndex = rowIndex
-                Exit For
-            End If
+            Return
 
-        Next
+        End If
+
+        Dim lastDataRowIndex As Integer = GetLastDataRowIndex()
 
         ' Check that the last transcription row has a +PAGE directive.
         If lastDataRowIndex >= 0 Then
@@ -1007,7 +1018,7 @@ Public Class TranscriptionForm
         .BatchFilePath = filePath,
         .UploadName = Path.GetFileNameWithoutExtension(ProjectValues.BatchName),
         .Username = ProjectValues.UserName,
-        .Password = ProjectValues.UserPW,
+        .Password = PasswordEncryption.Decrypt(ProjectValues.UserPW, ProjectValues.UserName),
         .Site = ProjectValues.UploadServerUrl,
         .Port = 443,
         .CurrentDistrictVersion = ProjectValues.DistrictVersion,
@@ -1049,6 +1060,15 @@ Public Class TranscriptionForm
             UpdateUploadEnabled()
 
         End Try
+
+    End Function
+    Private Function GetLastDataRowIndex() As Integer
+
+        For rowIndex As Integer = transcriptionGrid.Rows.Count - 1 To 0 Step -1
+            If Not IsBlankEntryRow(transcriptionGrid.Rows(rowIndex)) Then Return rowIndex
+        Next
+
+        Return -1
 
     End Function
     Private Sub btnFileOpen_Click(sender As Object, e As EventArgs) Handles btnFileOpen.Click
@@ -1299,12 +1319,42 @@ Public Class TranscriptionForm
             Next
 
             directiveCell.Tag = updatedDirectives
+            RecalculatePageDirectives()
 
         End Using
 
         UpdateDirectiveCell(rowIndex)
-        _changeState.FileSaved()
+        ValidateLoadedRows()
+        _changeState.SetCellChanged()
         If _workfile.CreateOrReplace(transcriptionGrid) Then _changeState.WorkfileSaved()
+
+    End Sub
+    ' Recalculates every stored +PAGE directive from the opening page number.
+    ' The opening page is ProjectValues.Page, so the first stored +PAGE is one
+    ' greater than that, with each following +PAGE increasing by one.
+    Private Sub RecalculatePageDirectives()
+
+        Dim pageNumber As Integer = ProjectValues.Page
+
+        For rowIndex As Integer = 0 To transcriptionGrid.Rows.Count - 1
+
+            Dim cell As DataGridViewCell = transcriptionGrid.Rows(rowIndex).Cells(GridField.Directive.ToString())
+            Dim directives As List(Of RowDirective) = TryCast(cell.Tag, List(Of RowDirective))
+
+            If directives Is Nothing Then Continue For
+
+            For Each directive As RowDirective In directives
+
+                If Not directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) Then Continue For
+
+                pageNumber += 1
+                directive.Text = pageNumber.ToString()
+
+            Next
+
+            UpdateDirectiveCell(rowIndex)
+
+        Next
 
     End Sub
     Private Sub UpdateDirectiveCell(
@@ -3837,25 +3887,16 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
             Dim row As DataGridViewRow = transcriptionGrid.Rows(rowIndex)
 
-            If IsBlankEntryRow(row) Then
-                Continue For
-            End If
+            If IsBlankEntryRow(row) Then Continue For
 
             For Each column As DataGridViewColumn In transcriptionGrid.Columns
 
-                If column.Tag Is Nothing Then
-                    Continue For
-                End If
+                If column.Tag Is Nothing Then Continue For
 
                 Dim field As GridField = DirectCast(column.Tag, GridField)
 
-                If Not FieldMetaData.Meta(field).IsDataColumn Then
-                    Continue For
-                End If
-
-                If field = GridField.District OrElse field = GridField.Volume OrElse field = GridField.DistNum Then
-                    Continue For
-                End If
+                If Not FieldMetaData.Meta(field).IsDataColumn Then Continue For
+                If field = GridField.District OrElse field = GridField.Volume OrElse field = GridField.DistNum Then Continue For
 
                 Dim value As String = If(row.Cells(column.Index).Value, "").ToString()
                 Dim result As ValidationResult = Validator.Validate(field, value)
@@ -3868,6 +3909,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
             ValidateNamePair(rowIndex)
             ValidateSequence(rowIndex)
             UpdateRowValidationState(rowIndex)
+
             Dim rowState As ValidationState
 
             If _rowValidationStates.TryGetValue(rowIndex, rowState) AndAlso rowState = ValidationState.Error Then
@@ -3877,8 +3919,22 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
         Next
 
+        Dim lastDataRowIndex As Integer = GetLastDataRowIndex()
+        Dim directiveResults As List(Of DirectiveValidationResult) = Validator.ValidateDirectives(transcriptionGrid, lastDataRowIndex)
+
+        For Each directiveResult As DirectiveValidationResult In directiveResults
+
+            Dim rowIndex As Integer = directiveResult.Directive.RowIndex
+            Dim columnIndex As Integer = transcriptionGrid.Columns(GridField.Directive.ToString()).Index
+
+            ApplyCellValidationResult(rowIndex, columnIndex, directiveResult.Result)
+            UpdateRowValidationState(rowIndex)
+
+        Next
+
         VerificationData.Save(ProjectValues.BatchName, BuildVerificationState())
         UpdateUploadEnabled()
+
     End Sub
     Private Sub TranscriptionForm_FormClosed(sender As Object, e As FormClosedEventArgs) Handles Me.FormClosed
 
@@ -3933,4 +3989,10 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         End Try
 
     End Function
+
+    Private Sub btnScanToRow1_Click(sender As Object, e As EventArgs) Handles btnScanToRow1.Click
+
+        _commandExecutor.MoveScanToRow1()
+
+    End Sub
 End Class
