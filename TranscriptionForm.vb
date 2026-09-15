@@ -467,9 +467,6 @@ Public Class TranscriptionForm
         Dim verificationState As String = VerificationData.Load(ProjectValues.BatchName)
 
         ApplyVerificationState(verificationState)
-        ValidateLoadedRows()
-
-        UpdateUploadEnabled()
 
         RestoreFormBounds()
 
@@ -1237,7 +1234,7 @@ Public Class TranscriptionForm
             transcriptionGrid.BeginEdit(selectAll:=False)
         End If
 
-        Dim editor As TextBox = TryCast(transcriptionGrid.EditingControl, TextBox)
+        Dim editor = TryCast(transcriptionGrid.EditingControl, TextBox)
 
         If editor Is Nothing Then
             Return
@@ -2596,7 +2593,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
     Private Sub ApplyTranscriptionAppearance()
 
         ThemeManager.Apply(Me)
-
+        _pickListPopup.ApplyTheme()
     End Sub
     Private Sub NavigationKeyDown(sender As Object, e As KeyEventArgs) Handles transcriptionGrid.KeyDown
         _suppressNextAutoComplete = e.KeyCode = Keys.Back OrElse e.KeyCode = Keys.Delete
@@ -2604,6 +2601,15 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
         If e.KeyCode = Keys.F4 Then
 
             ShowSpecialCharacters(TryCast(sender, TextBox))
+
+            e.Handled = True
+            e.SuppressKeyPress = True
+            Return
+
+        End If
+        If e.KeyCode = Keys.F9 Then
+
+            btnClearCell.PerformClick()
 
             e.Handled = True
             e.SuppressKeyPress = True
@@ -3905,7 +3911,7 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
 
             Next
 
-            ValidateDistrictCodePair(rowIndex)
+            ValidateDistrictCodePair(rowIndex, False)
             ValidateNamePair(rowIndex)
             ValidateSequence(rowIndex)
             UpdateRowValidationState(rowIndex)
@@ -3993,6 +3999,24 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
     Private Sub btnScanToRow1_Click(sender As Object, e As EventArgs) Handles btnScanToRow1.Click
 
         _commandExecutor.MoveScanToRow1()
+
+    End Sub
+    Private Sub btnClearCell_Click(sender As Object, e As EventArgs) Handles btnClearCell.Click
+
+        If transcriptionGrid.CurrentCell Is Nothing Then Return
+
+        If transcriptionGrid.IsCurrentCellInEditMode Then
+
+            Dim editor As TextBox = TryCast(transcriptionGrid.EditingControl, TextBox)
+
+            If editor IsNot Nothing Then
+                editor.Clear()
+                Return
+            End If
+
+        End If
+
+        transcriptionGrid.CurrentCell.Value = ""
 
     End Sub
 End Class

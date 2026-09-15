@@ -25,6 +25,7 @@ Partial Class TranscriptionForm
         components = New ComponentModel.Container()
         filePanel = New CollapsiblePanel()
         categoryBarPanel = New Panel()
+        btnScanToRow1 = New Button()
         categoryStrip = New FlowLayoutPanel()
         btnCategoryFile = New Button()
         btnCategoryScan = New Button()
@@ -33,6 +34,7 @@ Partial Class TranscriptionForm
         btnCategoryOptions = New Button()
         btnCategoryHelp = New Button()
         btnSpecialCharacters = New Button()
+        btnClearCell = New Button()
         commandStrip = New FlowLayoutPanel()
         btnFileOpen = New Button()
         btnFileSave = New Button()
@@ -48,11 +50,11 @@ Partial Class TranscriptionForm
         statusSpringLabel = New ToolStripStatusLabel()
         statusPositionLabel = New ToolStripStatusLabel()
         uploadToolTip = New ToolTip(components)
-        btnScanToRow1 = New Button()
         filePanel.SuspendLayout()
         categoryBarPanel.SuspendLayout()
         categoryStrip.SuspendLayout()
         commandStrip.SuspendLayout()
+        gridHostPanel.SuspendLayout()
         CType(transcriptionGrid, ComponentModel.ISupportInitialize).BeginInit()
         statusStrip.SuspendLayout()
         SuspendLayout()
@@ -76,10 +78,23 @@ Partial Class TranscriptionForm
         categoryBarPanel.Controls.Add(btnScanToRow1)
         categoryBarPanel.Controls.Add(categoryStrip)
         categoryBarPanel.Controls.Add(btnSpecialCharacters)
+        categoryBarPanel.Controls.Add(btnClearCell)
         categoryBarPanel.Location = New Point(6, 23)
         categoryBarPanel.Name = "categoryBarPanel"
         categoryBarPanel.Size = New Size(872, 28)
         categoryBarPanel.TabIndex = 0
+        ' 
+        ' btnScanToRow1
+        ' 
+        btnScanToRow1.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnScanToRow1.Location = New Point(765, 1)
+        btnScanToRow1.Name = "btnScanToRow1"
+        btnScanToRow1.Size = New Size(34, 25)
+        btnScanToRow1.TabIndex = 8
+        btnScanToRow1.TabStop = False
+        btnScanToRow1.Text = "1"
+        uploadToolTip.SetToolTip(btnScanToRow1, "Move the scan to row 1 (needs to have done ruler setup)")
+        btnScanToRow1.UseVisualStyleBackColor = True
         ' 
         ' categoryStrip
         ' 
@@ -166,13 +181,25 @@ Partial Class TranscriptionForm
         ' btnSpecialCharacters
         ' 
         btnSpecialCharacters.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnSpecialCharacters.Location = New Point(838, 1)
+        btnSpecialCharacters.Location = New Point(801, 1)
         btnSpecialCharacters.Name = "btnSpecialCharacters"
         btnSpecialCharacters.Size = New Size(34, 25)
         btnSpecialCharacters.TabIndex = 7
         btnSpecialCharacters.TabStop = False
         btnSpecialCharacters.Text = "F4"
         btnSpecialCharacters.UseVisualStyleBackColor = True
+        ' 
+        ' btnClearCell
+        ' 
+        btnClearCell.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnClearCell.Location = New Point(838, 1)
+        btnClearCell.Name = "btnClearCell"
+        btnClearCell.Size = New Size(34, 25)
+        btnClearCell.TabIndex = 8
+        btnClearCell.TabStop = False
+        btnClearCell.Text = "F9"
+        uploadToolTip.SetToolTip(btnClearCell, "Clear the current cell (F9)")
+        btnClearCell.UseVisualStyleBackColor = True
         ' 
         ' commandStrip
         ' 
@@ -248,7 +275,7 @@ Partial Class TranscriptionForm
         gridHostPanel.Dock = DockStyle.Fill
         gridHostPanel.Location = New Point(0, 92)
         gridHostPanel.Name = "gridHostPanel"
-        gridHostPanel.Size = New Size(884, 389)
+        gridHostPanel.Size = New Size(884, 367)
         gridHostPanel.TabIndex = 1
         ' 
         ' transcriptionGrid
@@ -266,7 +293,7 @@ Partial Class TranscriptionForm
         transcriptionGrid.SelectionMode = DataGridViewSelectionMode.CellSelect
         transcriptionGrid.ShowEditingIcon = False
         transcriptionGrid.ShowRowErrors = False
-        transcriptionGrid.Size = New Size(884, 389)
+        transcriptionGrid.Size = New Size(884, 367)
         transcriptionGrid.TabIndex = 2
         ' 
         ' statusStrip
@@ -312,21 +339,9 @@ Partial Class TranscriptionForm
         statusPositionLabel.Text = "Row 1"
         statusPositionLabel.TextAlign = ContentAlignment.MiddleRight
         ' 
-        ' btnScanToRow1
-        ' 
-        btnScanToRow1.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnScanToRow1.Location = New Point(798, 1)
-        btnScanToRow1.Name = "btnScanToRow1"
-        btnScanToRow1.Size = New Size(34, 25)
-        btnScanToRow1.TabIndex = 8
-        btnScanToRow1.TabStop = False
-        btnScanToRow1.Text = "1"
-        uploadToolTip.SetToolTip(btnScanToRow1, "Move the scan to row 1 (needs to have doen ruler setup)")
-        btnScanToRow1.UseVisualStyleBackColor = True
-        ' 
         ' TranscriptionForm
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(884, 481)
         Controls.Add(gridHostPanel)
@@ -341,6 +356,7 @@ Partial Class TranscriptionForm
         categoryStrip.ResumeLayout(False)
         commandStrip.ResumeLayout(False)
         commandStrip.PerformLayout()
+        gridHostPanel.ResumeLayout(False)
         CType(transcriptionGrid, ComponentModel.ISupportInitialize).EndInit()
         statusStrip.ResumeLayout(False)
         statusStrip.PerformLayout()
@@ -373,6 +389,7 @@ Partial Class TranscriptionForm
     Friend WithEvents btnFileEditHeader As Button
     Friend WithEvents uploadToolTip As ToolTip
     Friend WithEvents btnSpecialCharacters As Button
+    Friend WithEvents btnClearCell As Button
     Friend WithEvents btnScanToRow1 As Button
 
 End Class

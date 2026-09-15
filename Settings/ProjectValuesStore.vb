@@ -142,9 +142,8 @@ Public Module ProjectValuesStore
                 values.UiFontSize >= 8.0F,
                 values.UiFontSize,
                 SystemFonts.MessageBoxFont.Size)
-
-            ProjectValues.UiFontColourArgb =
-            values.UiFontColourArgb
+            ProjectValues.UiFontStyle = values.UiFontStyle
+            ProjectValues.UiFontColourArgb = values.UiFontColourArgb
 
             ProjectValues.VerifyFontSize =
             If(
@@ -154,9 +153,7 @@ Public Module ProjectValuesStore
             ProjectValues.GridColumnWidths = If(values.GridColumnWidths, New Dictionary(Of String, List(Of Integer)))
 
             ProjectValues.RecentFiles =
-            If(
-                values.RecentFiles,
-                New List(Of String))
+            If(values.RecentFiles, New List(Of String))
         Catch ex As Exception
             ProjectValues.LoadingPersistedValues = False
             Save()
@@ -189,6 +186,7 @@ Public Module ProjectValuesStore
                 .ColourScheme = ProjectValues.ColourScheme,
                 .UiFontName = ProjectValues.UiFontName,
                 .UiFontSize = ProjectValues.UiFontSize,
+                .UiFontStyle = ProjectValues.UiFontStyle,
                 .UiFontColourArgb = ProjectValues.UiFontColourArgb,
                 .VerifyFontSize = ProjectValues.VerifyFontSize,
                 .UserName = ProjectValues.UserName,
@@ -299,10 +297,12 @@ Public Module ProjectValuesStore
         Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
         Public Property UiFontName As String = SystemFonts.MessageBoxFont.FontFamily.Name
         Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size
+        Public Property UiFontStyle As FontStyle = SystemFonts.MessageBoxFont.Style
         Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
         Public Property VerifyFontSize As Single = 12.0F
         Public Property RecentFiles As New List(Of String)
         Public Property HelpFormBounds As New FormBoundsData()
+
     End Class
 
 End Module

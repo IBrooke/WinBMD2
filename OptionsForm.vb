@@ -16,8 +16,10 @@ Public Class OptionsForm
     Private ReadOnly _generalTabImages As New ImageList()
     Private ReadOnly _originalColourScheme As UiColourScheme
     Private _loadingOptionValues As Boolean
-    Private ReadOnly _uiFontComboBox As New ComboBox()
-    Private ReadOnly _uiFontSizeNumeric As New NumericUpDown()
+    Private ReadOnly _uiFontButton As New Button()
+    Private ReadOnly _uiFontPreviewLabel As New Label()
+    Private _selectedUiFont As Font
+    Private _selectedUiFontColour As Color
     Private ReadOnly _verifyFontSizeNumeric As New NumericUpDown()
     Private ReadOnly _entryPanel As New Panel()
     Private ReadOnly _picklistsPanel As New Panel()
@@ -482,36 +484,18 @@ Public Class OptionsForm
         .Location = New Point(22, 152)
     }
 
-        _uiFontComboBox.Name = "uiFontComboBox"
-        _uiFontComboBox.DropDownStyle = ComboBoxStyle.DropDownList
-        _uiFontComboBox.Location = New Point(22, 174)
-        _uiFontComboBox.Size = New Size(230, 23)
+        _uiFontButton.Name = "uiFontButton"
+        _uiFontButton.Text = "Choose Font..."
+        _uiFontButton.Location = New Point(22, 174)
+        _uiFontButton.Size = New Size(110, 28)
 
-        _uiFontComboBox.Items.AddRange(
-        New Object() {
-            "Segoe UI",
-            "Calibri",
-            "Arial",
-            "Tahoma",
-            "Verdana",
-            "Microsoft Sans Serif"
-        })
+        _uiFontPreviewLabel.Name = "uiFontPreviewLabel"
+        _uiFontPreviewLabel.AutoSize = False
+        _uiFontPreviewLabel.Location = New Point(150, 170)
+        _uiFontPreviewLabel.Size = New Size(350, 36)
+        _uiFontPreviewLabel.TextAlign = ContentAlignment.MiddleLeft
 
-        Dim uiFontSizeLabel As New Label With {
-        .Name = "uiFontSizeLabel",
-        .Text = "User interface font size",
-        .AutoSize = True,
-        .ForeColor = UiColors.TextPrimary,
-        .Location = New Point(282, 152)
-    }
-
-        _uiFontSizeNumeric.Name = "uiFontSizeNumeric"
-        _uiFontSizeNumeric.Location = New Point(282, 174)
-        _uiFontSizeNumeric.Size = New Size(72, 23)
-        _uiFontSizeNumeric.Minimum = 8D
-        _uiFontSizeNumeric.Maximum = 20D
-        _uiFontSizeNumeric.DecimalPlaces = 1
-        _uiFontSizeNumeric.Increment = 0.5D
+        AddHandler _uiFontButton.Click, AddressOf UiFontButton_Click
 
         Dim verifyFontSizeLabel As New Label With {
         .Name = "verifyFontSizeLabel",
@@ -542,11 +526,8 @@ Public Class OptionsForm
         _appearanceTab.Controls.Add(colourSchemeLabel)
         _appearanceTab.Controls.Add(_colourSchemeComboBox)
         _appearanceTab.Controls.Add(uiFontLabel)
-        _appearanceTab.Controls.Add(_uiFontComboBox)
-        _appearanceTab.Controls.Add(uiFontSizeLabel)
-        _appearanceTab.Controls.Add(_uiFontSizeNumeric)
-        _appearanceTab.Controls.Add(verifyFontSizeLabel)
-        _appearanceTab.Controls.Add(_verifyFontSizeNumeric)
+        _appearanceTab.Controls.Add(_uiFontButton)
+        _appearanceTab.Controls.Add(_uiFontPreviewLabel)
         _appearanceTab.Controls.Add(verifyHelpLabel)
 
     End Sub
@@ -879,12 +860,9 @@ End Sub
         Try
             _colourSchemeComboBox.SelectedItem = ProjectValues.ColourScheme
             _ignoreAutoCompleteComboBox.SelectedItem = ProjectValues.IgnoreAutoComplete
-            If _uiFontComboBox.Items.Contains(ProjectValues.UiFontName) Then
-                _uiFontComboBox.SelectedItem = ProjectValues.UiFontName
-            Else
-                _uiFontComboBox.Items.Add(ProjectValues.UiFontName)
-                _uiFontComboBox.SelectedItem = ProjectValues.UiFontName
-            End If
+            _selectedUiFont = New Font(ProjectValues.UiFontName, ProjectValues.UiFontSize, ProjectValues.UiFontStyle)
+            _selectedUiFontColour = Color.FromArgb(ProjectValues.UiFontColourArgb)
+            UpdateUiFontPreview()
             _verticalTabToggle.Checked = ProjectValues.EntryMode = EntryMode.Vertical
             _autoShowScanToggle.Checked = ProjectValues.AutoShowScan
             _autoShowRulerToggle.Checked = ProjectValues.AutoShowRuler
@@ -894,12 +872,6 @@ End Sub
             _match3VolCharsToggle.Checked = ProjectValues.Match3VolChars
             _showForenamePickListToggle.Checked = ProjectValues.ShowForenamePickList
             _showDistrictPickListToggle.Checked = ProjectValues.ShowDistrictPickList
-            _uiFontSizeNumeric.Value =
-                Math.Min(
-                    _uiFontSizeNumeric.Maximum,
-                    Math.Max(
-                        _uiFontSizeNumeric.Minimum,
-                        CDec(ProjectValues.UiFontSize)))
 
             _verifyFontSizeNumeric.Value =
                 Math.Min(
@@ -993,11 +965,12 @@ End Sub
         ProjectValues.ShowForenamePickList = _showForenamePickListToggle.Checked
         ProjectValues.ShowDistrictPickList = _showDistrictPickListToggle.Checked
 
-        If _uiFontComboBox.SelectedItem IsNot Nothing Then
-            ProjectValues.UiFontName = _uiFontComboBox.SelectedItem.ToString()
+        If _selectedUiFont IsNot Nothing Then
+            ProjectValues.UiFontName = _selectedUiFont.FontFamily.Name
+            ProjectValues.UiFontSize = _selectedUiFont.SizeInPoints
+            ProjectValues.UiFontStyle = _selectedUiFont.Style
+            ProjectValues.UiFontColourArgb = _selectedUiFontColour.ToArgb()
         End If
-
-        ProjectValues.UiFontSize = CSng(_uiFontSizeNumeric.Value)
 
         ProjectValues.VerifyFontSize = CSng(_verifyFontSizeNumeric.Value)
         Dim diagnosticLoggingWasEnabled As Boolean = ProjectValues.EnableDiagnosticLogging
@@ -1026,6 +999,36 @@ End Sub
 #End Region
 
 #Region "Appearance"
+
+    Private Sub UiFontButton_Click(sender As Object, e As EventArgs)
+
+        Using dialog As New FontDialog()
+
+            dialog.Font = _selectedUiFont
+            dialog.Color = _selectedUiFontColour
+            dialog.ShowColor = True
+            dialog.ShowEffects = True
+
+            If dialog.ShowDialog(Me) <> DialogResult.OK Then Return
+
+            _selectedUiFont = dialog.Font
+            _selectedUiFontColour = dialog.Color
+
+            UpdateUiFontPreview()
+
+        End Using
+
+    End Sub
+
+    Private Sub UpdateUiFontPreview()
+
+        If _selectedUiFont Is Nothing Then Return
+
+        _uiFontPreviewLabel.Font = _selectedUiFont
+        _uiFontPreviewLabel.ForeColor = _selectedUiFontColour
+        _uiFontPreviewLabel.Text = _selectedUiFont.Name & "  " & _selectedUiFont.SizeInPoints.ToString("0.#") & " pt"
+
+    End Sub
 
     Private Sub ApplyOptionsAppearance()
 

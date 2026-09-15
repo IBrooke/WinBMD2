@@ -64,15 +64,10 @@
             Return
         End If
 
-        Dim selected As Boolean =
-        (e.State And DrawItemState.Selected) =
-        DrawItemState.Selected
+        Dim selected As Boolean = (e.State And DrawItemState.Selected) = DrawItemState.Selected
 
         Dim backgroundColor As Color =
-        If(
-            selected,
-            UiColors.Selected,
-            UiColors.PanelBackground)
+        If(selected, UiColors.Selected, UiColors.PanelBackground)
 
         Using backgroundBrush As New SolidBrush(backgroundColor)
             e.Graphics.FillRectangle(backgroundBrush, e.Bounds)
@@ -94,8 +89,7 @@
         TextFormatFlags.VerticalCenter Or
         TextFormatFlags.NoPrefix)
 
-        Dim textLeft As Integer =
-    numberRectangle.Right + 2
+        Dim textLeft As Integer = numberRectangle.Right + 2
 
         If String.IsNullOrWhiteSpace(item.Volume) Then
 
@@ -112,7 +106,7 @@
         item.Text,
         _listBox.Font,
         textRectangle,
-        UiColors.TextPrimary,
+        _listBox.ForeColor,
         TextFormatFlags.Left Or
         TextFormatFlags.VerticalCenter Or
         TextFormatFlags.EndEllipsis Or
@@ -120,8 +114,7 @@
 
         Else
 
-            Dim secondaryWidth As Integer =
-        Math.Max(
+            Dim secondaryWidth As Integer = Math.Max(
             44,
             TextRenderer.MeasureText(
                 item.Volume,
@@ -148,7 +141,7 @@
         item.Text,
         _listBox.Font,
         textRectangle,
-        UiColors.TextPrimary,
+        _listBox.ForeColor,
         TextFormatFlags.Left Or
         TextFormatFlags.VerticalCenter Or
         TextFormatFlags.EndEllipsis Or
@@ -322,11 +315,11 @@
 
     Public Sub ApplyTheme()
 
-        _listBox.Font = UiFonts.Normal
+        _listBox.Font = New Font(ProjectValues.UiFontName, ProjectValues.UiFontSize, ProjectValues.UiFontStyle)
         _listBox.BackColor = UiColors.PanelBackground
-        _listBox.ForeColor = UiColors.TextPrimary
+        _listBox.ForeColor = Color.FromArgb(ProjectValues.UiFontColourArgb)
+        _listBox.ItemHeight = Math.Max(24, CInt(Math.Ceiling(_listBox.Font.GetHeight())) + 8)
         _listBox.Invalidate()
-
     End Sub
 
     Public Sub Dispose() Implements IDisposable.Dispose

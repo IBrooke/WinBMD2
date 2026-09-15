@@ -180,7 +180,9 @@ Public Module ThemeManager
     Public Sub ApplyDataGrid(grid As DataGridView)
 
         grid.EnableHeadersVisualStyles = False
-
+        grid.Font = New Font(ProjectValues.UiFontName, ProjectValues.UiFontSize, ProjectValues.UiFontStyle)
+        grid.DefaultCellStyle.Font = grid.Font
+        grid.DefaultCellStyle.ForeColor = Color.FromArgb(ProjectValues.UiFontColourArgb)
         grid.BackgroundColor = UiColors.PanelBackground
         grid.GridColor = UiColors.GridLine
         grid.BorderStyle = BorderStyle.None
@@ -206,9 +208,6 @@ Public Module ThemeManager
 
         grid.DefaultCellStyle.BackColor =
             UiColors.PanelBackground
-
-        grid.DefaultCellStyle.ForeColor =
-            UiColors.UserText
 
         grid.DefaultCellStyle.SelectionBackColor =
             UiColors.Selected

@@ -145,10 +145,12 @@ Public Module ProjectValues
     Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
     Public Property UiFontName As String = SystemFonts.MessageBoxFont.FontFamily.Name
     Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size
+    Public Property UiFontStyle As FontStyle = SystemFonts.MessageBoxFont.Style
     Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
     Public Property VerifyFontSize As Single = 12.0F
     Public Property ValidationMode As ValidationMode = ValidationMode.Entry
     Public Property RecentFiles As New List(Of String)
+
 #End Region
 #Region "Entry"
 

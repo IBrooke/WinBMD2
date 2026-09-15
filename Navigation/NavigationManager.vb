@@ -100,7 +100,7 @@
                     Return True
                 End If
 
-            Case Keys.Left
+            Case Keys.Left, Keys.Back
 
                 If editor IsNot Nothing Then
 

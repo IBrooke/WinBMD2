@@ -1045,7 +1045,7 @@ Partial Class HeaderForm
         rulesTitleLabel.Name = "rulesTitleLabel"
         rulesTitleLabel.Size = New Size(332, 24)
         rulesTitleLabel.TabIndex = 0
-        rulesTitleLabel.Text = "Helpful information"
+        rulesTitleLabel.Text = ""
         ' 
         ' footerPanel
         ' 
