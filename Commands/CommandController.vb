@@ -163,6 +163,8 @@ Public NotInheritable Class CommandController
             Await _scanView.FindScanAsync()
         End If
 
+        _transcriptionForm.FocusGridRow(0)
+
     End Sub
     Public Sub ToggleVerify() Implements ICommandExecutor.ToggleVerify
 

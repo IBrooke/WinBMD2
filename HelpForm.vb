@@ -7,8 +7,7 @@ Public Class HelpForm
 
         InitializeComponent()
 
-        Dim names() As String =
-        Reflection.Assembly.GetExecutingAssembly().GetManifestResourceNames()
+        Dim names() As String = Reflection.Assembly.GetExecutingAssembly().GetManifestResourceNames()
 
         For Each name As String In names
             DebugLog.Write("[HELP] Resource: " & name)

@@ -88,14 +88,14 @@
         Select Case e.KeyCode
             Case Keys.Up
 
-                If _owner.PickListIsActive Then
+                If e.Alt AndAlso _owner.PickListIsActive Then
                     _owner.MovePickListSelectionUp()
                     Return True
                 End If
 
             Case Keys.Down
 
-                If _owner.PickListIsActive Then
+                If e.Alt AndAlso _owner.PickListIsActive Then
                     _owner.MovePickListSelectionDown()
                     Return True
                 End If
@@ -104,8 +104,7 @@
 
                 If editor IsNot Nothing Then
 
-                    If editor.SelectionStart <> 0 OrElse
-           editor.SelectionLength <> 0 Then
+                    If editor.SelectionStart <> 0 OrElse editor.SelectionLength <> 0 Then
 
                         Return False
 
@@ -120,8 +119,7 @@
 
                 If editor IsNot Nothing Then
 
-                    If editor.SelectionStart <> editor.TextLength OrElse
-           editor.SelectionLength <> 0 Then
+                    If editor.SelectionStart <> editor.TextLength OrElse editor.SelectionLength <> 0 Then
 
                         Return False
 
@@ -192,8 +190,7 @@
         Select Case ProjectValues.IgnoreAutoComplete
 
             Case IgnoreAutoCompleteKey.All
-                Return key = Keys.Tab OrElse
-                       key = Keys.Enter
+                Return key = Keys.Tab OrElse key = Keys.Enter
 
             Case IgnoreAutoCompleteKey.Tab
                 Return key = Keys.Tab

@@ -2598,6 +2598,16 @@ $"{ProjectValues.BatchName}    Row {rowNumber}, {column.HeaderText}"
     Private Sub NavigationKeyDown(sender As Object, e As KeyEventArgs) Handles transcriptionGrid.KeyDown
         _suppressNextAutoComplete = e.KeyCode = Keys.Back OrElse e.KeyCode = Keys.Delete
 
+        If e.KeyCode = Keys.F1 Then
+
+            btnCategoryHelp.PerformClick()
+
+            e.Handled = True
+            e.SuppressKeyPress = True
+            Return
+
+        End If
+
         If e.KeyCode = Keys.F4 Then
 
             ShowSpecialCharacters(TryCast(sender, TextBox))
