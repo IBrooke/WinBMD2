@@ -30,7 +30,9 @@ Public Class ScanView
         _verifyBar.FocusFirstBox()
 
     End Sub
+
     Public Sub New(commandExecutor As ICommandExecutor)
+
         InitializeComponent()
 
         lblZoomValue.BackColor = Color.Transparent
@@ -38,6 +40,7 @@ Public Class ScanView
         _rulerController = New RulerController(_viewer)
         Controls.Add(_viewer)
         AddHandler _viewer.PanChanged, AddressOf Viewer_PanChanged
+        AddHandler _viewer.DragFinished, AddressOf Viewer_DragFinished
         _viewer.BringToFront()
         scanTopPanel.BringToFront()
         RestoreFormBounds()
@@ -48,42 +51,40 @@ Public Class ScanView
         Controls.Add(_verifyBar)
         _verifyBar.BringToFront()
         AddHandler _verifyBar.VerifiedClicked, AddressOf VerifyBar_VerifiedClicked
+
     End Sub
+
     Private Sub RestoreFormBounds()
 
-        FormBoundsHelper.RestoreForm(
-        Me,
-        ProjectValues.ScanViewLeft,
-        ProjectValues.ScanViewTop,
-        ProjectValues.ScanViewWidth,
-        ProjectValues.ScanViewHeight,
-        ProjectValues.ScanViewMaximized)
+        FormBoundsHelper.RestoreForm(Me, ProjectValues.ScanViewLeft, ProjectValues.ScanViewTop, ProjectValues.ScanViewWidth, ProjectValues.ScanViewHeight, ProjectValues.ScanViewMaximized)
 
     End Sub
 
     Private Sub SaveFormBounds()
 
-        Dim boundsToSave As Rectangle =
-        FormBoundsHelper.GetBoundsToSave(Me)
+        Dim boundsToSave As Rectangle = FormBoundsHelper.GetBoundsToSave(Me)
 
         ProjectValues.ScanViewLeft = boundsToSave.Left
         ProjectValues.ScanViewTop = boundsToSave.Top
         ProjectValues.ScanViewWidth = boundsToSave.Width
         ProjectValues.ScanViewHeight = boundsToSave.Height
-
-        ProjectValues.ScanViewMaximized =
-        FormBoundsHelper.ShouldRestoreMaximized(Me)
+        ProjectValues.ScanViewMaximized = FormBoundsHelper.ShouldRestoreMaximized(Me)
 
         ProjectValuesStore.Save()
 
-        DebugLog.Write(
-        "[FORM] ScanView bounds saved: " &
-        "Left=" & boundsToSave.Left.ToString() &
-        ", Top=" & boundsToSave.Top.ToString() &
-        ", Width=" & boundsToSave.Width.ToString() &
-        ", Height=" & boundsToSave.Height.ToString() &
-        ", Maximized=" &
-        ProjectValues.ScanViewMaximized.ToString())
+        DebugLog.Write("[FORM] ScanView bounds saved: " &
+                       "Left=" & boundsToSave.Left.ToString() &
+                       ", Top=" & boundsToSave.Top.ToString() &
+                       ", Width=" & boundsToSave.Width.ToString() &
+                       ", Height=" & boundsToSave.Height.ToString() &
+                       ", Maximized=" & ProjectValues.ScanViewMaximized.ToString())
+
+    End Sub
+    Private Sub Viewer_DragFinished(sender As Object, e As EventArgs)
+
+        If _rulerController.Stage = RulerSetupStage.AwaitingRow1 OrElse _rulerController.Stage = RulerSetupStage.AwaitingRow10 Then Return
+
+        _commandExecutor.RestoreGridFocus()
 
     End Sub
     Private Sub btnOpenScan_Click(sender As Object, e As EventArgs) Handles btnOpenScan.Click
@@ -94,44 +95,42 @@ Public Class ScanView
             dialog.Filter = "Image files (*.jpg;*.jpeg;*.png;*.tif;*.tiff)|*.jpg;*.jpeg;*.png;*.tif;*.tiff|All files (*.*)|*.*"
             dialog.InitialDirectory = AppPaths.DownloadedScansFolder
 
-            If dialog.ShowDialog(Me) <> DialogResult.OK Then
-                Return
-            End If
+            If dialog.ShowDialog(Me) <> DialogResult.OK Then Return
 
             _viewer.LoadImage(dialog.FileName)
             Text = "WinBMD2 Scan - " & Path.GetFileName(dialog.FileName)
             RestoreScanViewSettings()
+
         End Using
 
     End Sub
+
     Public ReadOnly Property HasScan As Boolean
         Get
             Return _viewer.HasImage
         End Get
     End Property
+
     Public Sub ClearScan()
 
         _viewer.ClearImage()
         Text = "WinBMD2 Scan"
 
     End Sub
+
     Private Function GetScanViewKey() As String
 
-        Return ProjectValues.BatchType & "|" &
-           ProjectValues.Year.ToString() & "|" &
-           ProjectValues.Quarter.ToString()
+        Return ProjectValues.BatchType & "|" & ProjectValues.Year.ToString() & "|" & ProjectValues.Quarter.ToString()
 
     End Function
+
     Private Sub SaveScanViewSettings()
 
-        If Not _viewer.HasImage Then
-            Return
-        End If
+        If Not _viewer.HasImage Then Return
 
         Dim key As String = GetScanViewKey()
 
-        ProjectValues.ScanViewSettings(key) =
-        New ScanViewData With {
+        ProjectValues.ScanViewSettings(key) = New ScanViewData With {
             .Zoom = _viewer.Zoom,
             .Rotation = _viewer.Rotation,
             .PanX = _viewer.GetImagePanX()
@@ -140,22 +139,21 @@ Public Class ScanView
         ProjectValuesStore.Save()
 
     End Sub
+
     Private Sub Viewer_PanChanged(sender As Object, e As EventArgs)
 
         SaveScanViewSettings()
 
     End Sub
+
     Private Sub btnRuler_Click(sender As Object, e As EventArgs) Handles btnRuler.Click
 
         If _viewer.ShowRuler Then
 
             _viewer.ShowRuler = False
 
-            If _rulerController.Stage = RulerSetupStage.AwaitingRow1 OrElse
-           _rulerController.Stage = RulerSetupStage.AwaitingRow10 Then
-
+            If _rulerController.Stage = RulerSetupStage.AwaitingRow1 OrElse _rulerController.Stage = RulerSetupStage.AwaitingRow10 Then
                 _rulerController.CancelSetup()
-
             End If
 
             CloseRulerInstruction()
@@ -164,7 +162,6 @@ Public Class ScanView
         End If
 
         _viewer.ShowRuler = True
-
         _rulerController.StartSetup()
 
         Dim key As String = GetScanViewKey()
@@ -178,36 +175,29 @@ Public Class ScanView
 
         _viewer.Focus()
 
-        ShowRulerInstruction(
-        "Ruler Setup — Row 1",
-        "Position the scan so the ruler is centred on transcription row 1.",
-        "Drag the scan or use the arrow keys for fine adjustment. Press Enter when ready.",
-        My.Resources.WinBMDResources.Row1)
+        ShowRulerInstruction("Ruler Setup — Row 1",
+                             "Position the scan so the ruler is centred on transcription row 1.",
+                             "Drag the scan or use the arrow keys for fine adjustment. Press Enter when ready.",
+                             My.Resources.WinBMDResources.Row1)
 
     End Sub
+
     Private Function GetSavedRulerImageY(rowNumber As Integer) As Single
 
-        If rowNumber <> 1 AndAlso rowNumber <> 10 Then
-            Return Single.NaN
-        End If
+        If rowNumber <> 1 AndAlso rowNumber <> 10 Then Return Single.NaN
 
         Dim key As String = GetScanViewKey()
         Dim settings As RulerData = Nothing
 
-        If Not ProjectValues.RulerSettings.TryGetValue(key, settings) Then
-            Return Single.NaN
-        End If
+        If Not ProjectValues.RulerSettings.TryGetValue(key, settings) Then Return Single.NaN
 
-        If rowNumber = 1 Then
-            Return settings.Row1ImageY
-        End If
+        If rowNumber = 1 Then Return settings.Row1ImageY
 
         Return settings.Row1ImageY + (9.0F * settings.RowStepImageY)
 
     End Function
-    Private Sub ScanView_FormClosing(
-        sender As Object,
-        e As FormClosingEventArgs) Handles Me.FormClosing
+
+    Private Sub ScanView_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
 
         SaveFormBounds()
 
@@ -218,6 +208,7 @@ Public Class ScanView
         Await FindScanAsync()
 
     End Sub
+
     Public Async Function FindScanAsync() As Task
 
         btnFindScan.Enabled = False
@@ -230,12 +221,9 @@ Public Class ScanView
         Try
 
             Dim locator As New ScanLocator()
+            Dim result As ScanSearchResult = Await locator.LocateScanAsync()
 
-            Dim result As ScanSearchResult =
-                Await locator.LocateScanAsync()
-
-            If result.Success AndAlso
-               Not String.IsNullOrWhiteSpace(result.LocalPath) Then
+            If result.Success AndAlso Not String.IsNullOrWhiteSpace(result.LocalPath) Then
 
                 _viewer.LoadImage(result.LocalPath)
                 Text = "WinBMD2 Scan - " & Path.GetFileName(result.LocalPath)
@@ -246,39 +234,28 @@ Public Class ScanView
 
             End If
 
-            If result.AlternativeFound AndAlso
-               Not String.IsNullOrWhiteSpace(result.AlternativeSourceRef) Then
+            If result.AlternativeFound AndAlso Not String.IsNullOrWhiteSpace(result.AlternativeSourceRef) Then
 
-                Dim useAlternative As DialogResult =
-                    MessageBox.Show(
-                        Me,
-                        result.Message &
-                        Environment.NewLine &
-                        Environment.NewLine &
-                        $"A matching scan was found under Source Reference '{result.AlternativeSourceRef}'." &
-                        Environment.NewLine &
-                        Environment.NewLine &
-                        $"File: {result.AlternativeFileName}" &
-                        Environment.NewLine &
-                        Environment.NewLine &
-                        "Do you want to use this alternative scan?",
-                        "Alternative Scan Found",
-                        MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question)
+                Dim useAlternative As DialogResult = MessageBox.Show(
+                    Me,
+                    result.Message & Environment.NewLine & Environment.NewLine &
+                    $"A matching scan was found under Source Reference '{result.AlternativeSourceRef}'." & Environment.NewLine & Environment.NewLine &
+                    $"File: {result.AlternativeFileName}" & Environment.NewLine & Environment.NewLine &
+                    "Do you want to use this alternative scan?",
+                    "Alternative Scan Found",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question)
 
                 If useAlternative = DialogResult.Yes Then
 
-                    DebugLog.Write(
-                        $"[SCAN SOURCE] User accepted alternative SourceRef '{result.AlternativeSourceRef}'.")
+                    DebugLog.Write($"[SCAN SOURCE] User accepted alternative SourceRef '{result.AlternativeSourceRef}'.")
 
-                    Dim alternativeResult As ScanSearchResult =
-                        Await locator.DownloadAlternativeScanAsync(result)
+                    Dim alternativeResult As ScanSearchResult = Await locator.DownloadAlternativeScanAsync(result)
 
-                    If alternativeResult.Success AndAlso
-                       Not String.IsNullOrWhiteSpace(alternativeResult.LocalPath) Then
+                    If alternativeResult.Success AndAlso Not String.IsNullOrWhiteSpace(alternativeResult.LocalPath) Then
 
                         _viewer.LoadImage(alternativeResult.LocalPath)
-                        Text = "Scan: " & Path.GetFileName(result.LocalPath)
+                        Text = "WinBMD2 Scan - " & Path.GetFileName(alternativeResult.LocalPath)
                         RestoreScanViewSettings()
                         scanStatusLabel.Text = "Scan loaded."
 
@@ -286,13 +263,7 @@ Public Class ScanView
 
                     End If
 
-                    MessageBox.Show(
-                        Me,
-                        alternativeResult.Message,
-                        "Find Scan",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information)
-
+                    MessageBox.Show(Me, alternativeResult.Message, "Find Scan", MessageBoxButtons.OK, MessageBoxIcon.Information)
                     Return
 
                 End If
@@ -301,24 +272,19 @@ Public Class ScanView
 
             End If
 
-            MessageBox.Show(
-                Me,
-                result.Message,
-                "Find Scan",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information)
+            MessageBox.Show(Me, result.Message, "Find Scan", MessageBoxButtons.OK, MessageBoxIcon.Information)
 
         Finally
 
             ScanProgressBar.Visible = False
             scanStatusLabel.Visible = False
-
             btnFindScan.Enabled = True
             btnOpenScan.Enabled = True
 
         End Try
 
     End Function
+
     Private Sub RestoreScanViewSettings()
 
         Dim key As String = GetScanViewKey()
@@ -338,11 +304,12 @@ Public Class ScanView
 
         End If
 
-        If ProjectValues.AutoShowRuler Then
-            AutoShowRuler()
-        End If
+        If ProjectValues.AutoShowRuler Then AutoShowRuler()
+
         UpdateZoomDisplay()
+
     End Sub
+
     Public Sub ApplyColourScheme()
 
         ThemeManager.Apply(Me)
@@ -357,88 +324,85 @@ Public Class ScanView
         ' Repaint so a visible ruler uses the current colour scheme.
         _viewer.Invalidate()
 
-        If _rulerInstructionForm IsNot Nothing AndAlso
-       Not _rulerInstructionForm.IsDisposed Then
-
+        If _rulerInstructionForm IsNot Nothing AndAlso Not _rulerInstructionForm.IsDisposed Then
             _rulerInstructionForm.ApplyColours()
-
         End If
 
         Invalidate(True)
 
     End Sub
+
     Private Sub btnZoomIn_Click(sender As Object, e As EventArgs) Handles btnZoomIn.Click
+
         _viewer.ZoomIn()
         UpdateZoomDisplay()
         SaveScanViewSettings()
+
     End Sub
+
     Private Sub UpdateZoomDisplay()
+
         lblZoomValue.Text = CInt(Math.Round(_viewer.Zoom * 100.0F)).ToString() & "%"
+
     End Sub
+
     Private Sub btnZoomOut_Click(sender As Object, e As EventArgs) Handles btnZoomOut.Click
+
         _viewer.ZoomOut()
         UpdateZoomDisplay()
         SaveScanViewSettings()
+
     End Sub
 
     Private Sub btnRotateLeft_Click(sender As Object, e As EventArgs) Handles btnRotateLeft.Click
+
         _viewer.RotateLeft()
         SaveScanViewSettings()
+
     End Sub
 
     Private Sub btnRotateRight_Click(sender As Object, e As EventArgs) Handles btnRotateRight.Click
+
         _viewer.RotateRight()
         SaveScanViewSettings()
+
     End Sub
-    Private Sub ShowRulerInstruction(
-    stepText As String,
-    message As String,
-    hint As String,
-    instructionImage As Image)
 
-        If _rulerInstructionForm Is Nothing OrElse
-       _rulerInstructionForm.IsDisposed Then
+    Private Sub ShowRulerInstruction(stepText As String, message As String, hint As String, instructionImage As Image)
 
+        If _rulerInstructionForm Is Nothing OrElse _rulerInstructionForm.IsDisposed Then
             _rulerInstructionForm = New RulerInstructionForm()
-
         End If
 
-        _rulerInstructionForm.ShowStep(
-    stepText,
-    message,
-    hint,
-    instructionImage)
+        _rulerInstructionForm.ShowStep(stepText, message, hint, instructionImage)
+        Dim rightOffset As Integer = _viewer.ScaleForCurrentDpi(30)
+        Dim topOffset As Integer = _viewer.ScaleForCurrentDpi(70)
 
-        _rulerInstructionForm.Location =
-    New Point(
-        Right - _rulerInstructionForm.Width - 30,
-        Top + 70)
+        _rulerInstructionForm.Location = New Point(Right - _rulerInstructionForm.Width - rightOffset, Top + topOffset)
 
         If Not _rulerInstructionForm.Visible Then
             _rulerInstructionForm.Show(Me)
         End If
 
         _rulerInstructionForm.BringToFront()
-
         _viewer.Focus()
 
     End Sub
+
     Private Sub CloseRulerInstruction()
 
-        If _rulerInstructionForm Is Nothing Then
-            Return
-        End If
+        If _rulerInstructionForm Is Nothing Then Return
 
         _rulerInstructionForm.Close()
         _rulerInstructionForm.Dispose()
         _rulerInstructionForm = Nothing
 
     End Sub
-    Protected Overrides Function ProcessCmdKey(
-    ByRef msg As Message,
-    keyData As Keys) As Boolean
 
-        Const nudge As Single = 2.0F
+    Protected Overrides Function ProcessCmdKey(ByRef msg As Message, keyData As Keys) As Boolean
+
+        Dim screenWidth As Integer = Screen.FromControl(Me).Bounds.Width
+        Dim nudge As Single = 3.0F * (screenWidth / 1920.0F)
 
         Select Case keyData And Keys.KeyCode
 
@@ -463,18 +427,17 @@ Public Class ScanView
                 If _rulerController.Stage = RulerSetupStage.AwaitingRow1 Then
 
                     _rulerController.ConfirmCurrentPosition()
+
                     Dim imageY As Single = GetSavedRulerImageY(10)
 
                     If Not Single.IsNaN(imageY) Then
-                        _viewer.PositionImageYAtScreenY(
-        imageY,
-        _viewer.RulerScreenY)
+                        _viewer.PositionImageYAtScreenY(imageY, _viewer.RulerScreenY)
                     End If
 
-                    ShowRulerInstruction(
-        "Ruler Setup — Row 10",
-        "Now position the scan so the ruler is centred on transcription row 10.",
-        "Use the mouse or arrow keys to adjust the scan. Press Enter when ready.", My.Resources.WinBMDResources.Row10)
+                    ShowRulerInstruction("Ruler Setup — Row 10",
+                                         "Now position the scan so the ruler is centred on transcription row 10.",
+                                         "Use the mouse or arrow keys to adjust the scan. Press Enter when ready.",
+                                         My.Resources.WinBMDResources.Row10)
 
                     Return True
 
@@ -484,24 +447,21 @@ Public Class ScanView
 
                     _rulerController.ConfirmCurrentPosition()
                     SaveRulerSettings()
-                    ShowRulerInstruction(
-    "Ruler Setup Complete",
-   $"The ruler has been calibrated. Row spacing is {Math.Abs(_rulerController.RowStepImageY):0.##} image pixels.",
-    "Press Enter to return to the transcription grid.", Nothing)
 
-                    DebugLog.Write(
-                    $"[RULER] Setup complete. ShowRuler={_viewer.ShowRuler}")
+                    ShowRulerInstruction("Ruler Setup Complete",
+                                         $"The ruler has been calibrated. Row spacing is {Math.Abs(_rulerController.RowStepImageY):0.##} image pixels.",
+                                         "Press Enter to return to the transcription grid.",
+                                         Nothing)
+
+                    DebugLog.Write($"[RULER] Setup complete. ShowRuler={_viewer.ShowRuler}")
 
                     Return True
 
                 End If
 
-                If _rulerController.Stage = RulerSetupStage.Complete AndAlso
-   _rulerInstructionForm IsNot Nothing AndAlso
-   _rulerInstructionForm.Visible Then
+                If _rulerController.Stage = RulerSetupStage.Complete AndAlso _rulerInstructionForm IsNot Nothing AndAlso _rulerInstructionForm.Visible Then
 
                     CloseRulerInstruction()
-
                     RaiseEvent RulerSetupFinished(Me, EventArgs.Empty)
 
                     Return True
@@ -513,47 +473,43 @@ Public Class ScanView
         Return MyBase.ProcessCmdKey(msg, keyData)
 
     End Function
+
     Private Sub AutoShowRuler()
 
         Dim key As String = GetScanViewKey()
         Dim settings As RulerData = Nothing
 
         If Not ProjectValues.RulerSettings.TryGetValue(key, settings) Then
-
             DebugLog.Write($"[RULER] Auto-show skipped. No saved settings for {key}.")
             Return
-
         End If
 
         _rulerController.LoadCalibration(settings.Row1ImageY, settings.RowStepImageY)
-
         _viewer.PositionImageYAtScreenY(settings.Row1ImageY, _viewer.RulerScreenY)
         _viewer.ShowRuler = True
 
         DebugLog.Write($"[RULER] Auto-show. Key={key}, Row1ImageY={settings.Row1ImageY:0.###}, RowStepImageY={settings.RowStepImageY:0.###}")
 
     End Sub
+
     Public Sub ToggleVerify()
 
-        _verifyBar.Visible = Not _verifyBar.Visible
+        SetVerifyVisible(Not _verifyBar.Visible)
 
     End Sub
+
     Public Sub SetVerifyVisible(visible As Boolean)
 
         DebugLog.WriteAlways($"[VERIFY] SetVerifyVisible called. Visible={visible}")
 
         If visible Then
 
-            Dim fields() As GridField =
-        GridLayout.GetVisibleFields().
-        Where(Function(field) FieldMetaData.Meta(field).IsDataColumn).
-        ToArray()
+            Dim fields() As GridField = GridLayout.GetVisibleFields().Where(Function(field) FieldMetaData.Meta(field).IsDataColumn).ToArray()
 
             _verifyBar.ConfigureFields(fields)
 
             _rulerWasVisibleBeforeVerify = _viewer.ShowRuler
             _rulerPanYBeforeVerify = _viewer.GetImagePanY()
-
             _viewer.ShowRuler = False
 
         Else
@@ -566,90 +522,99 @@ Public Class ScanView
         _verifyBar.Visible = visible
 
     End Sub
-    Private Sub VerifyBar_VerifiedClicked(
-    sender As Object,
-    e As EventArgs)
+
+    Private Sub VerifyBar_VerifiedClicked(sender As Object, e As EventArgs)
 
         _commandExecutor.CompleteVerifyRow()
 
     End Sub
+
     Public Sub MoveScanToVerifyRow(rowNumber As Integer)
 
-        If Not _verifyBar.Visible Then
-            Return
-        End If
+        If Not _verifyBar.Visible Then Return
 
         Dim key As String = GetScanViewKey()
         Dim settings As RulerData = Nothing
 
-        If Not ProjectValues.RulerSettings.TryGetValue(key, settings) Then
-            Return
-        End If
+        If Not ProjectValues.RulerSettings.TryGetValue(key, settings) Then Return
 
         _viewer.ShowRuler = False
 
         Dim rowImageY As Single = settings.Row1ImageY + ((rowNumber - 1) * settings.RowStepImageY)
-
         Dim rowHeightScreen As Single = GetScanRowDistance()
-
         Dim targetScreenY As Single = _viewer.ClientSize.Height - rowHeightScreen
 
         _viewer.PositionImageYAtScreenY(rowImageY, targetScreenY)
 
     End Sub
+
     Public Sub MoveRulerToRow(rowNumber As Integer)
 
         If Not _viewer.ShowRuler Then
+            _rulerController.SetCurrentRow(rowNumber)
             Return
         End If
 
         _rulerController.MoveToRow(rowNumber)
 
     End Sub
-    Friend Sub MoveScanByRows(deltaRows As Integer)
+    ' Updates the ruler controller's current grid row without moving the ruler.
+    Public Sub SetCurrentRulerRow(rowNumber As Integer)
+
+        _rulerController.SetCurrentRow(rowNumber)
+
+    End Sub
+    ' Moves the scan to the saved row 1 position without changing the current grid row.
+    Public Sub MoveScanToRow1()
+
+        If Not _viewer.ShowRuler Then Return
+
+        _rulerController.MoveScanToRow1()
+
+    End Sub
+    Friend Sub MoveScanByRows(deltaRows As Single)
 
         _rulerController.MoveByRows(deltaRows)
 
     End Sub
+
     Public ReadOnly Property VerifyVisible As Boolean
         Get
             Return _verifyBar.Visible
         End Get
     End Property
+
     Private Sub SaveRulerSettings()
 
-        If _rulerController.Stage <> RulerSetupStage.Complete Then
-            Return
-        End If
+        If _rulerController.Stage <> RulerSetupStage.Complete Then Return
 
         Dim key As String = GetScanViewKey()
 
-        ProjectValues.RulerSettings(key) =
-            New RulerData With {
-                .Row1ImageY = _rulerController.Row1ImageY,
-                .RowStepImageY = _rulerController.RowStepImageY
-            }
+        ProjectValues.RulerSettings(key) = New RulerData With {
+            .Row1ImageY = _rulerController.Row1ImageY,
+            .RowStepImageY = _rulerController.RowStepImageY
+        }
 
         ProjectValuesStore.Save()
 
-        DebugLog.Write(
-            $"[RULER] Settings saved. Key={key}, " &
-            $"Row1ImageY={_rulerController.Row1ImageY:0.###}, " &
-            $"RowStepImageY={_rulerController.RowStepImageY:0.###}")
+        DebugLog.Write($"[RULER] Settings saved. Key={key}, " &
+                       $"Row1ImageY={_rulerController.Row1ImageY:0.###}, " &
+                       $"RowStepImageY={_rulerController.RowStepImageY:0.###}")
 
     End Sub
+
     Friend Sub NudgeViewer(deltaX As Single, deltaY As Single)
 
         _viewer.NudgeImage(deltaX, deltaY)
 
     End Sub
+
     Friend Function GetScanRowDistance() As Single
 
-        If _rulerController.RowStepImageY = 0.0F Then
-            Return 0.0F
-        End If
+        If _rulerController.RowStepImageY = 0.0F Then Return 0.0F
 
         Return Math.Abs(_rulerController.RowStepImageY * _viewer.Zoom)
 
     End Function
+
 End Class

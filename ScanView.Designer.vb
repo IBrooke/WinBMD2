@@ -85,9 +85,9 @@ Partial Class ScanView
         btnRotateRight.FlatAppearance.MouseDownBackColor = Color.FromArgb(CByte(220), CByte(245), CByte(244))
         btnRotateRight.FlatAppearance.MouseOverBackColor = Color.FromArgb(CByte(220), CByte(245), CByte(244))
         btnRotateRight.FlatStyle = FlatStyle.Flat
-        btnRotateRight.Font = New Font("Segoe UI Symbol", 14.0F)
+        btnRotateRight.Font = New Font("Segoe UI Symbol", 14F)
         btnRotateRight.ForeColor = Color.FromArgb(CByte(35), CByte(42), CByte(52))
-        btnRotateRight.Location = New Point(559, 2)
+        btnRotateRight.Location = New Point(613, 2)
         btnRotateRight.Margin = New Padding(3, 0, 3, 0)
         btnRotateRight.Name = "btnRotateRight"
         btnRotateRight.Size = New Size(36, 36)
@@ -106,9 +106,9 @@ Partial Class ScanView
         btnRotateLeft.FlatAppearance.MouseDownBackColor = Color.FromArgb(CByte(220), CByte(245), CByte(244))
         btnRotateLeft.FlatAppearance.MouseOverBackColor = Color.FromArgb(CByte(220), CByte(245), CByte(244))
         btnRotateLeft.FlatStyle = FlatStyle.Flat
-        btnRotateLeft.Font = New Font("Segoe UI Symbol", 14.0F)
+        btnRotateLeft.Font = New Font("Segoe UI Symbol", 14F)
         btnRotateLeft.ForeColor = Color.FromArgb(CByte(35), CByte(42), CByte(52))
-        btnRotateLeft.Location = New Point(599, 2)
+        btnRotateLeft.Location = New Point(571, 2)
         btnRotateLeft.Margin = New Padding(3, 0, 3, 0)
         btnRotateLeft.Name = "btnRotateLeft"
         btnRotateLeft.Size = New Size(36, 36)
@@ -127,7 +127,7 @@ Partial Class ScanView
         btnZoomIn.FlatAppearance.MouseDownBackColor = Color.FromArgb(CByte(220), CByte(245), CByte(244))
         btnZoomIn.FlatAppearance.MouseOverBackColor = Color.FromArgb(CByte(220), CByte(245), CByte(244))
         btnZoomIn.FlatStyle = FlatStyle.Flat
-        btnZoomIn.Font = New Font("Segoe UI Symbol", 14.0F)
+        btnZoomIn.Font = New Font("Segoe UI Symbol", 14F)
         btnZoomIn.ForeColor = Color.FromArgb(CByte(35), CByte(42), CByte(52))
         btnZoomIn.Location = New Point(655, 2)
         btnZoomIn.Margin = New Padding(3, 0, 3, 0)
@@ -148,7 +148,7 @@ Partial Class ScanView
         btnZoomOut.FlatAppearance.MouseDownBackColor = Color.FromArgb(CByte(220), CByte(245), CByte(244))
         btnZoomOut.FlatAppearance.MouseOverBackColor = Color.FromArgb(CByte(220), CByte(245), CByte(244))
         btnZoomOut.FlatStyle = FlatStyle.Flat
-        btnZoomOut.Font = New Font("Segoe UI Symbol", 14.0F)
+        btnZoomOut.Font = New Font("Segoe UI Symbol", 14F)
         btnZoomOut.ForeColor = Color.FromArgb(CByte(35), CByte(42), CByte(52))
         btnZoomOut.Location = New Point(729, 2)
         btnZoomOut.Margin = New Padding(3, 0, 3, 0)
@@ -214,7 +214,7 @@ Partial Class ScanView
         ' 
         ' ScanView
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(777, 481)
         Controls.Add(scanTopPanel)

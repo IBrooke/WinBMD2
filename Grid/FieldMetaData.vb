@@ -189,16 +189,6 @@ Public Module FieldMetaData
             }
         },
         {
-            GridField.Directive,
-            New FieldMeta With {
-                .Header = "Directives",
-                .Align = CellTextAlign.Center,
-                .PreferredWidth = 100,
-                .MinWidth = 90,
-                .IsDataColumn = False
-            }
-        },
-        {
             GridField.Verified,
             New FieldMeta With {
                 .Header = "Verified",

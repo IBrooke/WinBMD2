@@ -7,6 +7,7 @@ Public Class ScanViewerControl
 
     Public Event EnterPressed As EventHandler
     Public Event PanChanged As EventHandler
+    Public Event DragFinished As EventHandler
     Private _image As Image
     Private _imageOffsetX As Integer
     Private _imageOffsetY As Integer
@@ -18,12 +19,20 @@ Public Class ScanViewerControl
     Private _zoom As Single = 1.0F
     Private _rotation As Single = 0.0F
 
+    Private _magnifierForm As Form
+    Private _magnifierBox As PictureBox
+    Private _magnifierActive As Boolean
+
+    Private Const MagnifierLogicalSize As Integer = 120
+    Private Const MagnifierLogicalOffset As Integer = 20
+    Private Const StandardDpi As Integer = 96
+
     Private Const MinZoom As Single = 0.05F
     Private Const MaxZoom As Single = 8.0F
 
     Private _showRuler As Boolean
     Private _rulerScreenY As Single
-    Private Const _rulerBandHeight As Single = 12.0F
+
     <DefaultValue(False)>
     Public Property ShowRuler As Boolean
         Get
@@ -56,6 +65,12 @@ Public Class ScanViewerControl
     Public ReadOnly Property HasImage As Boolean
         Get
             Return _image IsNot Nothing
+        End Get
+    End Property
+    Public ReadOnly Property ImageHeight As Integer
+        Get
+            If _image Is Nothing Then Return 0
+            Return _image.Height
         End Get
     End Property
     <DefaultValue(1.0F)>
@@ -176,25 +191,18 @@ Public Class ScanViewerControl
     End Sub
     Protected Overrides Sub OnPaint(e As PaintEventArgs)
 
+        Dim paintStarted As Long = Stopwatch.GetTimestamp()
+
         MyBase.OnPaint(e)
 
         e.Graphics.Clear(BackColor)
 
-        If _image Is Nothing Then
-            Return
-        End If
+        If _image Is Nothing Then Return
 
-        e.Graphics.InterpolationMode =
-        Drawing2D.InterpolationMode.HighQualityBicubic
-
-        e.Graphics.PixelOffsetMode =
-        Drawing2D.PixelOffsetMode.HighQuality
-
-        e.Graphics.SmoothingMode =
-        Drawing2D.SmoothingMode.HighQuality
+        e.Graphics.InterpolationMode = Drawing2D.InterpolationMode.Bilinear
+        e.Graphics.PixelOffsetMode = Drawing2D.PixelOffsetMode.Default
 
         Dim scaledWidth As Single = _image.Width * _zoom
-
         Dim scaledHeight As Single = _image.Height * _zoom
 
         ' Include the ScrollableControl position so mouse-wheel scrolling and repainting
@@ -202,32 +210,72 @@ Public Class ScanViewerControl
         Dim x As Single = _imageOffsetX + _panX + AutoScrollPosition.X
         Dim y As Single = _imageOffsetY + _panY + AutoScrollPosition.Y
 
-        e.Graphics.TranslateTransform(
-        x + scaledWidth / 2.0F,
-        y + scaledHeight / 2.0F)
+        ' Make sure that at least part of the image remains visible.
+        If x >= ClientSize.Width OrElse x + scaledWidth <= 0 Then
+            _panX = 0.0F
+            x = _imageOffsetX + AutoScrollPosition.X
+            DebugLog.WriteAlways("[SCAN] Horizontal image position was outside the viewer and has been reset.")
+            RaiseEvent PanChanged(Me, EventArgs.Empty)
+        End If
 
+        If y >= ClientSize.Height OrElse y + scaledHeight <= 0 Then
+            _panY = 0.0F
+            y = _imageOffsetY + AutoScrollPosition.Y
+            DebugLog.WriteAlways("[SCAN] Vertical image position was outside the viewer and has been reset.")
+            RaiseEvent PanChanged(Me, EventArgs.Empty)
+        End If
+
+        e.Graphics.TranslateTransform(x + scaledWidth / 2.0F, y + scaledHeight / 2.0F)
         e.Graphics.RotateTransform(_rotation)
         e.Graphics.ScaleTransform(_zoom, _zoom)
+        e.Graphics.TranslateTransform(-_image.Width / 2.0F, -_image.Height / 2.0F)
 
-        e.Graphics.TranslateTransform(
-        -_image.Width / 2.0F,
-        -_image.Height / 2.0F)
+        ' Draw only the part of the scan that can currently be seen in the viewer.
+        ' Convert the viewer corners back into image coordinates and add a small
+        ' margin to allow for rotation, rounding and interpolation.
+        Dim visiblePoints() As PointF = {
+            New PointF(0, 0),
+            New PointF(ClientSize.Width, 0),
+            New PointF(ClientSize.Width, ClientSize.Height),
+            New PointF(0, ClientSize.Height)
+}
 
-        e.Graphics.DrawImage(
-        _image,
-        0,
-        0,
-        _image.Width,
-        _image.Height)
+        Using inverseTransform As Drawing2D.Matrix = e.Graphics.Transform.Clone()
+            inverseTransform.Invert()
+            inverseTransform.TransformPoints(visiblePoints)
+        End Using
+
+        Dim left As Single = visiblePoints.Min(Function(p) p.X)
+        Dim top As Single = visiblePoints.Min(Function(p) p.Y)
+        Dim right As Single = visiblePoints.Max(Function(p) p.X)
+        Dim bottom As Single = visiblePoints.Max(Function(p) p.Y)
+
+        Const CropMargin As Single = 20.0F
+
+        left = Math.Max(0.0F, left - CropMargin)
+        top = Math.Max(0.0F, top - CropMargin)
+        right = Math.Min(_image.Width, right + CropMargin)
+        bottom = Math.Min(_image.Height, bottom + CropMargin)
+
+        If right > left AndAlso bottom > top Then
+            Dim sourceRectangle As New RectangleF(left, top, right - left, bottom - top)
+            e.Graphics.DrawImage(_image, sourceRectangle, sourceRectangle, GraphicsUnit.Pixel)
+        End If
 
         e.Graphics.ResetTransform()
 
         If _showRuler Then
 
-            Using rulerPen As New Pen(ThemeManager.RulerColour, 15.0F)
+            Using rulerPen As New Pen(ThemeManager.RulerColour, ScaleForCurrentDpi(15))
                 e.Graphics.DrawLine(rulerPen, 0, _rulerScreenY, ClientSize.Width, _rulerScreenY)
             End Using
 
+        End If
+
+        Dim paintMilliseconds As Double = Stopwatch.GetElapsedTime(paintStarted).TotalMilliseconds
+
+        If paintMilliseconds >= 50 Then
+            DebugLog.Write($"[SCAN PAINT] Paint took {paintMilliseconds:0.0} ms. Client={ClientSize.Width}x{ClientSize.Height}, Image={_image.Width}x{_image.Height}, Zoom={_zoom:0.###}")
         End If
 
     End Sub
@@ -301,6 +349,14 @@ Public Class ScanViewerControl
             Return
         End If
 
+        If e.Button = MouseButtons.Right Then
+
+            _magnifierActive = True
+            ShowMagnifier(e.Location)
+            Return
+
+        End If
+
         If e.Button = MouseButtons.Left Then
 
             _isDragging = True
@@ -317,6 +373,13 @@ Public Class ScanViewerControl
     Protected Overrides Sub OnMouseMove(e As MouseEventArgs)
 
         MyBase.OnMouseMove(e)
+
+        If _magnifierActive Then
+
+            UpdateMagnifier(e.Location)
+            Return
+
+        End If
 
         If Not _isDragging Then
             Return
@@ -341,6 +404,15 @@ Public Class ScanViewerControl
             _isDragging = False
             Cursor = Cursors.Default
             RaiseEvent PanChanged(Me, EventArgs.Empty)
+            RaiseEvent DragFinished(Me, EventArgs.Empty)
+        End If
+
+        If e.Button = MouseButtons.Right Then
+
+            HideMagnifier()
+            RaiseEvent DragFinished(Me, EventArgs.Empty)
+            Return
+
         End If
 
     End Sub
@@ -375,6 +447,125 @@ Public Class ScanViewerControl
         _panY = screenY - _imageOffsetY - (imageY * _zoom)
 
         Invalidate()
+
+    End Sub
+    Public Function ScaleForCurrentDpi(logicalPixels As Integer) As Integer
+
+        Dim dpi As Integer = If(DeviceDpi > 0, DeviceDpi, StandardDpi)
+
+        Return CInt(Math.Round(logicalPixels * dpi / CDbl(StandardDpi)))
+
+    End Function
+
+    Private Sub ShowMagnifier(mousePoint As Point)
+
+        If _magnifierForm Is Nothing Then
+
+            _magnifierForm = New Form With {
+                .FormBorderStyle = FormBorderStyle.None,
+                .ShowInTaskbar = False,
+                .TopMost = True,
+                .StartPosition = FormStartPosition.Manual,
+                .AutoScaleMode = AutoScaleMode.None,
+                .BackColor = Color.Black
+            }
+
+        End If
+
+        If _magnifierBox Is Nothing Then
+
+            _magnifierBox = New PictureBox With {
+                .Dock = DockStyle.Fill,
+                .SizeMode = PictureBoxSizeMode.Zoom,
+                .BackColor = Color.Black
+            }
+
+        End If
+
+        If Not _magnifierForm.Controls.Contains(_magnifierBox) Then
+            _magnifierForm.Controls.Add(_magnifierBox)
+        End If
+
+        Dim magnifierSize As Integer = ScaleForCurrentDpi(MagnifierLogicalSize)
+
+        _magnifierForm.ClientSize = New Size(magnifierSize, magnifierSize)
+
+        _magnifierForm.Show(Me)
+
+        UpdateMagnifier(mousePoint)
+
+    End Sub
+
+    Private Sub UpdateMagnifier(mousePoint As Point)
+
+        If _magnifierForm Is Nothing OrElse _magnifierBox Is Nothing OrElse _image Is Nothing Then
+            Return
+        End If
+
+        Dim offset As Integer = ScaleForCurrentDpi(MagnifierLogicalOffset)
+
+        _magnifierForm.Location = PointToScreen(New Point(mousePoint.X + offset, mousePoint.Y + offset))
+
+        Dim scaledWidth As Single = _image.Width * _zoom
+        Dim scaledHeight As Single = _image.Height * _zoom
+
+        Dim x As Single = _imageOffsetX + _panX + AutoScrollPosition.X
+        Dim y As Single = _imageOffsetY + _panY + AutoScrollPosition.Y
+
+        Using matrix As New Drawing2D.Matrix()
+
+            matrix.Translate(x + scaledWidth / 2.0F, y + scaledHeight / 2.0F)
+            matrix.Rotate(_rotation)
+            matrix.Scale(_zoom, _zoom)
+            matrix.Translate(-_image.Width / 2.0F, -_image.Height / 2.0F)
+
+            matrix.Invert()
+
+            Dim points() As PointF = {mousePoint}
+            matrix.TransformPoints(points)
+
+            Dim imageX As Integer = CInt(Math.Round(points(0).X))
+            Dim imageY As Integer = CInt(Math.Round(points(0).Y))
+
+            Dim cropSize As Integer = Math.Max(1, CInt(Math.Round(MagnifierLogicalSize / (3.0F * _zoom))))
+
+            Dim sourceRectangle As New Rectangle(
+                imageX - cropSize \ 2,
+                imageY - cropSize \ 2,
+                cropSize,
+                cropSize)
+
+            sourceRectangle.Intersect(New Rectangle(0, 0, _image.Width, _image.Height))
+
+            If sourceRectangle.Width <= 0 OrElse sourceRectangle.Height <= 0 Then
+                Return
+            End If
+
+            Dim crop As New Bitmap(sourceRectangle.Width, sourceRectangle.Height)
+
+            Using graphics As Graphics = Graphics.FromImage(crop)
+                graphics.DrawImage(_image, New Rectangle(0, 0, crop.Width, crop.Height), sourceRectangle, GraphicsUnit.Pixel)
+            End Using
+
+            Dim oldImage As Image = _magnifierBox.Image
+
+            _magnifierBox.Image = crop
+
+            If oldImage IsNot Nothing Then
+                oldImage.Dispose()
+            End If
+
+        End Using
+
+    End Sub
+
+    Private Sub HideMagnifier()
+
+        _magnifierActive = False
+
+        If _magnifierForm IsNot Nothing Then
+            _magnifierForm.Hide()
+        End If
 
     End Sub
 End Class

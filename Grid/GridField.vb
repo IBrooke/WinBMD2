@@ -21,7 +21,6 @@
     Source
     DoB
 
-    Directive
     Verified
 
 End Enum

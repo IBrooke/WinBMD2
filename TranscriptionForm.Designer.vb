@@ -36,6 +36,7 @@ Partial Class TranscriptionForm
         btnSpecialCharacters = New Button()
         btnClearCell = New Button()
         commandStrip = New FlowLayoutPanel()
+        btnNewFile = New Button()
         btnFileOpen = New Button()
         btnFileSave = New Button()
         btnFileSaveAs = New Button()
@@ -204,12 +205,13 @@ Partial Class TranscriptionForm
         ' commandStrip
         ' 
         commandStrip.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        commandStrip.Controls.Add(btnNewFile)
         commandStrip.Controls.Add(btnFileOpen)
         commandStrip.Controls.Add(btnFileSave)
         commandStrip.Controls.Add(btnFileSaveAs)
         commandStrip.Controls.Add(btnFileExit)
         commandStrip.Controls.Add(btnFileEditHeader)
-        commandStrip.Location = New Point(6, 53)
+        commandStrip.Location = New Point(6, 52)
         commandStrip.Margin = New Padding(0)
         commandStrip.Name = "commandStrip"
         commandStrip.Padding = New Padding(2)
@@ -217,9 +219,19 @@ Partial Class TranscriptionForm
         commandStrip.TabIndex = 1
         commandStrip.WrapContents = False
         ' 
+        ' btnNewFile
+        ' 
+        btnNewFile.Location = New Point(5, 2)
+        btnNewFile.Margin = New Padding(3, 0, 3, 0)
+        btnNewFile.Name = "btnNewFile"
+        btnNewFile.Size = New Size(70, 28)
+        btnNewFile.TabIndex = 5
+        btnNewFile.Text = "New"
+        btnNewFile.UseVisualStyleBackColor = False
+        ' 
         ' btnFileOpen
         ' 
-        btnFileOpen.Location = New Point(5, 2)
+        btnFileOpen.Location = New Point(81, 2)
         btnFileOpen.Margin = New Padding(3, 0, 3, 0)
         btnFileOpen.Name = "btnFileOpen"
         btnFileOpen.Size = New Size(70, 28)
@@ -229,7 +241,7 @@ Partial Class TranscriptionForm
         ' 
         ' btnFileSave
         ' 
-        btnFileSave.Location = New Point(81, 2)
+        btnFileSave.Location = New Point(157, 2)
         btnFileSave.Margin = New Padding(3, 0, 3, 0)
         btnFileSave.Name = "btnFileSave"
         btnFileSave.Size = New Size(70, 28)
@@ -239,7 +251,7 @@ Partial Class TranscriptionForm
         ' 
         ' btnFileSaveAs
         ' 
-        btnFileSaveAs.Location = New Point(157, 2)
+        btnFileSaveAs.Location = New Point(233, 2)
         btnFileSaveAs.Margin = New Padding(3, 0, 3, 0)
         btnFileSaveAs.Name = "btnFileSaveAs"
         btnFileSaveAs.Size = New Size(70, 28)
@@ -249,7 +261,7 @@ Partial Class TranscriptionForm
         ' 
         ' btnFileExit
         ' 
-        btnFileExit.Location = New Point(233, 2)
+        btnFileExit.Location = New Point(309, 2)
         btnFileExit.Margin = New Padding(3, 0, 3, 0)
         btnFileExit.Name = "btnFileExit"
         btnFileExit.Size = New Size(70, 28)
@@ -260,7 +272,7 @@ Partial Class TranscriptionForm
         ' btnFileEditHeader
         ' 
         btnFileEditHeader.AutoSize = True
-        btnFileEditHeader.Location = New Point(309, 2)
+        btnFileEditHeader.Location = New Point(385, 2)
         btnFileEditHeader.Margin = New Padding(3, 0, 3, 0)
         btnFileEditHeader.Name = "btnFileEditHeader"
         btnFileEditHeader.Size = New Size(78, 28)
@@ -391,5 +403,6 @@ Partial Class TranscriptionForm
     Friend WithEvents btnSpecialCharacters As Button
     Friend WithEvents btnClearCell As Button
     Friend WithEvents btnScanToRow1 As Button
+    Friend WithEvents btnNewFile As Button
 
 End Class

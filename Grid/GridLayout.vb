@@ -238,14 +238,13 @@ Public Module GridLayout
                 GridField.District,
                 GridField.Volume,
                 GridField.Page,
-                GridField.Directive,
                 GridField.Verified
             }
         End If
 
         Dim layout As LayoutDefinition = GetLayoutDefinition(batchType, year, quarter)
 
-        Return layout.Fields.Concat(New GridField() {GridField.Directive, GridField.Verified}).ToArray()
+        Return layout.Fields.Concat(New GridField() {GridField.Verified}).ToArray()
 
     End Function
 

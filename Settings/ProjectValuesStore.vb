@@ -82,6 +82,8 @@ Public Module ProjectValuesStore
             ProjectValues.PickListCompletion = values.PickListCompletion
             ProjectValues.ShowForenamePickList = values.ShowForenamePickList
             ProjectValues.ShowDistrictPickList = values.ShowDistrictPickList
+            ProjectValues.FloatingPickList = values.FloatingPickList
+            ProjectValues.PickListBounds = values.PickListBounds
             ProjectValues.Creator = If(values.Creator, "")
             ProjectValues.CreatorEmail = If(values.CreatorEmail, "")
 
@@ -144,16 +146,14 @@ Public Module ProjectValuesStore
                 SystemFonts.MessageBoxFont.Size)
             ProjectValues.UiFontStyle = values.UiFontStyle
             ProjectValues.UiFontColourArgb = values.UiFontColourArgb
-
+            ProjectValues.RulerColourArgb = values.RulerColourArgb
+            ProjectValues.RulerTranslucent = values.RulerTranslucent
             ProjectValues.VerifyFontSize =
-            If(
-                values.VerifyFontSize >= 8.0F,
-                values.VerifyFontSize,
-                12.0F)
+            If(values.VerifyFontSize >= 8.0F, values.VerifyFontSize, 12.0F)
             ProjectValues.GridColumnWidths = If(values.GridColumnWidths, New Dictionary(Of String, List(Of Integer)))
 
-            ProjectValues.RecentFiles =
-            If(values.RecentFiles, New List(Of String))
+            ProjectValues.RecentFiles = If(values.RecentFiles, New List(Of String))
+            SanityCheckPersistedValues()
         Catch ex As Exception
             ProjectValues.LoadingPersistedValues = False
             Save()
@@ -188,6 +188,8 @@ Public Module ProjectValuesStore
                 .UiFontSize = ProjectValues.UiFontSize,
                 .UiFontStyle = ProjectValues.UiFontStyle,
                 .UiFontColourArgb = ProjectValues.UiFontColourArgb,
+                .RulerColourArgb = ProjectValues.RulerColourArgb,
+                .RulerTranslucent = ProjectValues.RulerTranslucent,
                 .VerifyFontSize = ProjectValues.VerifyFontSize,
                 .UserName = ProjectValues.UserName,
                 .UserEmail = ProjectValues.UserEmail,
@@ -200,6 +202,8 @@ Public Module ProjectValuesStore
                 .PickListCompletion = ProjectValues.PickListCompletion,
                 .ShowForenamePickList = ProjectValues.ShowForenamePickList,
                 .ShowDistrictPickList = ProjectValues.ShowDistrictPickList,
+                .FloatingPickList = ProjectValues.FloatingPickList,
+                .PickListBounds = ProjectValues.PickListBounds,
                 .EntryMode = ProjectValues.EntryMode,
                 .BatchType = ProjectValues.BatchType,
                 .Year = ProjectValues.Year,
@@ -239,7 +243,27 @@ Public Module ProjectValuesStore
             ' A settings failure must not crash the application.
         End Try
     End Sub
+    Private Sub SanityCheckPersistedValues()
 
+        For Each item In ProjectValues.ScanViewSettings
+
+            Dim setting As ScanViewData = item.Value
+
+            If setting Is Nothing Then Continue For
+
+            If Single.IsNaN(setting.Zoom) OrElse Single.IsInfinity(setting.Zoom) OrElse setting.Zoom < 0.05F OrElse setting.Zoom > 8.0F Then
+                DebugLog.WriteAlways($"[SETTINGS] Invalid scan Zoom={setting.Zoom} for '{item.Key}'. Reset to 1.")
+                setting.Zoom = 1.0F
+            End If
+
+            If Single.IsNaN(setting.Rotation) OrElse Single.IsInfinity(setting.Rotation) OrElse Math.Abs(setting.Rotation) > 45.0F Then
+                DebugLog.WriteAlways($"[SETTINGS] Invalid scan Rotation={setting.Rotation} for '{item.Key}'. Reset to 0.")
+                setting.Rotation = 0.0F
+            End If
+
+        Next
+
+    End Sub
     Private Class ProjectValuesData
 
         Public Property FilePanelExpanded As Boolean = True
@@ -292,6 +316,8 @@ Public Module ProjectValuesStore
         Public Property PickListCompletion As Boolean = True    ' The picklist column auto-complete characters
         Public Property ShowForenamePickList As Boolean = True
         Public Property ShowDistrictPickList As Boolean = True
+        Public Property FloatingPickList As Boolean = False
+        Public Property PickListBounds As New FormBoundsData With {.Width = 300, .Height = 250}
         Public Property Match3VolChars As Boolean = False
         Public Property SequenceType As String = "SEQUENCED"
         Public Property ColourScheme As UiColourScheme = UiColourScheme.Teal
@@ -302,7 +328,8 @@ Public Module ProjectValuesStore
         Public Property VerifyFontSize As Single = 12.0F
         Public Property RecentFiles As New List(Of String)
         Public Property HelpFormBounds As New FormBoundsData()
-
+        Public Property RulerColourArgb As Integer = Color.Red.ToArgb()
+        Public Property RulerTranslucent As Boolean = False
     End Class
 
 End Module

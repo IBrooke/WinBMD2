@@ -8,7 +8,6 @@ Public NotInheritable Class LoadSaveFiles
     End Sub
 
     ' Loads a BMD file into ProjectValues and the transcription grid.
-    ' Directives are not yet handled; they will be added later.
     Public Shared Function Load(filePath As String, grid As DataGridView, configureGrid As Action) As Boolean
 
         If String.IsNullOrWhiteSpace(filePath) Then Return False
@@ -71,10 +70,7 @@ Public NotInheritable Class LoadSaveFiles
     End Function
 
     ' Saves the current transcription grid as a BMD file.
-    ' Directives are not yet handled; they will be added later.
-    Public Shared Function Save(
-        filePath As String,
-        grid As DataGridView) As Boolean
+    Public Shared Function Save(filePath As String, grid As DataGridView) As Boolean
 
         If String.IsNullOrWhiteSpace(filePath) Then
             Return False
@@ -104,10 +100,13 @@ Public NotInheritable Class LoadSaveFiles
             For rowIndex As Integer = 0 To lastDataRow
 
                 Dim row As DataGridViewRow = grid.Rows(rowIndex)
+                Dim directive As RowDirective = RowDirective.FromGridRow(row)
 
-                lines.Add(BuildDataLine(row, fields))
-
-                AddRowDirectives(lines, row)
+                If directive IsNot Nothing Then
+                    lines.Add(BuildDirectiveLine(directive))
+                Else
+                    lines.Add(BuildDataLine(row, fields))
+                End If
 
             Next
 
@@ -138,30 +137,6 @@ Public NotInheritable Class LoadSaveFiles
         End Try
 
     End Function
-    Private Shared Sub AddRowDirectives(
-    lines As List(Of String),
-    row As DataGridViewRow)
-
-        Dim directiveCell As DataGridViewCell =
-        row.Cells(GridField.Directive.ToString())
-
-        Dim directives As List(Of RowDirective) =
-        TryCast(
-            directiveCell.Tag,
-            List(Of RowDirective))
-
-        If directives Is Nothing Then
-            Return
-        End If
-
-        For Each directive As RowDirective In directives
-
-            lines.Add(
-            BuildDirectiveLine(directive))
-
-        Next
-
-    End Sub
     ' Returns only genuine transcription-data fields.
     ' Directive and Verified are grid-only columns and are not
     ' written as comma-separated data fields.
@@ -261,91 +236,70 @@ Public NotInheritable Class LoadSaveFiles
         Return value
 
     End Function
-    Private Shared Sub LoadGridRows(
-    lines As List(Of String),
-    grid As DataGridView,
-    firstDataLine As Integer)
+    Private Shared Sub LoadGridRows(lines As List(Of String), grid As DataGridView, firstDataLine As Integer)
 
-        Dim fields() As GridField =
-        GetDataFields()
+        Dim fields() As GridField = GetDataFields()
 
         grid.Rows.Clear()
 
-        Dim lastDataRowIndex As Integer = -1
-
         For lineIndex As Integer = firstDataLine To lines.Count - 1
 
-            Dim line As String =
-            If(lines(lineIndex), "").TrimEnd()
+            Dim line As String = If(lines(lineIndex), "").TrimEnd()
 
-            If String.IsNullOrWhiteSpace(line) Then
-                Continue For
-            End If
+            If String.IsNullOrWhiteSpace(line) Then Continue For
+
+            Dim directiveLine As String = ""
 
             If line.StartsWith("+") OrElse line.StartsWith("#") Then
 
-                If lastDataRowIndex >= 0 Then
+                directiveLine = line
 
-                    Dim directiveCell As DataGridViewCell =
-            grid.Rows(lastDataRowIndex).Cells(GridField.Directive.ToString())
+            Else
 
-                    Dim directives As List(Of RowDirective) =
-            TryCast(directiveCell.Tag, List(Of RowDirective))
+                Dim possibleDirectiveValues As List(Of String) = SplitCsv(line)
 
-                    If directives Is Nothing Then
-                        directives = New List(Of RowDirective)()
-                        directiveCell.Tag = directives
-                    End If
+                If possibleDirectiveValues.Count > 0 AndAlso
+               (possibleDirectiveValues(0).StartsWith("+") OrElse possibleDirectiveValues(0).StartsWith("#")) AndAlso
+               possibleDirectiveValues.Skip(1).All(Function(value) String.IsNullOrWhiteSpace(value)) Then
 
-                    directives.Add(
-            ParseDirectiveLine(
-                line,
-                lastDataRowIndex))
-
-                    directiveCell.Value =
-            $"+{directives.Count}"
+                    directiveLine = possibleDirectiveValues(0)
 
                 End If
+
+            End If
+
+            If Not String.IsNullOrWhiteSpace(directiveLine) Then
+
+                Dim directiveRowIndex As Integer = grid.Rows.Add()
+                Dim directiveRow As DataGridViewRow = grid.Rows(directiveRowIndex)
+                Dim directive As RowDirective = ParseDirectiveLine(directiveLine, directiveRowIndex)
+
+                directiveRow.Tag = directive
+                directiveRow.Cells("RowNumber").Value = directiveRowIndex + 1
+
+                Dim firstColumnIndex As Integer = FindGridColumn(grid, fields(0))
+
+                If firstColumnIndex >= 0 Then directiveRow.Cells(firstColumnIndex).Value = BuildDirectiveLine(directive)
 
                 Continue For
 
             End If
 
-            Dim values As List(Of String) =
-            SplitCsv(line)
+            Dim values As List(Of String) = SplitCsv(line)
+            Dim rowIndex As Integer = grid.Rows.Add()
+            Dim row As DataGridViewRow = grid.Rows(rowIndex)
 
-            Dim rowIndex As Integer =
-            grid.Rows.Add()
-
-            lastDataRowIndex = rowIndex
-
-            Dim row As DataGridViewRow =
-            grid.Rows(rowIndex)
-
-            row.Cells("RowNumber").Value =
-            rowIndex + 1
-
-            row.Cells(GridField.Directive.ToString()).Value = "+"
+            row.Cells("RowNumber").Value = rowIndex + 1
 
             For fieldIndex As Integer = 0 To fields.Length - 1
 
-                Dim columnIndex As Integer =
-                FindGridColumn(
-                    grid,
-                    fields(fieldIndex))
+                Dim columnIndex As Integer = FindGridColumn(grid, fields(fieldIndex))
 
-                If columnIndex < 0 Then
-                    Continue For
-                End If
+                If columnIndex < 0 Then Continue For
 
-                Dim value As String =
-                If(
-                    fieldIndex < values.Count,
-                    values(fieldIndex),
-                    "")
+                Dim value As String = If(fieldIndex < values.Count, values(fieldIndex), "")
 
-                row.Cells(columnIndex).Value =
-                value
+                row.Cells(columnIndex).Value = value
 
             Next
 
@@ -380,13 +334,9 @@ Public NotInheritable Class LoadSaveFiles
             values)
 
     End Function
-    Private Shared Function ParseDirectiveLine(
-    line As String,
-    rowIndex As Integer) As RowDirective
+    Friend Shared Function ParseDirectiveLine(line As String, rowIndex As Integer) As RowDirective
 
-        Dim directive As New RowDirective With {
-        .RowIndex = rowIndex
-    }
+        Dim directive As New RowDirective With {.RowIndex = rowIndex}
 
         If line.StartsWith("+PAGE,", StringComparison.OrdinalIgnoreCase) Then
 
@@ -414,15 +364,11 @@ Public NotInheritable Class LoadSaveFiles
 
             If remainder.StartsWith("(") Then
 
-                Dim closeBracket As Integer =
-            remainder.IndexOf(")"c)
+                Dim closeBracket As Integer = remainder.IndexOf(")"c)
 
                 If closeBracket > 1 Then
 
-                    Dim linesText As String =
-                remainder.Substring(
-                    1,
-                    closeBracket - 1)
+                    Dim linesText As String = remainder.Substring(1, closeBracket - 1)
 
                     Dim lines As Integer
 
@@ -430,10 +376,7 @@ Public NotInheritable Class LoadSaveFiles
 
                         directive.Lines = lines
 
-                        remainder =
-                    remainder.Substring(closeBracket + 1).
-                    TrimStart(","c).
-                    Trim()
+                        remainder = remainder.Substring(closeBracket + 1).TrimStart(","c).Trim()
 
                     End If
 
@@ -465,9 +408,7 @@ Public NotInheritable Class LoadSaveFiles
         Return directive
 
     End Function
-    Private Shared Function ExtractDirectiveText(
-    line As String,
-    directivePrefix As String) As String
+    Private Shared Function ExtractDirectiveText(line As String, directivePrefix As String) As String
 
         If line.Length <= directivePrefix.Length Then
             Return ""
@@ -483,14 +424,11 @@ Public NotInheritable Class LoadSaveFiles
         Return remainder.TrimStart()
 
     End Function
-    Private Shared Function FindLastNonEmptyRow(
-        grid As DataGridView,
-        fields() As GridField) As Integer
+    Private Shared Function FindLastNonEmptyRow(grid As DataGridView, fields() As GridField) As Integer
 
         For rowIndex As Integer = grid.Rows.Count - 1 To 0 Step -1
 
-            Dim row As DataGridViewRow =
-                grid.Rows(rowIndex)
+            Dim row As DataGridViewRow = grid.Rows(rowIndex)
 
             If row.IsNewRow Then
                 Continue For
@@ -498,20 +436,14 @@ Public NotInheritable Class LoadSaveFiles
 
             For Each field As GridField In fields
 
-                Dim columnIndex As Integer =
-                    FindGridColumn(
-                        grid,
-                        field)
+                Dim columnIndex As Integer = FindGridColumn(grid, field)
 
                 If columnIndex < 0 Then
                     Continue For
                 End If
 
                 Dim value As String =
-                    If(
-                        row.Cells(columnIndex).Value,
-                        "").
-                    ToString()
+                    If(row.Cells(columnIndex).Value, "").ToString()
 
                 If Not String.IsNullOrWhiteSpace(value) Then
                     Return rowIndex
@@ -593,15 +525,20 @@ Public NotInheritable Class LoadSaveFiles
     End Sub
     Private Shared Sub ParseHeaderLine1(line As String)
 
-        Dim parts As List(Of String) =
-            SplitCsv(line)
+        Dim parts As List(Of String) = SplitCsv(line)
+
+        DebugLog.Write($"[HEADER LOAD] Header line 1: '{line}'")
+        DebugLog.Write($"[HEADER LOAD] parts.Count={parts.Count}")
 
         If parts.Count < 10 Then
             Return
         End If
 
-        ProjectValues.VNF =
-            parts(1)
+        DebugLog.Write($"[HEADER LOAD] parts(1)='{parts(1)}'")
+
+        ProjectValues.VNF = parts(1)
+
+        DebugLog.Write($"[HEADER LOAD] ProjectValues.VNF set to '{ProjectValues.VNF}'.")
 
         ProjectValues.Creator =
             parts(2)
@@ -708,8 +645,7 @@ Public NotInheritable Class LoadSaveFiles
         End If
 
     End Sub
-    Friend Shared Function BuildDirectiveLine(
-    directive As RowDirective) As String
+    Friend Shared Function BuildDirectiveLine(directive As RowDirective) As String
 
         Dim directiveType As String =
         If(directive.DirectiveType, "").Trim()
@@ -717,9 +653,7 @@ Public NotInheritable Class LoadSaveFiles
         Dim text As String =
         If(directive.Text, "").Trim()
 
-        If directiveType.Equals(
-        "#COMMENT",
-        StringComparison.OrdinalIgnoreCase) Then
+        If directiveType.Equals("#COMMENT", StringComparison.OrdinalIgnoreCase) Then
 
             If directive.Lines.HasValue AndAlso directive.Lines.Value > 0 Then
 

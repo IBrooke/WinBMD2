@@ -28,9 +28,13 @@ Public Class OptionsForm
     Private ReadOnly _ignoreAutoCompleteComboBox As New ComboBox()
     Private ReadOnly _autoShowScanToggle As New ToggleSwitch()
     Private ReadOnly _autoShowRulerToggle As New ToggleSwitch()
+    Private ReadOnly _rulerTranslucentToggle As New ToggleSwitch()
+    Private ReadOnly _rulerColourButton As New Button()
+    Private _selectedRulerColour As Color
     Private ReadOnly _verticalTabToggle As New ToggleSwitch()
     Private ReadOnly _skipSurnameToggle As New ToggleSwitch()
     Private ReadOnly _formatPicklistSelectionsToggle As New ToggleSwitch()
+    Private ReadOnly _floatingPickListToggle As New ToggleSwitch()
     Private ReadOnly _originalCapitalisation As New Dictionary(Of GridField, CapitalisationMode)
     Private ReadOnly _outputCharacterSetComboBox As New ComboBox()
     Private ReadOnly _pickListCompletionToggle As New ToggleSwitch()
@@ -248,7 +252,7 @@ Public Class OptionsForm
 
         _picklistsPanel.Name = "picklistsOptionsPanel"
         _picklistsPanel.Location = New Point(24, 56)
-        _picklistsPanel.Size = New Size(Math.Max(300, mainSplitContainer.Panel2.ClientSize.Width - 48), Math.Max(200, mainSplitContainer.Panel2.ClientSize.Height - 136))
+        _picklistsPanel.Size = New Size(Math.Max(300, mainSplitContainer.Panel2.ClientSize.Width - 48), Math.Max(200, mainSplitContainer.Panel2.ClientSize.Height - 80))
         _picklistsPanel.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
 
         Dim titleLabel As New Label With {
@@ -354,6 +358,16 @@ Public Class OptionsForm
         _match3VolCharsToggle.Location = New Point(250, 313)
 
         AddHandler _match3VolCharsToggle.CheckedChanged, AddressOf Match3VolCharsToggle_CheckedChanged
+        Dim floatingPickListLabel As New Label With {
+            .Name = "floatingPickListLabel",
+            .Text = "Floating picklist",
+            .AutoSize = True,
+            .ForeColor = UiColors.TextPrimary,
+            .Location = New Point(22, 358)
+        }
+
+        _floatingPickListToggle.Name = "floatingPickListToggle"
+        _floatingPickListToggle.Location = New Point(250, 353)
 
         _picklistsPanel.Controls.Add(titleLabel)
         _picklistsPanel.Controls.Add(descriptionLabel)
@@ -370,6 +384,8 @@ Public Class OptionsForm
         _picklistsPanel.Controls.Add(_pickListCompletionToggle)
         _picklistsPanel.Controls.Add(match3VolCharsLabel)
         _picklistsPanel.Controls.Add(_match3VolCharsToggle)
+        _picklistsPanel.Controls.Add(floatingPickListLabel)
+        _picklistsPanel.Controls.Add(_floatingPickListToggle)
 
         mainSplitContainer.Panel2.Controls.Add(_picklistsPanel)
 
@@ -527,6 +543,8 @@ Public Class OptionsForm
         _appearanceTab.Controls.Add(_colourSchemeComboBox)
         _appearanceTab.Controls.Add(uiFontLabel)
         _appearanceTab.Controls.Add(_uiFontButton)
+        _appearanceTab.Controls.Add(verifyFontSizeLabel)
+        _appearanceTab.Controls.Add(_verifyFontSizeNumeric)
         _appearanceTab.Controls.Add(_uiFontPreviewLabel)
         _appearanceTab.Controls.Add(verifyHelpLabel)
 
@@ -575,6 +593,31 @@ Public Class OptionsForm
 
         _autoShowRulerToggle.Name = "autoShowRulerToggle"
         _autoShowRulerToggle.Location = New Point(370, 141)
+        Dim rulerColourLabel As New Label With {
+            .Name = "rulerColourLabel",
+            .Text = "Ruler colour",
+            .AutoSize = True,
+            .ForeColor = UiColors.TextPrimary,
+            .Location = New Point(22, 188)
+        }
+
+        _rulerColourButton.Name = "rulerColourButton"
+        _rulerColourButton.Text = "Choose..."
+        _rulerColourButton.Location = New Point(370, 183)
+        _rulerColourButton.Size = New Size(90, 28)
+
+        AddHandler _rulerColourButton.Click, AddressOf RulerColourButton_Click
+
+        Dim rulerTranslucentLabel As New Label With {
+            .Name = "rulerTranslucentLabel",
+            .Text = "Translucent ruler",
+            .AutoSize = True,
+            .ForeColor = UiColors.TextPrimary,
+            .Location = New Point(22, 230)
+        }
+
+        _rulerTranslucentToggle.Name = "rulerTranslucentToggle"
+        _rulerTranslucentToggle.Location = New Point(370, 225)
 
         _scanningTab.Controls.Add(titleLabel)
         _scanningTab.Controls.Add(descriptionLabel)
@@ -582,6 +625,10 @@ Public Class OptionsForm
         _scanningTab.Controls.Add(_autoShowScanToggle)
         _scanningTab.Controls.Add(autoShowRulerLabel)
         _scanningTab.Controls.Add(_autoShowRulerToggle)
+        _scanningTab.Controls.Add(rulerColourLabel)
+        _scanningTab.Controls.Add(_rulerColourButton)
+        _scanningTab.Controls.Add(rulerTranslucentLabel)
+        _scanningTab.Controls.Add(_rulerTranslucentToggle)
 
     End Sub
     Private Sub BuildUploadTab()
@@ -866,12 +913,16 @@ End Sub
             _verticalTabToggle.Checked = ProjectValues.EntryMode = EntryMode.Vertical
             _autoShowScanToggle.Checked = ProjectValues.AutoShowScan
             _autoShowRulerToggle.Checked = ProjectValues.AutoShowRuler
+            _selectedRulerColour = Color.FromArgb(ProjectValues.RulerColourArgb)
+            _rulerTranslucentToggle.Checked = ProjectValues.RulerTranslucent
+            UpdateRulerColourButton()
             _skipSurnameToggle.Checked = ProjectValues.SkipSurname
             _formatPicklistSelectionsToggle.Checked = ProjectValues.FormatPicklistSelections
             _pickListCompletionToggle.Checked = ProjectValues.PickListCompletion
             _match3VolCharsToggle.Checked = ProjectValues.Match3VolChars
             _showForenamePickListToggle.Checked = ProjectValues.ShowForenamePickList
             _showDistrictPickListToggle.Checked = ProjectValues.ShowDistrictPickList
+            _floatingPickListToggle.Checked = ProjectValues.FloatingPickList
 
             _verifyFontSizeNumeric.Value =
                 Math.Min(
@@ -958,12 +1009,15 @@ End Sub
 
         ProjectValues.AutoShowScan = _autoShowScanToggle.Checked
         ProjectValues.AutoShowRuler = _autoShowRulerToggle.Checked
+        ProjectValues.RulerColourArgb = _selectedRulerColour.ToArgb()
+        ProjectValues.RulerTranslucent = _rulerTranslucentToggle.Checked
         ProjectValues.SkipSurname = _skipSurnameToggle.Checked
         ProjectValues.FormatPicklistSelections = _formatPicklistSelectionsToggle.Checked
         ProjectValues.PickListCompletion = _pickListCompletionToggle.Checked
         ProjectValues.Match3VolChars = _match3VolCharsToggle.Checked
         ProjectValues.ShowForenamePickList = _showForenamePickListToggle.Checked
         ProjectValues.ShowDistrictPickList = _showDistrictPickListToggle.Checked
+        ProjectValues.FloatingPickList = _floatingPickListToggle.Checked
 
         If _selectedUiFont IsNot Nothing Then
             ProjectValues.UiFontName = _selectedUiFont.FontFamily.Name
@@ -999,6 +1053,36 @@ End Sub
 #End Region
 
 #Region "Appearance"
+
+    Private Sub RulerColourButton_Click(sender As Object, e As EventArgs)
+
+        Using dialog As New ColorDialog()
+
+            dialog.Color = _selectedRulerColour
+            dialog.FullOpen = True
+
+            If dialog.ShowDialog(Me) <> DialogResult.OK Then
+                Return
+            End If
+
+            _selectedRulerColour = dialog.Color
+            UpdateRulerColourButton()
+
+        End Using
+
+    End Sub
+
+    Private Sub UpdateRulerColourButton()
+
+        _rulerColourButton.BackColor = _selectedRulerColour
+
+        If _selectedRulerColour.GetBrightness() < 0.5F Then
+            _rulerColourButton.ForeColor = Color.White
+        Else
+            _rulerColourButton.ForeColor = Color.Black
+        End If
+
+    End Sub
 
     Private Sub UiFontButton_Click(sender As Object, e As EventArgs)
 
@@ -1085,6 +1169,8 @@ End Sub
         ThemeManager.ApplyPrimaryButton(btnOk)
 
         ThemeManager.ApplySecondaryButton(btnCancel)
+
+        UpdateRulerColourButton()
 
     End Sub
 

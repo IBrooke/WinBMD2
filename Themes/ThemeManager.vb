@@ -168,7 +168,16 @@ Public Module ThemeManager
     End Sub
     Public ReadOnly Property RulerColour As Color
         Get
-            Return UiColors.ThemeShaded
+
+            Dim selectedColour As Color =
+            Color.FromArgb(ProjectValues.RulerColourArgb)
+
+            If ProjectValues.RulerTranslucent Then
+                Return Color.FromArgb(100, selectedColour)
+            End If
+
+            Return selectedColour
+
         End Get
     End Property
     Public Sub ApplyVerifyBar(bar As VerifyBar)

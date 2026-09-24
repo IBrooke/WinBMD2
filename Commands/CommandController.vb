@@ -6,6 +6,7 @@ Public NotInheritable Class CommandController
 
     Private _transcriptionForm As TranscriptionForm
     Private _scanView As ScanView
+    Private _startingNewFile As Boolean
 
     Public Sub Start(Optional startupFile As String = "")
 
@@ -42,11 +43,11 @@ Public NotInheritable Class CommandController
             If File.Exists(filePath) Then
 
                 Dim answer As DialogResult = MessageBox.Show(
-            "Do you want to resume the previous batch?" & Environment.NewLine & Environment.NewLine &
-            ProjectValues.BatchName,
-            "Resume Previous Batch",
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question)
+                    "Do you want to resume the previous batch?" & Environment.NewLine & Environment.NewLine &
+                    ProjectValues.BatchName,
+                    "Resume Previous Batch",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question)
 
                 If answer = DialogResult.Yes Then
                     ShowTranscriptionForms(filePath)
@@ -60,6 +61,7 @@ Public NotInheritable Class CommandController
         ShowHeaderForm()
 
     End Sub
+
     Public Sub NudgeScan(deltaX As Single, deltaY As Single) Implements ICommandExecutor.NudgeScan
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then
@@ -78,13 +80,28 @@ Public NotInheritable Class CommandController
         _scanView.MoveScanByRows(direction)
 
     End Sub
+    Public Sub MoveScanByRows(deltaRows As Single) Implements ICommandExecutor.MoveScanByRows
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+
+        _scanView.MoveScanByRows(deltaRows)
+
+    End Sub
     Public Sub MoveScanToRow1() Implements ICommandExecutor.MoveScanToRow1
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then
             Return
         End If
 
-        _scanView.MoveRulerToRow(1)
+        _scanView.MoveScanToRow1()
+
+    End Sub
+    Public Sub RestoreGridFocus() Implements ICommandExecutor.RestoreGridFocus
+
+        If _transcriptionForm Is Nothing OrElse _transcriptionForm.IsDisposed Then Return
+        If _transcriptionForm.CurrentGridCell Is Nothing Then Return
+
+        _transcriptionForm.FocusGridRow(_transcriptionForm.CurrentGridCell.RowIndex)
 
     End Sub
     Public Sub ApplyScanViewColourScheme() Implements ICommandExecutor.ApplyScanViewColourScheme
@@ -125,10 +142,10 @@ Public NotInheritable Class CommandController
             If Not _transcriptionForm.RecoverWorkfile() Then
 
                 MessageBox.Show(
-            "The previous workfile could not be recovered.",
-            "Recover Previous Work",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Error)
+                    "The previous workfile could not be recovered.",
+                    "Recover Previous Work",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error)
 
                 ExitThread()
                 Return
@@ -142,10 +159,10 @@ Public NotInheritable Class CommandController
             If Not _transcriptionForm.LoadBatchFile(filePath) Then
 
                 MessageBox.Show(
-        "The selected batch could not be loaded.",
-        "Open Batch",
-        MessageBoxButtons.OK,
-        MessageBoxIcon.Error)
+                    "The selected batch could not be loaded.",
+                    "Open Batch",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error)
 
                 ExitThread()
                 Return
@@ -276,12 +293,15 @@ Public NotInheritable Class CommandController
 
         End If
 
-        Dim rowNumber As Integer =
-    _transcriptionForm.CurrentGridCell.RowIndex + 1
+        Dim rowNumber As Integer = _transcriptionForm.CurrentGridCell.RowIndex + 1
 
         If _scanView.VerifyVisible Then
 
             _scanView.MoveScanToVerifyRow(rowNumber)
+
+        ElseIf _transcriptionForm.CurrentGridRowIsDirective Then
+
+            _scanView.SetCurrentRulerRow(rowNumber)
 
         Else
 
@@ -425,17 +445,33 @@ Public NotInheritable Class CommandController
         DebugLog.WriteAlways("=========================================")
 
     End Sub
+    Public Sub StartNewFile() Implements ICommandExecutor.StartNewFile
+
+        _startingNewFile = True
+        _transcriptionForm.Close()
+
+        If Not _transcriptionForm.IsDisposed Then
+            _startingNewFile = False
+        End If
+
+    End Sub
     Private Sub TranscriptionForm_FormClosed(sender As Object, e As FormClosedEventArgs)
 
         If _scanView IsNot Nothing AndAlso Not _scanView.IsDisposed Then
             _scanView.Close()
         End If
 
+        If _startingNewFile Then
+            _startingNewFile = False
+            ShowHeaderForm()
+            Return
+        End If
+
         ExitThread()
 
     End Sub
 
-    Public Sub Execute(command As AppCommand) Implements ICommandExecutor.Execute
+    Public Async Sub Execute(command As AppCommand) Implements ICommandExecutor.Execute
 
         Select Case command
 
@@ -470,6 +506,8 @@ Public NotInheritable Class CommandController
                         Return
 
                     End If
+
+                    Await RefreshScanAsync()
 
                 End Using
 
@@ -589,5 +627,19 @@ Public NotInheritable Class CommandController
         End Select
 
     End Sub
+    Public Async Function RefreshScanAsync() As Task Implements ICommandExecutor.RefreshScanAsync
 
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+
+        _scanView.ClearScan()
+
+        If Not ProjectValues.AutoShowScan Then
+            _scanView.Hide()
+            Return
+        End If
+
+        _scanView.Show()
+        Await _scanView.FindScanAsync()
+
+    End Function
 End Class

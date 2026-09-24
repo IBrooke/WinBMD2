@@ -47,6 +47,17 @@ Friend Module Program
 
                 ProjectValuesStore.Initialise()
                 CapitalisationData.Load()
+                DebugLog.WriteAlways("======= CAPITALISATION =======")
+
+                Dim capitalisationSettings As String = CapitalisationData.GetSettings(BatchType, Year)
+
+                DebugLog.WriteAlways($"Settings string         : {capitalisationSettings}")
+
+                For columnIndex As Integer = 0 To capitalisationSettings.Length - 1
+                    DebugLog.WriteAlways($"Column {columnIndex,-2}               : {CapitalisationData.GetMode(BatchType, Year, columnIndex)}")
+                Next
+
+                DebugLog.WriteAlways("==============================")
 
                 If Not ForenameData.Load() Then
                     DebugLog.WriteAlways("Startup cancelled because the forenames file could not be loaded.")
@@ -78,7 +89,11 @@ Friend Module Program
         AbnormalShutdown = True
         ShowUnhandledException("An unexpected program error occurred. WinBMD2 must now close.", e.Exception)
 
-        Application.Exit()
+        If Application.OpenForms.Count > 0 Then
+            Application.OpenForms(0).BeginInvoke(Sub() Application.Exit())
+        Else
+            Application.Exit()
+        End If
 
     End Sub
 

@@ -33,7 +33,8 @@ Public Module ProjectValues
     Public Property ShowForenamePickList As Boolean = True
     Public Property ShowDistrictPickList As Boolean = True
     Public Property Match3VolChars As Boolean = False
-
+    Public Property FloatingPickList As Boolean = False
+    Public Property PickListBounds As New FormBoundsData With {.Width = 300, .Height = 250}
 #End Region
 
 #Region "Scan View Form"
@@ -150,7 +151,8 @@ Public Module ProjectValues
     Public Property VerifyFontSize As Single = 12.0F
     Public Property ValidationMode As ValidationMode = ValidationMode.Entry
     Public Property RecentFiles As New List(Of String)
-
+    Public Property RulerColourArgb As Integer = Color.Red.ToArgb()
+    Public Property RulerTranslucent As Boolean = False
 #End Region
 #Region "Entry"
 
@@ -247,6 +249,36 @@ Public Module ProjectValues
             DebugLog.WriteAlways($"{propertyName,-24}: {value}")
 
         Next
+
+        DebugLog.WriteAlways($"Keyboard repeat delay   : {SystemInformation.KeyboardDelay}")
+        DebugLog.WriteAlways($"Keyboard repeat speed   : {SystemInformation.KeyboardSpeed}")
+        DebugLog.WriteAlways("==============================")
+
+        DebugLog.WriteAlways("======= DISPLAY VALUES =======")
+
+        DebugLog.WriteAlways($"Number of screens       : {Screen.AllScreens.Length}")
+
+        For screenNumber As Integer = 0 To Screen.AllScreens.Length - 1
+
+            Dim currentScreen As Screen = Screen.AllScreens(screenNumber)
+
+            DebugLog.WriteAlways($"Screen {screenNumber + 1} resolution    : {currentScreen.Bounds.Width} x {currentScreen.Bounds.Height}")
+            DebugLog.WriteAlways($"Screen {screenNumber + 1} working area  : {currentScreen.WorkingArea.Width} x {currentScreen.WorkingArea.Height}")
+            DebugLog.WriteAlways($"Screen {screenNumber + 1} position      : Left={currentScreen.Bounds.Left}, Top={currentScreen.Bounds.Top}")
+            DebugLog.WriteAlways($"Screen {screenNumber + 1} primary       : {currentScreen.Primary}")
+
+        Next
+
+        Using graphics As Graphics = Graphics.FromHwnd(IntPtr.Zero)
+
+            Dim dpiX As Single = graphics.DpiX
+            Dim dpiY As Single = graphics.DpiY
+            Dim scalePercent As Integer = CInt(Math.Round(dpiX / 96.0F * 100.0F))
+
+            DebugLog.WriteAlways($"Windows DPI             : {dpiX:0} x {dpiY:0}")
+            DebugLog.WriteAlways($"Windows scale           : {scalePercent}%")
+
+        End Using
 
         DebugLog.WriteAlways("==============================")
 

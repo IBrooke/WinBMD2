@@ -134,8 +134,6 @@ Public Module DistrictData
     End Function
     Public Function LoadAliveDistricts() As Boolean
 
-        _aliveDistricts.Clear()
-
         Dim selectedYear As Integer = ProjectValues.Year
         Dim selectedQuarter As Integer = ProjectValues.Quarter
         Dim baseCount As Integer
@@ -203,8 +201,12 @@ Public Module DistrictData
 
             Next
 
-            _aliveDistricts.Sort(Function(left, right) String.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase))
+            _aliveDistricts.RemoveAll(
+                Function(record)
+                    Return Not String.Equals(Validator.CodeFormat(record.Volume), ProjectValues.VNF, StringComparison.OrdinalIgnoreCase)
+                End Function)
 
+            _aliveDistricts.Sort(Function(left, right) String.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase))
             DebugLog.Write($"[DISTRICTS] Alive base districts added: {baseCount}.")
             DebugLog.Write($"[DISTRICTS] Supplementary districts added from {supplementaryFileName}: {supplementaryCount}. Invalid lines: {invalidLines}.")
             DebugLog.Write($"[DISTRICTS] Total alive districts: {_aliveDistricts.Count}.")
@@ -230,6 +232,10 @@ Public Module DistrictData
         volume = If(volume, "").Trim()
 
         If name.Length = 0 OrElse volume.Length = 0 Then
+            Return False
+        End If
+
+        If Not String.Equals(Validator.CodeFormat(volume), ProjectValues.VNF, StringComparison.OrdinalIgnoreCase) Then
             Return False
         End If
 
@@ -448,7 +454,7 @@ Public Module DistrictData
 
     End Function
 
-    Private Function ToRoman(
+    Friend Function ToRoman(
         number As Integer) As String
 
         If number <= 0 OrElse number > 3999 Then
@@ -542,6 +548,10 @@ Public Module DistrictData
         End If
 
         If district.IndexOfAny({"*"c, "?"c, "_"c}) >= 0 OrElse code.IndexOfAny({"*"c, "?"c, "_"c}) >= 0 Then
+            Return False
+        End If
+
+        If Not String.Equals(Validator.CodeFormat(code), ProjectValues.VNF, StringComparison.OrdinalIgnoreCase) Then
             Return False
         End If
 

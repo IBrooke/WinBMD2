@@ -41,7 +41,10 @@ Public NotInheritable Class ScanLocator
     Public Sub New()
 
         Dim user As String = ProjectValues.UserName.Trim()
-        Dim password As String = ProjectValues.UserPW.Trim()
+        Dim password As String = PasswordEncryption.Decrypt(ProjectValues.UserPW, user).Trim()
+
+        DebugLog.Write($"[SCAN AUTH] UserName='{user}'")
+        DebugLog.Write($"[SCAN AUTH] Password='{password}'")
 
         _hasCredentials =
         Not String.IsNullOrWhiteSpace(user) AndAlso
@@ -116,7 +119,13 @@ Public NotInheritable Class ScanLocator
 
         Try
 
+            DebugLog.Write($"[SCAN HTTP] Request URL='{url}'")
+            DebugLog.Write($"[SCAN HTTP] ProjectValues.UserName='{ProjectValues.UserName}'")
+
             Using response As HttpResponseMessage = Await _http.GetAsync(url)
+
+                DebugLog.Write(
+                $"[SCAN HTTP] Response={CInt(response.StatusCode)} {response.ReasonPhrase}")
 
                 If response.StatusCode = HttpStatusCode.Unauthorized Then
                     _lastRequestUnauthorized = True
@@ -145,16 +154,19 @@ Public NotInheritable Class ScanLocator
         Catch ex As HttpRequestException
 
             _lastErrorMessage = "Unable to contact the scan website: " & ex.Message
+            DebugLog.Write($"[SCAN HTTP] HttpRequestException: {ex.Message}")
             Return Nothing
 
         Catch ex As TaskCanceledException
 
             _lastErrorMessage = "The scan website request timed out."
+            DebugLog.Write("[SCAN HTTP] Request timed out.")
             Return Nothing
 
         Catch ex As Exception
 
             _lastErrorMessage = "Unexpected error while reading scan website: " & ex.Message
+            DebugLog.Write($"[SCAN HTTP] Exception: {ex}")
             Return Nothing
 
         End Try

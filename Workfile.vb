@@ -8,13 +8,11 @@ Public Class Workfile
     Private Const RecordSize As Integer = 512
     Private Const HeaderRecordStart As Integer = 1
     Private Const HeaderRecordCount As Integer = 6
-    Private Const DirectiveRecordStart As Integer = HeaderRecordStart + HeaderRecordCount
-    Private Const MaxDirectiveRecords As Integer = 100
-    Private Const FirstRowRecord As Integer = DirectiveRecordStart + MaxDirectiveRecords
+    Private Const FirstRowRecord As Integer = HeaderRecordStart + HeaderRecordCount
 
     Private Shared ReadOnly WorkfileEncoding As Encoding = Encoding.GetEncoding(1252)
 
-    Private Const Signature As String = "W00000|WINBMD2_WORK_V2"
+    Private Const Signature As String = "W00000|WINBMD2_WORK_V3"
     Private Const SignatureRecord As Integer = 0
 
     Friend NotInheritable Class LoadResult
@@ -77,8 +75,6 @@ Public Class Workfile
                     WriteRecord(stream, HeaderRecordStart + i, "H" & (i + 1).ToString("00000") & "|" & headerLines(i))
                 Next
 
-                SaveDirectives(stream, grid)
-
                 Dim fields() As GridField = LoadSaveFiles.GetDataFields()
 
                 For rowIndex As Integer = 0 To grid.Rows.Count - 1
@@ -86,8 +82,16 @@ Public Class Workfile
                     If row.IsNewRow Then Continue For
                     If rowIndex = grid.Rows.Count - 1 AndAlso TranscriptionForm.IsBlankEntryRow(row) Then Continue For
 
-                    Dim dataLine As String = LoadSaveFiles.BuildDataLine(row, fields)
-                    WriteRecord(stream, FirstRowRecord + rowIndex, "L" & rowIndex.ToString("00000") & "|" & dataLine)
+                    Dim line As String
+                    Dim directive As RowDirective = RowDirective.FromGridRow(row)
+
+                    If directive IsNot Nothing Then
+                        line = LoadSaveFiles.BuildDirectiveLine(directive)
+                    Else
+                        line = LoadSaveFiles.BuildDataLine(row, fields)
+                    End If
+
+                    WriteRecord(stream, FirstRowRecord + rowIndex, "L" & rowIndex.ToString("00000") & "|" & line)
                 Next
 
                 stream.Flush()
@@ -178,9 +182,17 @@ Public Class Workfile
 
             If Not String.IsNullOrWhiteSpace(folder) Then Directory.CreateDirectory(folder)
 
-            Dim fields() As GridField = LoadSaveFiles.GetDataFields()
-            Dim dataLine As String = LoadSaveFiles.BuildDataLine(row, fields)
-            Dim recordText As String = "L" & rowIndex.ToString("00000") & "|" & dataLine
+            Dim line As String
+            Dim directive As RowDirective = RowDirective.FromGridRow(row)
+
+            If directive IsNot Nothing Then
+                line = LoadSaveFiles.BuildDirectiveLine(directive)
+            Else
+                Dim fields() As GridField = LoadSaveFiles.GetDataFields()
+                line = LoadSaveFiles.BuildDataLine(row, fields)
+            End If
+
+            Dim recordText As String = "L" & rowIndex.ToString("00000") & "|" & line
             Dim record() As Byte = MakeRecord(recordText)
             Dim offset As Long = CLng(FirstRowRecord + rowIndex) * RecordSize
 
@@ -200,39 +212,6 @@ Public Class Workfile
         End Try
 
     End Function
-
-    Private Shared Sub SaveDirectives(stream As FileStream, grid As DataGridView)
-
-        Dim recordIndex As Integer = 0
-
-        For rowIndex As Integer = 0 To grid.Rows.Count - 1
-
-            Dim row As DataGridViewRow = grid.Rows(rowIndex)
-            If row.IsNewRow Then Continue For
-
-            Dim directiveCell As DataGridViewCell = row.Cells(GridField.Directive.ToString())
-            Dim directives As List(Of RowDirective) = TryCast(directiveCell.Tag, List(Of RowDirective))
-
-            If directives Is Nothing Then Continue For
-
-            For Each directive As RowDirective In directives
-
-                If recordIndex >= MaxDirectiveRecords Then
-                    DebugLog.Write("[WORKFILE] Too many directives; some directives were not saved.")
-                    Return
-                End If
-
-                Dim directiveLine As String = LoadSaveFiles.BuildDirectiveLine(directive)
-                Dim recordText As String = "D" & recordIndex.ToString("00000") & "|" & rowIndex.ToString() & "|" & directiveLine
-
-                WriteRecord(stream, DirectiveRecordStart + recordIndex, recordText)
-                recordIndex += 1
-
-            Next
-
-        Next
-
-    End Sub
 
     Private Shared Function ReadRecord(stream As FileStream, recordNumber As Integer) As String
 
@@ -292,7 +271,6 @@ Public Class Workfile
 
                 Dim headerLines As New List(Of String)
                 Dim rowLines As New SortedDictionary(Of Integer, String)
-                Dim directivesByRow As New Dictionary(Of Integer, List(Of String))
 
                 For i As Integer = 0 To HeaderRecordCount - 1
                     Dim record As String = ReadRecord(stream, HeaderRecordStart + i)
@@ -303,30 +281,6 @@ Public Class Workfile
 
                     Dim content As String = record.Substring(pipe + 1)
                     If Not String.IsNullOrWhiteSpace(content) Then headerLines.Add(content)
-                Next
-
-                For i As Integer = 0 To MaxDirectiveRecords - 1
-                    Dim record As String = ReadRecord(stream, DirectiveRecordStart + i)
-                    If String.IsNullOrWhiteSpace(record) Then Continue For
-                    If Not record.StartsWith("D", StringComparison.OrdinalIgnoreCase) Then Continue For
-
-                    Dim parts() As String = record.Split(New Char() {"|"c}, 3)
-                    If parts.Length < 3 Then Continue For
-
-                    Dim rowIndex As Integer
-                    If Not Integer.TryParse(parts(1), rowIndex) Then Continue For
-
-                    Dim directiveLine As String = parts(2).TrimEnd()
-                    If String.IsNullOrWhiteSpace(directiveLine) Then Continue For
-
-                    Dim directives As List(Of String) = Nothing
-
-                    If Not directivesByRow.TryGetValue(rowIndex, directives) Then
-                        directives = New List(Of String)
-                        directivesByRow(rowIndex) = directives
-                    End If
-
-                    directives.Add(directiveLine)
                 Next
 
                 Dim recordCount As Integer = CInt(stream.Length \ RecordSize)
@@ -350,29 +304,14 @@ Public Class Workfile
                 Next
 
                 Dim batchLines As New List(Of String)
+
                 batchLines.AddRange(headerLines)
-
-                Dim beforeFirstRow As List(Of String) = Nothing
-
-                If directivesByRow.TryGetValue(-1, beforeFirstRow) Then
-                    For Each directive As String In beforeFirstRow
-                        batchLines.Add(directive)
-                    Next
-                End If
 
                 For Each pair As KeyValuePair(Of Integer, String) In rowLines
                     batchLines.Add(pair.Value)
-
-                    Dim afterRow As List(Of String) = Nothing
-
-                    If directivesByRow.TryGetValue(pair.Key, afterRow) Then
-                        For Each directive As String In afterRow
-                            batchLines.Add(directive)
-                        Next
-                    End If
                 Next
 
-                DebugLog.Write("[WORKFILE] Read workfile. Headers=" & headerLines.Count.ToString() & ", Rows=" & rowLines.Count.ToString() & ", DirectiveRows=" & directivesByRow.Count.ToString() & ", Lines=" & batchLines.Count.ToString())
+                DebugLog.Write("[WORKFILE] Read workfile. Headers=" & headerLines.Count.ToString() & ", Rows=" & rowLines.Count.ToString() & ", Lines=" & batchLines.Count.ToString())
 
                 Return New LoadResult With {.Success = True, .Lines = batchLines}
 

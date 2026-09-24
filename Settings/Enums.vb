@@ -35,7 +35,8 @@ End Enum
 ' Identifies the different warning conditions which may be recorded
 ' against an individual directive.
 Public Enum DirectiveWarningType
-    TooManyPageDirectives
+    InvalidPageNumber
+    IncorrectPageSequence
 End Enum
 #End Region
 

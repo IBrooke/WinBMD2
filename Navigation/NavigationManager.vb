@@ -8,28 +8,17 @@
 
     End Sub
 
-    Public Function HandleKey(
-        sender As Object,
-        e As KeyEventArgs) As Boolean
+    Public Function HandleKey(sender As Object, e As KeyEventArgs) As Boolean
 
-        Dim editor As TextBox =
-            TryCast(sender, TextBox)
+        Dim editor As TextBox = TryCast(sender, TextBox)
 
-        If _owner.CurrentGridCell Is Nothing Then
-            Return False
-        End If
-
-        Dim currentRow As Integer =
-            _owner.CurrentGridCell.RowIndex
-
-        Dim currentColumn As Integer =
-            _owner.CurrentGridCell.ColumnIndex
+        If _owner.CurrentGridCell Is Nothing Then Return False
 
         If _owner.PickListIsActive Then
 
             Dim number As Integer = -1
 
-            If e.KeyCode >= Keys.D1 AndAlso e.KeyCode <= Keys.D9 Then
+            If Not e.Shift AndAlso e.KeyCode >= Keys.D1 AndAlso e.KeyCode <= Keys.D9 Then
                 number = e.KeyCode - Keys.D0
             ElseIf e.KeyCode >= Keys.NumPad1 AndAlso e.KeyCode <= Keys.NumPad9 Then
                 number = e.KeyCode - Keys.NumPad0
@@ -39,7 +28,7 @@
 
                 If _owner.SelectPickListItemByNumber(number) Then
 
-                    _owner.AcceptCurrentPickListSelection(editor)
+                    _owner.AcceptCurrentPickListSelection(editor, True)
 
                     ' A Forename field can contain several names. After selecting
                     ' one from the picklist, add a space and remain in the same
@@ -48,9 +37,7 @@
 
                         If editor IsNot Nothing Then
 
-                            If Not editor.Text.EndsWith(" ") Then
-                                editor.Text &= " "
-                            End If
+                            If Not editor.Text.EndsWith(" ") Then editor.Text &= " "
 
                             editor.SelectionStart = editor.TextLength
                             editor.SelectionLength = 0
@@ -72,20 +59,15 @@
 
             End If
 
-        End If
-
-        If _owner.PickListIsActive Then
-
             If e.KeyCode = Keys.D0 OrElse e.KeyCode = Keys.NumPad0 Then
-
                 _owner.CopyNextWordFromAbove(editor)
                 Return True
-
             End If
 
         End If
 
         Select Case e.KeyCode
+
             Case Keys.Up
 
                 If e.Alt AndAlso _owner.PickListIsActive Then
@@ -103,13 +85,7 @@
             Case Keys.Left, Keys.Back
 
                 If editor IsNot Nothing Then
-
-                    If editor.SelectionStart <> 0 OrElse editor.SelectionLength <> 0 Then
-
-                        Return False
-
-                    End If
-
+                    If editor.SelectionStart <> 0 OrElse editor.SelectionLength <> 0 Then Return False
                 End If
 
                 _owner.MoveToPreviousDataCell()
@@ -118,16 +94,10 @@
             Case Keys.Right
 
                 If editor IsNot Nothing Then
-
-                    If editor.SelectionStart <> editor.TextLength OrElse editor.SelectionLength <> 0 Then
-
-                        Return False
-
-                    End If
-
+                    If editor.SelectionStart <> editor.TextLength OrElse editor.SelectionLength <> 0 Then Return False
                 End If
 
-                _owner.MoveToNextDataCell()
+                _owner.MoveToNextDataCell(moveToStart:=True)
                 Return True
 
             Case Keys.Tab
@@ -153,16 +123,14 @@
                 ' accepting a picklist entry, append it and remain in the
                 ' Forename cell ready for another name.
                 If _owner.PickListIsActive AndAlso
-                   _owner.CurrentField = GridField.Forename AndAlso
-                   Not ShouldIgnorePickList(Keys.Enter) Then
+               _owner.CurrentField = GridField.Forename AndAlso
+               Not ShouldIgnorePickList(Keys.Enter) Then
 
                     _owner.AcceptCurrentPickListSelection(editor)
 
                     If editor IsNot Nothing Then
 
-                        If Not editor.Text.EndsWith(" ") Then
-                            editor.Text &= " "
-                        End If
+                        If Not editor.Text.EndsWith(" ") Then editor.Text &= " "
 
                         editor.SelectionStart = editor.TextLength
                         editor.SelectionLength = 0
@@ -179,7 +147,9 @@
                 _owner.MoveToNextDataCell()
 
                 Return True
+
         End Select
+
         Return False
 
     End Function
@@ -208,7 +178,7 @@
 
         ' District is a special case. If it is completely blank, there is no
         ' typed value or picklist selection to accept. In that case Tab or
-        ' Return should copy the District from the previous row regardless
+        ' Return should copy the District from the previous data row regardless
         ' of the Ignore AutoComplete setting.
         '
         ' CopyFromAboveIfBlank also copies the associated Volume/DistNum.
@@ -217,10 +187,18 @@
             Return
         End If
 
+        ' A blank Forename should copy the complete Forename from the preceding
+        ' data row rather than accepting the current picklist selection.
+        If _owner.CurrentField = GridField.Forename AndAlso editor IsNot Nothing AndAlso String.IsNullOrWhiteSpace(editor.Text) Then
+
+            If _owner.CopyFromAboveIfBlank(editor, allowPickList:=True) Then Return
+
+        End If
+
         ' For fields which use a picklist, the Ignore AutoComplete setting
         ' determines whether Tab/Return accepts the selected picklist entry
         ' or performs the normal copy-from-above behaviour.
-        If _owner.CurrentFieldUsesPickList Then
+        If _owner.PickListIsActive Then
 
             If ShouldIgnorePickList(key) Then
                 _owner.CopyFromAboveIfBlank(editor, allowPickList:=True)

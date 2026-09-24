@@ -11,7 +11,13 @@
     ' Lines is used by #COMMENT directives.
     ' Nothing means no line count was supplied.
     Public Property Lines As Integer?
+    Public Shared Function FromGridRow(row As DataGridViewRow) As RowDirective
 
+        If row Is Nothing Then Return Nothing
+
+        Return TryCast(row.Tag, RowDirective)
+
+    End Function
     Public Overrides Function ToString() As String
 
         If String.IsNullOrWhiteSpace(Text) Then

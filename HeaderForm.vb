@@ -39,7 +39,11 @@ Public Class HeaderForm
         HookValidationEvents()
 
         UpdateQuarterVisibility()
-        _showVnfWarningWhenShown = SuggestVolumeFormat()
+
+        If Not _editMode Then
+            _showVnfWarningWhenShown = SuggestVolumeFormat()
+        End If
+
         ValidateForm()
     End Sub
     Private Sub HeaderForm_Shown(sender As Object, e As EventArgs) Handles Me.Shown

@@ -10,9 +10,7 @@ Public NotInheritable Class Validator
     ' UCF validation always takes precedence. If a value contains any
     ' UCF characters, only the UCF syntax is checked and no normal
     ' field-specific validation is performed.
-    Public Shared Function Validate(
-    field As GridField,
-    value As String) As ValidationResult
+    Public Shared Function Validate(field As GridField, value As String) As ValidationResult
 
         value = If(value, "")
 
@@ -163,6 +161,10 @@ Public NotInheritable Class Validator
 
         If "[]*?_{}".Contains(ch) Then
             Return True
+        End If
+
+        If field = GridField.Forename Then
+            Return ch = "("c OrElse ch = ")"c
         End If
 
         If field = GridField.District Then
@@ -1130,7 +1132,7 @@ Public NotInheritable Class Validator
             "[]*?_{}".ToCharArray()) >= 0
 
     End Function
-    Private Shared Function CodeFormat(code As String) As String
+    Friend Shared Function CodeFormat(code As String) As String
 
         If String.IsNullOrWhiteSpace(code) Then
             Return ""
@@ -1246,28 +1248,48 @@ Public NotInheritable Class Validator
         Return result
 
     End Function
-    Public Shared Function ValidateDirectives(grid As DataGridView, lastDataRowIndex As Integer) As List(Of DirectiveValidationResult)
+    Public Shared Function ValidateDirectives(grid As DataGridView) As List(Of DirectiveValidationResult)
 
         Dim results As New List(Of DirectiveValidationResult)
+        Dim currentPage As Integer = ProjectValues.Page
 
         For rowIndex As Integer = 0 To grid.Rows.Count - 1
 
-            Dim directiveCell As DataGridViewCell = grid.Rows(rowIndex).Cells(GridField.Directive.ToString())
-            Dim directives As List(Of RowDirective) = TryCast(directiveCell.Tag, List(Of RowDirective))
+            Dim directive As RowDirective = RowDirective.FromGridRow(grid.Rows(rowIndex))
 
-            If directives Is Nothing Then Continue For
+            If directive Is Nothing Then Continue For
 
-            For Each directive As RowDirective In directives
+            directive.RowIndex = rowIndex
 
-                If directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) Then
+            If directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) Then
 
-                    If rowIndex <> lastDataRowIndex Then
-                        results.Add(New DirectiveValidationResult(directive, DirectiveWarningType.TooManyPageDirectives, ValidationResult.Warning("A +PAGE directive would normally only occur at the end of the transcription.")))
-                    End If
+                Dim pageNumber As Integer
+
+                If Not Integer.TryParse(directive.Text, pageNumber) OrElse pageNumber <= 0 Then
+
+                    results.Add(New DirectiveValidationResult(
+                    directive,
+                    DirectiveWarningType.InvalidPageNumber,
+                    ValidationResult.Error("The +PAGE directive does not contain a valid page number.")))
+
+                    Continue For
 
                 End If
 
-            Next
+                Dim expectedPage As Integer = currentPage + 1
+                DebugLog.WriteAlways($"[DIRECTIVE VALIDATION] Row={rowIndex + 1}, Page={pageNumber}, Expected={expectedPage}")
+                If pageNumber <> expectedPage Then
+                    DebugLog.WriteAlways($"[DIRECTIVE VALIDATION] Incorrect +PAGE sequence detected. Page={pageNumber}, Expected={expectedPage}")
+                    results.Add(New DirectiveValidationResult(
+                    directive,
+                    DirectiveWarningType.IncorrectPageSequence,
+                    ValidationResult.Warning($"The +PAGE directive is page {pageNumber}; page {expectedPage} was expected.")))
+
+                End If
+
+                currentPage = pageNumber
+
+            End If
 
         Next
 
