@@ -201,6 +201,7 @@
         If _owner.PickListIsActive Then
 
             If ShouldIgnorePickList(key) Then
+                _owner.RemoveAutoCompletion(editor)
                 _owner.CopyFromAboveIfBlank(editor, allowPickList:=True)
             Else
                 _owner.AcceptCurrentPickListSelection(editor)

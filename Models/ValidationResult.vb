@@ -48,18 +48,3 @@
     End Property
 
 End Class
-Public NotInheritable Class DirectiveValidationResult
-
-    Public ReadOnly Property Directive As RowDirective
-    Public ReadOnly Property WarningType As DirectiveWarningType
-    Public ReadOnly Property Result As ValidationResult
-
-    Public Sub New(directive As RowDirective, warningType As DirectiveWarningType, result As ValidationResult)
-
-        Me.Directive = directive
-        Me.WarningType = warningType
-        Me.Result = result
-
-    End Sub
-
-End Class

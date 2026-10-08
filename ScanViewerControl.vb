@@ -9,6 +9,8 @@ Public Class ScanViewerControl
     Public Event PanChanged As EventHandler
     Public Event DragFinished As EventHandler
     Private _image As Image
+    Private _displayImage As Bitmap
+    Private _displayImageDirty As Boolean = True
     Private _imageOffsetX As Integer
     Private _imageOffsetY As Integer
     Private _panX As Single
@@ -32,6 +34,7 @@ Public Class ScanViewerControl
 
     Private _showRuler As Boolean
     Private _rulerScreenY As Single
+    Private _rulerHeight As Single = 1.0F
 
     <DefaultValue(False)>
     Public Property ShowRuler As Boolean
@@ -40,15 +43,14 @@ Public Class ScanViewerControl
         End Get
         Set(value As Boolean)
 
-            If _showRuler = value Then
-                Return
-            End If
+            If _showRuler = value Then Return
 
             _showRuler = value
             Invalidate()
 
         End Set
     End Property
+
 
     <DefaultValue(0.0F)>
     Public Property RulerScreenY As Single
@@ -62,6 +64,19 @@ Public Class ScanViewerControl
 
         End Set
     End Property
+    Public Sub SetRulerHeight(height As Single)
+
+        _rulerHeight = Math.Max(1.0F, height)
+        Invalidate()
+
+    End Sub
+    Public Sub New()
+
+        DoubleBuffered = True
+        AutoScroll = True
+        BackColor = Color.DimGray
+
+    End Sub
     Public ReadOnly Property HasImage As Boolean
         Get
             Return _image IsNot Nothing
@@ -83,7 +98,7 @@ Public Class ScanViewerControl
             _zoom = Math.Max(MinZoom, Math.Min(MaxZoom, value))
 
             UpdateScrollArea()
-            Invalidate()
+            InvalidateDisplayImage()
 
         End Set
     End Property
@@ -97,7 +112,7 @@ Public Class ScanViewerControl
             _rotation = value
 
             UpdateScrollArea()
-            Invalidate()
+            InvalidateDisplayImage()
 
         End Set
     End Property
@@ -121,7 +136,7 @@ Public Class ScanViewerControl
 
         _panX += deltaX
         _panY += deltaY
-        Invalidate()
+        InvalidateDisplayImage()
 
     End Sub
     Public Function GetImagePanX() As Single
@@ -132,7 +147,7 @@ Public Class ScanViewerControl
     Public Sub SetImagePanX(value As Single)
 
         _panX = value
-        Invalidate()
+        InvalidateDisplayImage()
 
     End Sub
     Public Function GetImagePanY() As Single
@@ -144,15 +159,7 @@ Public Class ScanViewerControl
     Public Sub SetImagePanY(value As Single)
 
         _panY = value
-        Invalidate()
-
-    End Sub
-
-    Public Sub New()
-
-        DoubleBuffered = True
-        AutoScroll = True
-        BackColor = Color.DimGray
+        InvalidateDisplayImage()
 
     End Sub
     Public Sub LoadImage(fileName As String)
@@ -165,6 +172,7 @@ Public Class ScanViewerControl
         _panX = 0.0F
         _panY = 0.0F
         UpdateScrollArea()
+        CreateDisplayImage()
         Invalidate()
 
     End Sub
@@ -172,6 +180,7 @@ Public Class ScanViewerControl
     Public Sub ClearImage()
 
         DisposeCurrentImage()
+        DisposeDisplayImage()
         UpdateScrollArea()
         Invalidate()
 
@@ -183,24 +192,49 @@ Public Class ScanViewerControl
         _imageOffsetX = ClientSize.Width \ 2
         _imageOffsetY = ClientSize.Height \ 2
 
-        _rulerScreenY = ClientSize.Height / 2.0F
+        RulerScreenY = ClientSize.Height / 2.0F
 
         UpdateScrollArea()
-        Invalidate()
+        InvalidateDisplayImage()
 
     End Sub
     Protected Overrides Sub OnPaint(e As PaintEventArgs)
 
-        Dim paintStarted As Long = Stopwatch.GetTimestamp()
+        'Dim paintStarted As Long = Stopwatch.GetTimestamp()
+        'Dim scanRedrawn As Boolean = _displayImageDirty
 
         MyBase.OnPaint(e)
 
-        e.Graphics.Clear(BackColor)
+        If _displayImageDirty Then CreateDisplayImage()
+
+        If _displayImage IsNot Nothing Then
+            e.Graphics.DrawImageUnscaled(_displayImage, 0, 0)
+        Else
+            e.Graphics.Clear(BackColor)
+        End If
+
+        If _showRuler Then
+
+            Dim rulerTop As Single = _rulerScreenY - (_rulerHeight / 2.0F)
+
+            Using rulerBrush As New SolidBrush(ThemeManager.RulerColour)
+                e.Graphics.FillRectangle(rulerBrush, 0.0F, rulerTop, ClientSize.Width, _rulerHeight)
+            End Using
+
+        End If
+
+        'Dim paintMilliseconds As Double = Stopwatch.GetElapsedTime(paintStarted).TotalMilliseconds
+        'DebugLog.Write($"[SCAN PAINT] Redrawn={scanRedrawn}, Time={paintMilliseconds:0.0} ms")
+    End Sub
+
+    Private Sub DrawScan(graphics As Graphics)
+
+        graphics.Clear(BackColor)
 
         If _image Is Nothing Then Return
 
-        e.Graphics.InterpolationMode = Drawing2D.InterpolationMode.Bilinear
-        e.Graphics.PixelOffsetMode = Drawing2D.PixelOffsetMode.Default
+        graphics.InterpolationMode = Drawing2D.InterpolationMode.Bilinear
+        graphics.PixelOffsetMode = Drawing2D.PixelOffsetMode.Default
 
         Dim scaledWidth As Single = _image.Width * _zoom
         Dim scaledHeight As Single = _image.Height * _zoom
@@ -225,22 +259,22 @@ Public Class ScanViewerControl
             RaiseEvent PanChanged(Me, EventArgs.Empty)
         End If
 
-        e.Graphics.TranslateTransform(x + scaledWidth / 2.0F, y + scaledHeight / 2.0F)
-        e.Graphics.RotateTransform(_rotation)
-        e.Graphics.ScaleTransform(_zoom, _zoom)
-        e.Graphics.TranslateTransform(-_image.Width / 2.0F, -_image.Height / 2.0F)
+        graphics.TranslateTransform(x + scaledWidth / 2.0F, y + scaledHeight / 2.0F)
+        graphics.RotateTransform(_rotation)
+        graphics.ScaleTransform(_zoom, _zoom)
+        graphics.TranslateTransform(-_image.Width / 2.0F, -_image.Height / 2.0F)
 
         ' Draw only the part of the scan that can currently be seen in the viewer.
         ' Convert the viewer corners back into image coordinates and add a small
         ' margin to allow for rotation, rounding and interpolation.
         Dim visiblePoints() As PointF = {
-            New PointF(0, 0),
-            New PointF(ClientSize.Width, 0),
-            New PointF(ClientSize.Width, ClientSize.Height),
-            New PointF(0, ClientSize.Height)
-}
+        New PointF(0, 0),
+        New PointF(ClientSize.Width, 0),
+        New PointF(ClientSize.Width, ClientSize.Height),
+        New PointF(0, ClientSize.Height)
+    }
 
-        Using inverseTransform As Drawing2D.Matrix = e.Graphics.Transform.Clone()
+        Using inverseTransform As Drawing2D.Matrix = graphics.Transform.Clone()
             inverseTransform.Invert()
             inverseTransform.TransformPoints(visiblePoints)
         End Using
@@ -259,36 +293,23 @@ Public Class ScanViewerControl
 
         If right > left AndAlso bottom > top Then
             Dim sourceRectangle As New RectangleF(left, top, right - left, bottom - top)
-            e.Graphics.DrawImage(_image, sourceRectangle, sourceRectangle, GraphicsUnit.Pixel)
+            graphics.DrawImage(_image, sourceRectangle, sourceRectangle, GraphicsUnit.Pixel)
         End If
 
-        e.Graphics.ResetTransform()
-
-        If _showRuler Then
-
-            Using rulerPen As New Pen(ThemeManager.RulerColour, ScaleForCurrentDpi(15))
-                e.Graphics.DrawLine(rulerPen, 0, _rulerScreenY, ClientSize.Width, _rulerScreenY)
-            End Using
-
-        End If
-
-        Dim paintMilliseconds As Double = Stopwatch.GetElapsedTime(paintStarted).TotalMilliseconds
-
-        If paintMilliseconds >= 50 Then
-            DebugLog.Write($"[SCAN PAINT] Paint took {paintMilliseconds:0.0} ms. Client={ClientSize.Width}x{ClientSize.Height}, Image={_image.Width}x{_image.Height}, Zoom={_zoom:0.###}")
-        End If
+        graphics.ResetTransform()
 
     End Sub
     Protected Overrides Sub OnScroll(se As ScrollEventArgs)
 
         MyBase.OnScroll(se)
-        Invalidate()
+        InvalidateDisplayImage()
 
     End Sub
     Protected Overrides Sub Dispose(disposing As Boolean)
 
         If disposing Then
             DisposeCurrentImage()
+            DisposeDisplayImage()
         End If
 
         MyBase.Dispose(disposing)
@@ -305,7 +326,36 @@ Public Class ScanViewerControl
         _image = Nothing
 
     End Sub
+    Private Sub DisposeDisplayImage()
 
+        If _displayImage Is Nothing Then Return
+
+        _displayImage.Dispose()
+        _displayImage = Nothing
+
+    End Sub
+    Private Sub CreateDisplayImage()
+
+        DisposeDisplayImage()
+
+        If _image Is Nothing Then Return
+        If ClientSize.Width <= 0 OrElse ClientSize.Height <= 0 Then Return
+
+        _displayImage = New Bitmap(ClientSize.Width, ClientSize.Height)
+
+        Using graphics As Graphics = Graphics.FromImage(_displayImage)
+            DrawScan(graphics)
+        End Using
+
+        _displayImageDirty = False
+
+    End Sub
+    Private Sub InvalidateDisplayImage()
+
+        _displayImageDirty = True
+        Invalidate()
+
+    End Sub
     Private Sub UpdateScrollArea()
 
         If _image Is Nothing Then
@@ -392,7 +442,7 @@ Public Class ScanViewerControl
 
         _panY = _dragStartPan.Y + dy
 
-        Invalidate()
+        InvalidateDisplayImage()
 
     End Sub
 
@@ -446,7 +496,7 @@ Public Class ScanViewerControl
 
         _panY = screenY - _imageOffsetY - (imageY * _zoom)
 
-        Invalidate()
+        InvalidateDisplayImage()
 
     End Sub
     Public Function ScaleForCurrentDpi(logicalPixels As Integer) As Integer

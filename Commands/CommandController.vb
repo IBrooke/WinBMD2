@@ -132,6 +132,7 @@ Public NotInheritable Class CommandController
         AddHandler _transcriptionForm.FormClosed, AddressOf TranscriptionForm_FormClosed
         AddHandler _transcriptionForm.CurrentGridRowChanged, AddressOf TranscriptionForm_CurrentGridRowChanged
         AddHandler _scanView.RulerSetupFinished, AddressOf ScanView_RulerSetupFinished
+        AddHandler _scanView.VerifyFieldFocused, AddressOf ScanView_VerifyFieldFocused
 
         MainForm = _transcriptionForm
 
@@ -192,6 +193,13 @@ Public NotInheritable Class CommandController
         _scanView.ToggleVerify()
 
     End Sub
+    Private Sub ScanView_VerifyFieldFocused(field As GridField)
+
+        If _transcriptionForm Is Nothing OrElse _transcriptionForm.IsDisposed Then Return
+
+        _transcriptionForm.HighlightVerifyField(field)
+
+    End Sub
     Public Async Function ToggleScanViewAsync() As Task Implements ICommandExecutor.ToggleScanViewAsync
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then
@@ -239,10 +247,7 @@ Public NotInheritable Class CommandController
 
         End If
 
-        If values Is Nothing Then
-            Return
-        End If
-
+        _transcriptionForm.EndGridEdit()
         _scanView.LoadVerifyValues(values)
 
         Dim rowIndex As Integer =
@@ -252,7 +257,7 @@ Public NotInheritable Class CommandController
             _scanView.MoveRulerToRow(rowIndex + 1)
         End If
         _scanView.MoveScanToVerifyRow(rowIndex + 1)
-        _scanView.FocusFirstVerifyBox()
+        _scanView.BeginInvoke(Sub() _scanView.FocusFirstVerifyBox())
 
     End Sub
     Public Sub CompleteVerifyRow() Implements ICommandExecutor.CompleteVerifyRow
@@ -279,7 +284,7 @@ Public NotInheritable Class CommandController
 
         _scanView.LoadVerifyValues(_transcriptionForm.GetCurrentVerifyValues())
         _scanView.MoveRulerToRow(nextRow + 1)
-        _scanView.FocusFirstVerifyBox()
+        _scanView.BeginInvoke(Sub() _scanView.FocusFirstVerifyBox())
 
     End Sub
 

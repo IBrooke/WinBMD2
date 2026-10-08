@@ -124,8 +124,7 @@ Public NotInheritable Class ScanLocator
 
             Using response As HttpResponseMessage = Await _http.GetAsync(url)
 
-                DebugLog.Write(
-                $"[SCAN HTTP] Response={CInt(response.StatusCode)} {response.ReasonPhrase}")
+                DebugLog.Write($"[SCAN HTTP] Response={CInt(response.StatusCode)} {response.ReasonPhrase}")
 
                 If response.StatusCode = HttpStatusCode.Unauthorized Then
                     _lastRequestUnauthorized = True
@@ -133,9 +132,7 @@ Public NotInheritable Class ScanLocator
                     Return Nothing
                 End If
 
-                If response.StatusCode = HttpStatusCode.NotFound Then
-                    Return Nothing
-                End If
+                If response.StatusCode = HttpStatusCode.NotFound Then Return Nothing
 
                 If response.StatusCode = HttpStatusCode.Forbidden Then
                     _lastErrorMessage = "Access to the scan website was denied."
@@ -366,7 +363,7 @@ Public NotInheritable Class ScanLocator
             }
         End If
 
-        If String.IsNullOrWhiteSpace(pageLetterPart) OrElse pageLetterPart.Length >= 4 Then
+        If String.IsNullOrWhiteSpace(pageLetterPart) OrElse Not pageLetterPart.All(AddressOf Char.IsLetter) Then
             Return New ParsedScanName With {
                 .IsValid = False,
                 .NameOnly = nameOnly
@@ -430,10 +427,7 @@ Public NotInheritable Class ScanLocator
             Return False
         End If
 
-        Return String.Equals(
-            pageLetterPart,
-            wanted,
-            StringComparison.OrdinalIgnoreCase)
+        Return pageLetterPart.IndexOf(wanted, StringComparison.OrdinalIgnoreCase) >= 0
 
     End Function
 
@@ -998,20 +992,12 @@ Public NotInheritable Class ScanLocator
         Return candidates
 
     End Function
-    Private Async Function CollectCandidatesBelowAsync(
-    startUrl As String,
-    sourceReferenceOverride As String,
-    stopGloballyWhenBeyondWantedPage As Boolean) As Task(Of List(Of ScanCandidate))
+    Private Async Function CollectCandidatesBelowAsync(startUrl As String, sourceReferenceOverride As String, stopGloballyWhenBeyondWantedPage As Boolean) As Task(Of List(Of ScanCandidate))
 
         Dim candidates As New List(Of ScanCandidate)
-
-        Dim visited As New HashSet(Of String)(
-            StringComparer.OrdinalIgnoreCase)
-
+        Dim visited As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
         Dim queue As New Queue(Of String)
-
-        Dim normalizedStart As String =
-            NormalizeUrl(startUrl)
+        Dim normalizedStart As String = NormalizeUrl(startUrl)
 
         queue.Enqueue(normalizedStart)
         visited.Add(normalizedStart)
@@ -1022,54 +1008,30 @@ Public NotInheritable Class ScanLocator
 
         While queue.Count > 0 AndAlso Not stopSearch
 
-            Dim pageUrl As String =
-                queue.Dequeue()
+            Dim pageUrl As String = queue.Dequeue()
 
             pagesChecked += 1
 
-            DebugLog.Write(
-                $"[SCAN CRAWL] [{pagesChecked}] Searching {pageUrl}")
+            DebugLog.Write($"[SCAN CRAWL] [{pagesChecked}] Searching {pageUrl}")
 
-            Dim html As String =
-                Await GetHtmlAsync(pageUrl)
+            Dim html As String = Await GetHtmlAsync(pageUrl)
 
-            If String.IsNullOrWhiteSpace(html) Then
-                Continue While
-            End If
+            If String.IsNullOrWhiteSpace(html) Then Continue While
 
-            Dim links As List(Of String) =
-                ExtractLinks(html).ToList()
+            Dim links As List(Of String) = ExtractLinks(html).ToList()
+            Dim folderCount As Integer = Enumerable.Count(links, Function(link) LooksLikeFolderLink(link))
+            Dim imageCount As Integer = Enumerable.Count(links, Function(link) IsImageLink(link))
 
-            Dim folderCount As Integer =
-    Enumerable.Count(
-        links,
-        Function(link) LooksLikeFolderLink(link))
-
-            Dim imageCount As Integer =
-    Enumerable.Count(
-        links,
-        Function(link) IsImageLink(link))
-
-            DebugLog.Write(
-    $"[SCAN CRAWL] links={links.Count}, folders={folderCount}, images={imageCount}")
+            DebugLog.Write($"[SCAN CRAWL] links={links.Count}, folders={folderCount}, images={imageCount}")
 
             Dim pageReachedBeyondWanted As Boolean
-
-            Dim pageCandidates As List(Of ScanCandidate) =
-                CollectImageCandidatesOnPage(
-                    pageUrl,
-                    links,
-                    sourceReferenceOverride,
-                    crawlOrder,
-                    pageReachedBeyondWanted)
+            Dim pageCandidates As List(Of ScanCandidate) = CollectImageCandidatesOnPage(pageUrl, links, sourceReferenceOverride, crawlOrder, pageReachedBeyondWanted)
 
             candidates.AddRange(pageCandidates)
 
-            If pageReachedBeyondWanted AndAlso
-               stopGloballyWhenBeyondWantedPage Then
+            If pageReachedBeyondWanted AndAlso stopGloballyWhenBeyondWantedPage Then
 
-                DebugLog.Write(
-                    "[SCAN CRAWL] Stopping remote scan search: later page letter/page reached.")
+                DebugLog.Write("[SCAN CRAWL] Stopping remote scan search: later page letter/page reached.")
 
                 stopSearch = True
                 Exit While
@@ -1078,29 +1040,19 @@ Public NotInheritable Class ScanLocator
 
             For Each href As String In links
 
-                If Not LooksLikeFolderLink(href) Then
-                    Continue For
-                End If
+                If Not LooksLikeFolderLink(href) Then Continue For
 
-                Dim childUrl As String =
-                    TryMakeChildUrl(pageUrl, href)
+                Dim childUrl As String = TryMakeChildUrl(pageUrl, href)
 
-                If childUrl Is Nothing Then
-                    Continue For
-                End If
+                If childUrl Is Nothing Then Continue For
 
-                Dim normalizedChild As String =
-                    NormalizeUrl(childUrl)
+                Dim normalizedChild As String = NormalizeUrl(childUrl)
 
-                If Not IsChildUrl(pageUrl, normalizedChild) Then
-                    Continue For
-                End If
+                If Not IsChildUrl(pageUrl, normalizedChild) Then Continue For
 
                 If visited.Add(normalizedChild) Then
 
-                    DebugLog.Write(
-                        $"[SCAN CRAWL] queue {normalizedChild}")
-
+                    DebugLog.Write($"[SCAN CRAWL] queue {normalizedChild}")
                     queue.Enqueue(normalizedChild)
 
                 End If
@@ -1109,119 +1061,78 @@ Public NotInheritable Class ScanLocator
 
         End While
 
-        DebugLog.Write(
-            $"[SCAN CANDIDATE] Candidate collection complete. Count={candidates.Count}")
+        DebugLog.Write($"[SCAN CANDIDATE] Candidate collection complete. Count={candidates.Count}")
 
         For Each candidate As ScanCandidate In candidates
-
-            DebugLog.Write(
-                $"[SCAN CANDIDATE] Collected File='{candidate.FileName}', Kind={candidate.Kind}, Rank={candidate.ImageRank}, Order={candidate.CrawlOrder}, SourceReference='{candidate.SourceReference}', Url='{candidate.RemoteUrl}'")
-
+            DebugLog.Write($"[SCAN CANDIDATE] Collected File='{candidate.FileName}', Kind={candidate.Kind}, Rank={candidate.ImageRank}, Order={candidate.CrawlOrder}, SourceReference='{candidate.SourceReference}', Url='{candidate.RemoteUrl}'")
         Next
 
         Return candidates
 
     End Function
-    Private Async Function FindRemoteScanCandidateAsync(
-    startUrl As String,
-    enteredSourceRef As String) As Task(Of ScanCandidate)
+    Private Async Function FindRemoteScanCandidateAsync(startUrl As String, enteredSourceRef As String) As Task(Of ScanCandidate)
 
-        Dim normalizedStart As String =
-        NormalizeUrl(startUrl)
+        Dim normalizedStart As String = NormalizeUrl(startUrl)
 
-        DebugLog.Write(
-        $"[SCAN] Remote search starting. StartUrl='{normalizedStart}', EnteredSourceRef='{enteredSourceRef}'")
+        DebugLog.Write($"[SCAN] Remote search starting. StartUrl='{normalizedStart}', EnteredSourceRef='{enteredSourceRef}'")
 
-        Dim sourceFolders As List(Of (Url As String, SourceRef As String)) =
-        Await GetSourceFoldersAsync(normalizedStart)
+        Dim sourceFolders As List(Of (Url As String, SourceRef As String)) = Await GetSourceFoldersAsync(normalizedStart)
 
         If Not String.IsNullOrWhiteSpace(enteredSourceRef) Then
 
-            Dim sourceFolderUrl As String =
-            Await FindMatchingSourceFolderAsync(
-                normalizedStart,
-                enteredSourceRef)
+            Dim sourceFolderUrl As String = Await FindMatchingSourceFolderAsync(normalizedStart, enteredSourceRef)
 
             If sourceFolderUrl Is Nothing Then
 
-                DebugLog.Write(
-                $"[SCAN SOURCE] No source folder matched SourceRef='{enteredSourceRef}'. Searching other source folders for matching page.")
+                DebugLog.Write($"[SCAN SOURCE] No source folder matched SourceRef='{enteredSourceRef}'. Searching other source folders for matching page.")
 
                 Dim alternativeCandidates As New List(Of ScanCandidate)
 
                 For Each folder In sourceFolders
 
-                    DebugLog.Write(
-                    $"[SCAN SOURCE] Searching alternative SourceRef='{folder.SourceRef}'")
+                    DebugLog.Write($"[SCAN SOURCE] Searching alternative SourceRef='{folder.SourceRef}'")
 
-                    Dim folderCandidates As List(Of ScanCandidate) =
-                    Await CollectCandidatesBelowAsync(
-                        folder.Url,
-                        folder.SourceRef,
-                        True)
+                    Dim folderCandidates As List(Of ScanCandidate) = Await CollectCandidatesBelowAsync(folder.Url, folder.SourceRef, True)
 
                     alternativeCandidates.AddRange(folderCandidates)
 
                 Next
 
-                Dim alternative As ScanCandidate =
-                SelectBestCandidate(alternativeCandidates)
+                Dim alternative As ScanCandidate = SelectBestCandidate(alternativeCandidates)
 
                 If alternative IsNot Nothing Then
 
-                    _lastErrorMessage =
-                    $"Scan not found under SourceRef '{enteredSourceRef}'." &
-                    Environment.NewLine &
-                    $"A matching scan was found under SourceRef '{alternative.SourceReference}'."
+                    _lastErrorMessage = $"Scan not found under SourceRef '{enteredSourceRef}'." & Environment.NewLine & $"A matching scan was found under SourceRef '{alternative.SourceReference}'."
+                    _alternativeSourceRef = alternative.SourceReference
+                    _alternativeFileName = alternative.FileName
+                    _alternativeRemoteUrl = alternative.RemoteUrl
 
-                    _alternativeSourceRef =
-                    alternative.SourceReference
-
-                    _alternativeFileName =
-                    alternative.FileName
-
-                    _alternativeRemoteUrl =
-                    alternative.RemoteUrl
-
-                    DebugLog.Write(
-                    $"[SCAN SOURCE] Alternative matching scan found. EnteredSourceRef='{enteredSourceRef}', FoundSourceRef='{alternative.SourceReference}', File='{alternative.FileName}', Url='{alternative.RemoteUrl}'")
+                    DebugLog.Write($"[SCAN SOURCE] Alternative matching scan found. EnteredSourceRef='{enteredSourceRef}', FoundSourceRef='{alternative.SourceReference}', File='{alternative.FileName}', Url='{alternative.RemoteUrl}'")
 
                     Return Nothing
 
                 End If
 
-                _lastErrorMessage =
-                "Scan not found. Please check the scan reference."
+                _lastErrorMessage = "Scan not found. Please check the scan reference."
 
-                DebugLog.Write(
-                $"[SCAN SOURCE] No source folder matched SourceRef='{enteredSourceRef}', and no matching scan was found elsewhere.")
+                DebugLog.Write($"[SCAN SOURCE] No source folder matched SourceRef='{enteredSourceRef}', and no matching scan was found elsewhere.")
 
                 Return Nothing
 
             End If
 
-            Dim sourceReference As String =
-            GetLastUrlSegment(sourceFolderUrl)
+            Dim sourceReference As String = GetLastUrlSegment(sourceFolderUrl)
 
-            DebugLog.Write(
-            $"[SCAN SOURCE] Source folder matched. SourceRef='{enteredSourceRef}', SourceReference='{sourceReference}', Url='{sourceFolderUrl}'")
+            DebugLog.Write($"[SCAN SOURCE] Source folder matched. SourceRef='{enteredSourceRef}', SourceReference='{sourceReference}', Url='{sourceFolderUrl}'")
 
-            Dim candidates As List(Of ScanCandidate) =
-            Await CollectCandidatesBelowAsync(
-                sourceFolderUrl,
-                sourceReference,
-                True)
-
-            Dim selected As ScanCandidate =
-            SelectBestCandidate(candidates)
+            Dim candidates As List(Of ScanCandidate) = Await CollectCandidatesBelowAsync(sourceFolderUrl, sourceReference, True)
+            Dim selected As ScanCandidate = SelectBestCandidate(candidates)
 
             If selected Is Nothing Then
 
-                _lastErrorMessage =
-                "Scan not found. Please check the scan reference."
+                _lastErrorMessage = "Scan not found. Please check the scan reference."
 
-                DebugLog.Write(
-                $"[SCAN SOURCE] Source folder was found but no matching scan was found inside it. SourceReference='{sourceReference}', Url='{sourceFolderUrl}'")
+                DebugLog.Write($"[SCAN SOURCE] Source folder was found but no matching scan was found inside it. SourceReference='{sourceReference}', Url='{sourceFolderUrl}'")
 
                 Return Nothing
 
@@ -1231,33 +1142,23 @@ Public NotInheritable Class ScanLocator
 
         End If
 
-        DebugLog.Write(
-        "[SCAN SOURCE] SourceRef is blank. Searching all source folders.")
+        DebugLog.Write("[SCAN SOURCE] SourceRef is blank. Searching all source folders.")
 
         Dim allCandidates As New List(Of ScanCandidate)
 
         For Each folder In sourceFolders
 
-            DebugLog.Write(
-            $"[SCAN SOURCE] Searching SourceRef='{folder.SourceRef}'")
+            DebugLog.Write($"[SCAN SOURCE] Searching SourceRef='{folder.SourceRef}'")
 
-            Dim candidates As List(Of ScanCandidate) =
-            Await CollectCandidatesBelowAsync(
-                folder.Url,
-                folder.SourceRef,
-                True)
+            Dim candidates As List(Of ScanCandidate) = Await CollectCandidatesBelowAsync(folder.Url, folder.SourceRef, True)
 
             allCandidates.AddRange(candidates)
 
-            Dim bestSoFar As ScanCandidate =
-            SelectBestCandidate(allCandidates)
+            Dim bestSoFar As ScanCandidate = SelectBestCandidate(allCandidates)
 
-            If bestSoFar IsNot Nothing AndAlso
-           bestSoFar.Kind = ScanCandidateKind.Exact AndAlso
-           bestSoFar.ImageRank = 1 Then
+            If bestSoFar IsNot Nothing AndAlso bestSoFar.Kind = ScanCandidateKind.Exact AndAlso bestSoFar.ImageRank = 1 Then
 
-                DebugLog.Write(
-                $"[SCAN SOURCE] Early stop: found exact top-ranked match '{bestSoFar.FileName}' in '{bestSoFar.SourceReference}'")
+                DebugLog.Write($"[SCAN SOURCE] Early stop: found exact top-ranked match '{bestSoFar.FileName}' in '{bestSoFar.SourceReference}'")
 
                 Exit For
 
@@ -1295,41 +1196,38 @@ Public NotInheritable Class ScanLocator
     End Function
     Public Async Function LocateScanAsync() As Task(Of ScanSearchResult)
 
-        Dim scanFolder As String =
-            AppPaths.DownloadedScansFolder
+        Dim scanFolder As String = AppPaths.DownloadedScansFolder
 
         DebugLog.Write(
-            $"[SCAN] Locate requested. " &
-            $"Year={ProjectValues.Year}, Quarter={ProjectValues.Quarter}, BatchType={ProjectValues.BatchType}, " &
-            $"Page={ProjectValues.Page}, PageLetter='{ProjectValues.PageLetter}', PageSuffix='{ProjectValues.PageSuffix}', " &
-            $"SourceRef='{ProjectValues.SourceRef}', ExpectedPrefix='{GetExpectedPrefix()}', " &
-            $"StartUrl='{BuildStartUrl()}'")
+        $"[SCAN] Locate requested. " &
+        $"Year={ProjectValues.Year}, Quarter={ProjectValues.Quarter}, BatchType={ProjectValues.BatchType}, " &
+        $"Page={ProjectValues.Page}, PageLetter='{ProjectValues.PageLetter}', PageSuffix='{ProjectValues.PageSuffix}', " &
+        $"SourceRef='{ProjectValues.SourceRef}', ExpectedPrefix='{GetExpectedPrefix()}', " &
+        $"StartUrl='{BuildStartUrl()}'")
 
-        Dim local As String =
-            TryFindLocalScan(scanFolder)
+        Dim local As String = TryFindLocalScan(scanFolder)
 
         If Not String.IsNullOrWhiteSpace(local) Then
 
-            DebugLog.Write(
-                $"[SCAN] Found local scan. Path='{local}'. Remote search skipped.")
+            DebugLog.Write($"[SCAN] Found local scan. Path='{local}'. Remote search skipped.")
 
             Return New ScanSearchResult With {
-                .Success = True,
-                .LocalPath = local,
-                .Message = "Found local scan."
-            }
+            .Success = True,
+            .LocalPath = local,
+            .Message = "Found local scan."
+        }
 
         End If
 
         If Not _hasCredentials Then
 
             Return New ScanSearchResult With {
-                .Success = False,
-                .Message =
-                    "You have not set your Username or Password." &
-                    Environment.NewLine &
-                    "You must do that before a scan can be downloaded."
-            }
+            .Success = False,
+            .Message =
+                "You have not set your Username or Password." &
+                Environment.NewLine &
+                "You must do that before a scan can be downloaded."
+        }
 
         End If
 
@@ -1339,153 +1237,123 @@ Public NotInheritable Class ScanLocator
         _alternativeFileName = ""
         _alternativeRemoteUrl = ""
 
-        Dim startUrl As String =
-            BuildStartUrl()
+        Dim startUrl As String = BuildStartUrl()
 
-        Dim enteredSourceRef As String =
-            NormalizeSourceRefForFolderMatch(
-                ProjectValues.SourceRef)
+        Dim enteredSourceRef As String = NormalizeSourceRefForFolderMatch(ProjectValues.SourceRef)
 
-        Dim candidate As ScanCandidate =
-            Await FindRemoteScanCandidateAsync(
-                startUrl,
-                enteredSourceRef)
+        Dim candidate As ScanCandidate = Await FindRemoteScanCandidateAsync(startUrl, enteredSourceRef)
 
         If _lastRequestUnauthorized Then
 
             Return New ScanSearchResult With {
-                .Success = False,
-                .Unauthorized = True,
-                .Message =
-                    "The scan website did not accept your Username or Password." &
-                    Environment.NewLine &
-                    "Please check them on the Header Form."
-            }
+            .Success = False,
+            .Unauthorized = True,
+            .Message =
+                "The scan website did not accept your Username or Password." &
+                Environment.NewLine &
+                "Please check them on the Header Form."
+        }
 
         End If
 
         If candidate Is Nothing Then
 
             Return New ScanSearchResult With {
-                .Success = False,
-                .Message =
-                    If(
-                        String.IsNullOrWhiteSpace(_lastErrorMessage),
-                        "No matching scan found online.",
-                        _lastErrorMessage),
-                .AlternativeFound =
-                    Not String.IsNullOrWhiteSpace(_alternativeSourceRef),
-                .AlternativeSourceRef = _alternativeSourceRef,
-                .AlternativeFileName = _alternativeFileName,
-                .AlternativeRemoteUrl = _alternativeRemoteUrl
-            }
+            .Success = False,
+            .Message =
+                If(
+                    String.IsNullOrWhiteSpace(_lastErrorMessage),
+                    "No matching scan found online.",
+                    _lastErrorMessage),
+            .AlternativeFound =
+                Not String.IsNullOrWhiteSpace(_alternativeSourceRef),
+            .AlternativeSourceRef = _alternativeSourceRef,
+            .AlternativeFileName = _alternativeFileName,
+            .AlternativeRemoteUrl = _alternativeRemoteUrl
+        }
 
         End If
 
         Directory.CreateDirectory(scanFolder)
 
-        Dim fileName As String =
-            Path.GetFileName(
-                New Uri(candidate.RemoteUrl).LocalPath)
+        Dim fileName As String = Path.GetFileName(New Uri(candidate.RemoteUrl).LocalPath)
 
-        Dim localPath As String =
-            Path.Combine(
-                scanFolder,
-                fileName)
+        Dim localPath As String = Path.Combine(scanFolder, fileName)
 
         DebugLog.Write(
-            $"[SCAN FOUND] Selected candidate. " &
-            $"File='{candidate.FileName}', Kind={candidate.Kind}, Rank={candidate.ImageRank}, " &
-            $"SourceReference='{candidate.SourceReference}', Url='{candidate.RemoteUrl}'")
+        $"[SCAN FOUND] Selected candidate. " &
+        $"File='{candidate.FileName}', Kind={candidate.Kind}, Rank={candidate.ImageRank}, " &
+        $"SourceReference='{candidate.SourceReference}', Url='{candidate.RemoteUrl}'")
 
-        DebugLog.Write(
-            $"[SCAN] Downloading as local file: {localPath}")
+        DebugLog.Write($"[SCAN] Downloading as local file: {localPath}")
 
-        Dim downloaded As Boolean =
-            Await DownloadFileAsync(
-                candidate.RemoteUrl,
-                localPath)
+        Dim downloaded As Boolean = Await DownloadFileAsync(candidate.RemoteUrl, localPath)
 
         If Not downloaded Then
 
             Return New ScanSearchResult With {
-                .Success = False,
-                .RemoteUrl = candidate.RemoteUrl,
-                .Message =
-                    If(
-                        String.IsNullOrWhiteSpace(_lastErrorMessage),
-                        "Found scan online but download failed.",
-                        _lastErrorMessage)
-            }
+            .Success = False,
+            .RemoteUrl = candidate.RemoteUrl,
+            .Message =
+                If(
+                    String.IsNullOrWhiteSpace(_lastErrorMessage),
+                    "Found scan online but download failed.",
+                    _lastErrorMessage)
+        }
 
         End If
 
         Return New ScanSearchResult With {
-            .Success = True,
-            .LocalPath = localPath,
-            .RemoteUrl = candidate.RemoteUrl,
-            .Message = "Downloaded scan."
-        }
+        .Success = True,
+        .LocalPath = localPath,
+        .RemoteUrl = candidate.RemoteUrl,
+        .Message = "Downloaded scan."
+    }
 
     End Function
-    Public Async Function DownloadAlternativeScanAsync(
-    result As ScanSearchResult) As Task(Of ScanSearchResult)
+    Public Async Function DownloadAlternativeScanAsync(result As ScanSearchResult) As Task(Of ScanSearchResult)
 
-        If result Is Nothing OrElse
-           Not result.AlternativeFound OrElse
-           String.IsNullOrWhiteSpace(result.AlternativeRemoteUrl) Then
+        If result Is Nothing OrElse Not result.AlternativeFound OrElse String.IsNullOrWhiteSpace(result.AlternativeRemoteUrl) Then
 
             Return New ScanSearchResult With {
-                .Success = False,
-                .Message = "No alternative scan is available."
-            }
+            .Success = False,
+            .Message = "No alternative scan is available."
+        }
 
         End If
 
-        Dim scanFolder As String =
-            AppPaths.DownloadedScansFolder
+        Dim scanFolder As String = AppPaths.DownloadedScansFolder
 
         Directory.CreateDirectory(scanFolder)
 
-        Dim fileName As String =
-            Path.GetFileName(
-                New Uri(result.AlternativeRemoteUrl).LocalPath)
-
-        Dim localPath As String =
-            Path.Combine(
-                scanFolder,
-                fileName)
+        Dim fileName As String = Path.GetFileName(New Uri(result.AlternativeRemoteUrl).LocalPath)
+        Dim localPath As String = Path.Combine(scanFolder, fileName)
 
         DebugLog.Write(
-            $"[SCAN SOURCE] Downloading alternative scan. " &
-            $"SourceReference='{result.AlternativeSourceRef}', " &
-            $"File='{fileName}', Url='{result.AlternativeRemoteUrl}'")
+        $"[SCAN SOURCE] Downloading alternative scan. " &
+        $"SourceReference='{result.AlternativeSourceRef}', " &
+        $"File='{fileName}', Url='{result.AlternativeRemoteUrl}'")
 
-        Dim downloaded As Boolean =
-            Await DownloadFileAsync(
-                result.AlternativeRemoteUrl,
-                localPath)
+        Dim downloaded As Boolean = Await DownloadFileAsync(result.AlternativeRemoteUrl, localPath)
 
         If Not downloaded Then
 
             Return New ScanSearchResult With {
-                .Success = False,
-                .RemoteUrl = result.AlternativeRemoteUrl,
-                .Message =
-                    If(
-                        String.IsNullOrWhiteSpace(_lastErrorMessage),
-                        "The alternative scan could not be downloaded.",
-                        _lastErrorMessage)
-            }
+            .Success = False,
+            .RemoteUrl = result.AlternativeRemoteUrl,
+            .Message = If(String.IsNullOrWhiteSpace(_lastErrorMessage),
+                          "The alternative scan could not be downloaded.",
+                          _lastErrorMessage)
+        }
 
         End If
 
         Return New ScanSearchResult With {
-            .Success = True,
-            .LocalPath = localPath,
-            .RemoteUrl = result.AlternativeRemoteUrl,
-            .Message = "Alternative scan downloaded."
-        }
+        .Success = True,
+        .LocalPath = localPath,
+        .RemoteUrl = result.AlternativeRemoteUrl,
+        .Message = "Alternative scan downloaded."
+    }
 
     End Function
 End Class

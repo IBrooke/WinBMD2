@@ -38,7 +38,13 @@
         _viewer = viewer
 
     End Sub
-
+    ' During ruler setup the ruler remains at a fixed screen position and the
+    ' scan is moved underneath it to align scan rows 1 and 10 with the ruler.
+    ' This avoids ruler rollover and makes the two calibration rows easier to position.
+    '
+    ' ConfirmCurrentPosition records the IMAGE Y coordinate beneath the ruler,
+    ' so the saved calibration is independent of the ruler's screen position.
+    ' Once setup is complete, normal operation moves the ruler over the scan.
     Public Sub StartSetup()
 
         _row1ImageY = 0.0F
@@ -63,6 +69,7 @@
 
         _currentRow = 1
         _stage = RulerSetupStage.Complete
+        _viewer.SetRulerHeight(_rowStepImageY * _viewer.Zoom)
 
         DebugLog.Write(
             $"[RULER] Calibration loaded. " &
@@ -102,6 +109,7 @@
 
                 _currentRow = 10
                 _stage = RulerSetupStage.Complete
+                _viewer.SetRulerHeight(_rowStepImageY * _viewer.Zoom)
 
                 DebugLog.Write(
                     $"[RULER] Row 10 captured. " &
@@ -138,12 +146,20 @@
 
         If rowNumber = 1 Then
 
-            _viewer.PositionImageYAtScreenY(Row1ImageY, _viewer.RulerScreenY)
+            Dim rulerY As Single = _viewer.RulerScreenY
+            Dim imageYBefore As Single = _viewer.GetImageYAtScreenY(rulerY)
+
+            DebugLog.Write($"[RULER] MoveToRow(1) BEFORE. RulerScreenY={rulerY:0.###}, ImageYAtRuler={imageYBefore:0.###}, TargetImageY={Row1ImageY:0.###}, Zoom={_viewer.Zoom:0.###}, ClientHeight={_viewer.ClientSize.Height}")
+
+            _viewer.PositionImageYAtScreenY(Row1ImageY, rulerY)
+
+            Dim imageYAfter As Single = _viewer.GetImageYAtScreenY(rulerY)
+
+            DebugLog.Write($"[RULER] MoveToRow(1) AFTER. RulerScreenY={_viewer.RulerScreenY:0.###}, ImageYAtRuler={imageYAfter:0.###}, TargetImageY={Row1ImageY:0.###}")
 
             _currentRow = 1
 
-            DebugLog.Write(
-            $"[RULER] Grid moved from row {previousRow} to row 1 using absolute position. Row1ImageY={Row1ImageY:0.###}")
+            DebugLog.Write($"[RULER] Grid moved from row {previousRow} to row 1 using absolute position. Row1ImageY={Row1ImageY:0.###}")
 
             Return
 
@@ -209,17 +225,19 @@
 
         If newRulerY > bottomLimit Then
 
-            _viewer.RulerScreenY = topLimit
-            _viewer.PositionImageYAtScreenY(currentImageY, topLimit)
+            Dim rolloverY As Single = topLimit + (_viewer.ClientSize.Height * 0.02F) + (_rowStepImageY * _viewer.Zoom)
 
-            DebugLog.Write($"[RULER] Bottom rollover. CurrentImageY={currentImageY:0.###}, RulerScreenY={topLimit:0.###}")
+            _viewer.RulerScreenY = rolloverY
+            _viewer.PositionImageYAtScreenY(targetImageY, rolloverY)
+
+            DebugLog.Write($"[RULER] Bottom rollover. TargetImageY={targetImageY:0.###}, RulerScreenY={rolloverY:0.###}")
 
         ElseIf newRulerY < topLimit Then
 
             _viewer.RulerScreenY = bottomLimit
-            _viewer.PositionImageYAtScreenY(currentImageY, bottomLimit)
+            _viewer.PositionImageYAtScreenY(targetImageY, bottomLimit)
 
-            DebugLog.Write($"[RULER] Top rollover. CurrentImageY={currentImageY:0.###}, RulerScreenY={bottomLimit:0.###}")
+            DebugLog.Write($"[RULER] Top rollover. TargetImageY={targetImageY:0.###}, RulerScreenY={bottomLimit:0.###}")
 
         Else
 

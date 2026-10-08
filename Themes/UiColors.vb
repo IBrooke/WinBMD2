@@ -98,7 +98,39 @@ Public Module UiColors
             Return Color.White
         End Get
     End Property
+    Public ReadOnly Property VerifyHighlight As Color
+        Get
 
+            Select Case ProjectValues.ColourScheme
+
+                Case UiColourScheme.Teal
+                    Return Color.FromArgb(255, 225, 195)
+
+                Case UiColourScheme.Magenta
+                    Return Color.FromArgb(215, 240, 215)
+
+                Case UiColourScheme.Violet
+                    Return Color.FromArgb(255, 240, 190)
+
+                Case UiColourScheme.Gold
+                    Return Color.FromArgb(205, 230, 250)
+
+                Case UiColourScheme.Green
+                    Return Color.FromArgb(230, 215, 245)
+
+                Case UiColourScheme.Yellow
+                    Return Color.FromArgb(205, 230, 250)
+
+                Case UiColourScheme.Orange
+                    Return Color.FromArgb(205, 230, 250)
+
+                Case Else
+                    Return Color.FromArgb(255, 235, 175)
+
+            End Select
+
+        End Get
+    End Property
     Public ReadOnly ValidationError As Color = Color.Red
     Public ReadOnly ValidationWarning As Color = Color.Goldenrod
 

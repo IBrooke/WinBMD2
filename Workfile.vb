@@ -83,12 +83,21 @@ Public Class Workfile
                     If rowIndex = grid.Rows.Count - 1 AndAlso TranscriptionForm.IsBlankEntryRow(row) Then Continue For
 
                     Dim line As String
-                    Dim directive As RowDirective = RowDirective.FromGridRow(row)
 
-                    If directive IsNot Nothing Then
-                        line = LoadSaveFiles.BuildDirectiveLine(directive)
+                    If TypeOf row.Tag Is Boolean AndAlso CBool(row.Tag) Then
+
+                        Dim firstColumnIndex As Integer = LoadSaveFiles.FindGridColumn(grid, fields(0))
+
+                        If firstColumnIndex >= 0 Then
+                            line = If(row.Cells(firstColumnIndex).Value, "").ToString()
+                        Else
+                            line = ""
+                        End If
+
                     Else
+
                         line = LoadSaveFiles.BuildDataLine(row, fields)
+
                     End If
 
                     WriteRecord(stream, FirstRowRecord + rowIndex, "L" & rowIndex.ToString("00000") & "|" & line)
@@ -183,13 +192,22 @@ Public Class Workfile
             If Not String.IsNullOrWhiteSpace(folder) Then Directory.CreateDirectory(folder)
 
             Dim line As String
-            Dim directive As RowDirective = RowDirective.FromGridRow(row)
+            Dim fields() As GridField = LoadSaveFiles.GetDataFields()
 
-            If directive IsNot Nothing Then
-                line = LoadSaveFiles.BuildDirectiveLine(directive)
+            If TypeOf row.Tag Is Boolean AndAlso CBool(row.Tag) Then
+
+                Dim firstColumnIndex As Integer = LoadSaveFiles.FindGridColumn(row.DataGridView, fields(0))
+
+                If firstColumnIndex >= 0 Then
+                    line = If(row.Cells(firstColumnIndex).Value, "").ToString()
+                Else
+                    line = ""
+                End If
+
             Else
-                Dim fields() As GridField = LoadSaveFiles.GetDataFields()
+
                 line = LoadSaveFiles.BuildDataLine(row, fields)
+
             End If
 
             Dim recordText As String = "L" & rowIndex.ToString("00000") & "|" & line

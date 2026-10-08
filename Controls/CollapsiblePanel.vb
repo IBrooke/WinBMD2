@@ -80,7 +80,7 @@ Public Class CollapsiblePanel
                 Height = _headerHeight
 
                 For Each control As Control In Controls
-                    control.Visible = False
+                    If Not String.Equals(TryCast(control.Tag, String), "Header", StringComparison.OrdinalIgnoreCase) Then control.Visible = False
                 Next
             End If
 

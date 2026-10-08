@@ -9,6 +9,7 @@ Public Class VerifyFieldBox
     Public Event LayoutChanged As EventHandler
     Public Event LayoutFinished As EventHandler
     Public Event TabPressed As EventHandler
+    Public Event FieldFocused As EventHandler
     Private _dragging As Boolean
     Private _resizing As Boolean
     Private _dragStartMouseScreenX As Integer
@@ -81,6 +82,7 @@ Public Class VerifyFieldBox
         Height = 30
         Width = 120
 
+        _textBox.Multiline = True
         _textBox.Dock = DockStyle.Fill
         _textBox.BorderStyle = BorderStyle.FixedSingle
 
@@ -89,6 +91,17 @@ Public Class VerifyFieldBox
         AddHandler _textBox.MouseDown, AddressOf TextBox_MouseDown
         AddHandler _textBox.MouseMove, AddressOf TextBox_MouseMove
         AddHandler _textBox.MouseUp, AddressOf TextBox_MouseUp
+        AddHandler _textBox.Enter, AddressOf TextBox_Enter
+
+    End Sub
+    Private Sub TextBox_Enter(sender As Object, e As EventArgs)
+
+        If _arrangeMode Then
+            Return
+        End If
+
+        RaiseEvent FieldFocused(Me, EventArgs.Empty)
+
     End Sub
     Protected Overrides Function ProcessCmdKey(ByRef msg As Message, keyData As Keys) As Boolean
 
@@ -104,80 +117,48 @@ Public Class VerifyFieldBox
 
         MyBase.OnMouseDown(e)
 
-        If Not _arrangeMode OrElse e.Button <> MouseButtons.Left Then
-            Return
-        End If
+        If Not _arrangeMode OrElse e.Button <> MouseButtons.Left Then Return
 
         _dragStartMouseScreenX = MousePosition.X
 
         If e.X >= Width - ResizeGripWidth Then
-
             _resizing = True
             _resizeStartWidth = Width
-
         Else
-
             _dragging = True
             _dragStartLeft = Left
-
         End If
 
         Capture = True
 
     End Sub
-    Private Sub TextBox_MouseDown(
-    sender As Object,
-    e As MouseEventArgs)
 
-        If Not _arrangeMode Then
-            Return
-        End If
+    Private Sub TextBox_MouseDown(sender As Object, e As MouseEventArgs)
 
-        Dim point As Point =
-        PointToClient(
-            _textBox.PointToScreen(e.Location))
+        If Not _arrangeMode Then Return
 
-        OnMouseDown(
-        New MouseEventArgs(
-            e.Button,
-            e.Clicks,
-            point.X,
-            point.Y,
-            e.Delta))
+        Dim point As Point = PointToClient(_textBox.PointToScreen(e.Location))
+
+        OnMouseDown(New MouseEventArgs(e.Button, e.Clicks, point.X, point.Y, e.Delta))
 
     End Sub
-    Private Sub TextBox_MouseUp(
-    sender As Object,
-    e As MouseEventArgs)
 
-        If Not _arrangeMode Then
-            Return
-        End If
+    Private Sub TextBox_MouseUp(sender As Object, e As MouseEventArgs)
 
-        Dim point As Point =
-        PointToClient(
-            _textBox.PointToScreen(e.Location))
+        If Not _arrangeMode Then Return
 
-        OnMouseUp(
-        New MouseEventArgs(
-            e.Button,
-            e.Clicks,
-            point.X,
-            point.Y,
-            e.Delta))
+        Dim point As Point = PointToClient(_textBox.PointToScreen(e.Location))
+
+        OnMouseUp(New MouseEventArgs(e.Button, e.Clicks, point.X, point.Y, e.Delta))
 
     End Sub
-    Private Sub TextBox_MouseMove(
-    sender As Object,
-    e As MouseEventArgs)
+    Private Sub TextBox_MouseMove(sender As Object, e As MouseEventArgs)
 
         If Not _arrangeMode Then
             Return
         End If
 
-        Dim point As Point =
-        PointToClient(
-            _textBox.PointToScreen(e.Location))
+        Dim point As Point = PointToClient(_textBox.PointToScreen(e.Location))
 
         OnMouseMove(
         New MouseEventArgs(
@@ -196,8 +177,7 @@ Public Class VerifyFieldBox
             Return
         End If
 
-        Dim deltaX As Integer =
-        MousePosition.X - _dragStartMouseScreenX
+        Dim deltaX As Integer = MousePosition.X - _dragStartMouseScreenX
 
         If _resizing Then
 
@@ -210,9 +190,7 @@ Public Class VerifyFieldBox
 
         If _dragging Then
 
-            Left = Math.Max(
-            0,
-            _dragStartLeft + deltaX)
+            Left = Math.Max(0, _dragStartLeft + deltaX)
 
             RaiseEvent LayoutChanged(Me, EventArgs.Empty)
             Return
@@ -248,8 +226,10 @@ Public Class VerifyFieldBox
     End Sub
     Public Sub FocusEditor()
 
-        _textBox.Focus()
+        Dim focused As Boolean = _textBox.Focus()
         _textBox.SelectAll()
+
+        DebugLog.WriteAlways($"[VERIFY] FocusEditor. Field={_field}, FocusResult={focused}, TextBoxFocused={_textBox.Focused}, CanFocus={_textBox.CanFocus}, Enabled={_textBox.Enabled}, Visible={_textBox.Visible}")
 
     End Sub
 End Class

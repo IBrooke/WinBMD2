@@ -20,6 +20,8 @@ Public NotInheritable Class Validator
             Return ValidateUcf(value)
         End If
 
+        If IsDirective(value) Then Return ValidateDirective(value)
+
         ' When validating for upload, blank fields are errors.
         ' AaD is the exception when IgnoreAaD applies to a Death batch.
         If ProjectValues.ValidationMode = ValidationMode.Upload AndAlso
@@ -72,6 +74,143 @@ Public NotInheritable Class Validator
 
         ' Final general warning check.
         Return ValidateUnusualCharacters(value)
+
+    End Function
+    Private Shared Function ValidateDirective(value As String) As ValidationResult
+
+        Dim text As String = If(value, "").Trim()
+        Dim upper As String = text.ToUpperInvariant()
+
+        If upper.StartsWith("+PAGE") Then Return ValidatePageDirective(text)
+        If upper = "+BREAK" Then Return ValidationResult.Ok()
+        If upper.StartsWith("#THEORY") Then Return ValidateTheoryDirective(text)
+        If upper.StartsWith("#") Then Return ValidateCommentDirective(text)
+
+        Return ValidationResult.Error("Invalid directive.")
+
+    End Function
+
+    Public Shared Function ValidatePageDirective(value As String) As ValidationResult
+
+        Dim text As String = value.Trim()
+
+        If Not IsDirective(text) Then Return ValidationResult.Ok()
+
+        If Not text.StartsWith("+PAGE,", StringComparison.OrdinalIgnoreCase) Then
+            Return ValidationResult.Error("Invalid +PAGE directive.")
+        End If
+
+        Dim pageText As String = text.Substring(6).Trim()
+
+        If pageText.Length = 0 Then
+            Return ValidationResult.Error("+PAGE must contain a page number.")
+        End If
+
+        Dim numericText As String = New String(pageText.TakeWhile(Function(ch) Char.IsDigit(ch)).ToArray())
+
+        If numericText.Length = 0 Then
+            Return ValidationResult.Error("+PAGE must start with a page number.")
+        End If
+
+        Dim pageNumber As Integer
+
+        If Not Integer.TryParse(numericText, pageNumber) OrElse pageNumber < 1 Then
+            Return ValidationResult.Error("+PAGE must start with a valid page number.")
+        End If
+
+        Return ValidationResult.Ok()
+
+    End Function
+
+    Private Shared Function ValidateCommentDirective(value As String) As ValidationResult
+
+        Dim text As String = value.Trim()
+        Dim upper As String = text.ToUpperInvariant()
+        Dim compact As String = upper.Replace(" ", "")
+
+        If upper.StartsWith("#COMMENT ") AndAlso text.Length > 9 Then
+            Return ValidationResult.Ok()
+        End If
+
+        If upper.StartsWith("#COMMENT(") AndAlso text.Length > 9 Then
+            Return ValidationResult.Ok()
+        End If
+
+        ' Do not allow a malformed #COMMENT to be accepted as an ordinary
+        ' comment simply because it starts "# ".
+        If compact.StartsWith("#COMMENT") Then
+            Return ValidationResult.Warning("Likely invalid #COMMENT.")
+        End If
+
+        If upper.StartsWith("# ") AndAlso text.Length > 2 Then
+            Return ValidationResult.Ok()
+        End If
+
+        Return ValidationResult.Warning("Likely invalid #COMMENT.")
+
+    End Function
+
+    Private Shared Function ValidateTheoryDirective(value As String) As ValidationResult
+
+        Dim text As String = value.Trim()
+        Dim upper As String = text.ToUpperInvariant()
+
+        If upper.StartsWith("#THEORY ") AndAlso text.Length > 8 Then
+            Return ValidationResult.Ok()
+        End If
+
+        If upper.StartsWith("#THEORY(") Then
+
+            Dim closingBracket As Integer = text.IndexOf(")"c)
+
+            If closingBracket > 8 AndAlso text.Length > closingBracket + 1 Then
+
+                Dim numberText As String = text.Substring(8, closingBracket - 8)
+                Dim number As Integer
+
+                If Integer.TryParse(numberText, number) AndAlso number > 0 Then
+                    Return ValidationResult.Ok()
+                End If
+
+            End If
+
+            Return ValidationResult.Error("Invalid #THEORY.")
+
+        End If
+
+        If text.StartsWith("#THEORY,REF,see ", StringComparison.OrdinalIgnoreCase) Then
+
+            Dim reference As String = text.Substring(16)
+
+            If reference.Length <> 4 AndAlso reference.Length <> 6 Then
+                Return ValidationResult.Error("#THEORY reference must contain a quarter and a 2 or 4 digit year.")
+            End If
+
+            If reference(1) <> "/"c Then
+                Return ValidationResult.Error("#THEORY reference must have / between the quarter and year.")
+            End If
+
+            Dim quarter As Char = Char.ToUpperInvariant(reference(0))
+
+            If quarter <> "M"c AndAlso quarter <> "J"c AndAlso quarter <> "S"c AndAlso quarter <> "D"c Then
+                Return ValidationResult.Error("#THEORY reference quarter must be M, J, S or D.")
+            End If
+
+            Dim yearText As String = reference.Substring(2)
+
+            If yearText.Length <> 2 AndAlso yearText.Length <> 4 Then
+                Return ValidationResult.Error("#THEORY reference year must be 2 or 4 digits.")
+            End If
+
+            If Not yearText.All(Function(ch) Char.IsDigit(ch)) Then
+                Return ValidationResult.Error("#THEORY reference year must contain digits only.")
+            End If
+
+            Return ValidationResult.Ok()
+
+        End If
+
+        Return ValidationResult.Error("Invalid #THEORY.")
 
     End Function
     ' Checks characters and bracket pairing that are common to
@@ -538,28 +677,6 @@ Public NotInheritable Class Validator
             Return ValidationResult.Warning("Surname is blank")
         End If
 
-        Dim text As String = value.Trim()
-
-        If text.Length > 0 AndAlso
-           text(0) <> "+"c AndAlso
-           text(0) <> "#"c Then
-
-            Dim expected As String =
-                If(ProjectValues.PageLetter, "").Trim()
-
-            If Not String.IsNullOrWhiteSpace(expected) Then
-
-                If Char.ToUpperInvariant(text(0)) <>
-                   Char.ToUpperInvariant(expected(0)) Then
-
-                    Return ValidationResult.Warning(
-                        $"Surname does not match page letter '{expected.ToUpperInvariant()}'.")
-                End If
-
-            End If
-
-        End If
-
         Return ValidationResult.Ok()
 
     End Function
@@ -668,23 +785,6 @@ Public NotInheritable Class Validator
             End If
 
         Next
-
-        Return ValidationResult.Ok()
-
-    End Function
-
-
-    Public Shared Function ValidatePage(value As String) As ValidationResult
-
-        If String.IsNullOrWhiteSpace(value) Then
-            Return ValidationResult.Ok()
-        End If
-
-        If value.Any(Function(ch) Not Char.IsDigit(ch)) Then
-
-            Return ValidationResult.Warning(
-                "Non-numeric page numbers are unusual.")
-        End If
 
         Return ValidationResult.Ok()
 
@@ -1246,54 +1346,6 @@ Public NotInheritable Class Validator
             text.Substring(yearPosition)
 
         Return result
-
-    End Function
-    Public Shared Function ValidateDirectives(grid As DataGridView) As List(Of DirectiveValidationResult)
-
-        Dim results As New List(Of DirectiveValidationResult)
-        Dim currentPage As Integer = ProjectValues.Page
-
-        For rowIndex As Integer = 0 To grid.Rows.Count - 1
-
-            Dim directive As RowDirective = RowDirective.FromGridRow(grid.Rows(rowIndex))
-
-            If directive Is Nothing Then Continue For
-
-            directive.RowIndex = rowIndex
-
-            If directive.DirectiveType.Equals("+PAGE", StringComparison.OrdinalIgnoreCase) Then
-
-                Dim pageNumber As Integer
-
-                If Not Integer.TryParse(directive.Text, pageNumber) OrElse pageNumber <= 0 Then
-
-                    results.Add(New DirectiveValidationResult(
-                    directive,
-                    DirectiveWarningType.InvalidPageNumber,
-                    ValidationResult.Error("The +PAGE directive does not contain a valid page number.")))
-
-                    Continue For
-
-                End If
-
-                Dim expectedPage As Integer = currentPage + 1
-                DebugLog.WriteAlways($"[DIRECTIVE VALIDATION] Row={rowIndex + 1}, Page={pageNumber}, Expected={expectedPage}")
-                If pageNumber <> expectedPage Then
-                    DebugLog.WriteAlways($"[DIRECTIVE VALIDATION] Incorrect +PAGE sequence detected. Page={pageNumber}, Expected={expectedPage}")
-                    results.Add(New DirectiveValidationResult(
-                    directive,
-                    DirectiveWarningType.IncorrectPageSequence,
-                    ValidationResult.Warning($"The +PAGE directive is page {pageNumber}; page {expectedPage} was expected.")))
-
-                End If
-
-                currentPage = pageNumber
-
-            End If
-
-        Next
-
-        Return results
 
     End Function
     Public Shared Function IsDirective(value As String) As Boolean

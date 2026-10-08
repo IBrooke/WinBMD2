@@ -24,8 +24,8 @@ Partial Class TranscriptionForm
     Private Sub InitializeComponent()
         components = New ComponentModel.Container()
         filePanel = New CollapsiblePanel()
-        categoryBarPanel = New Panel()
         btnScanToRow1 = New Button()
+        categoryBarPanel = New Panel()
         categoryStrip = New FlowLayoutPanel()
         btnCategoryFile = New Button()
         btnCategoryScan = New Button()
@@ -33,8 +33,6 @@ Partial Class TranscriptionForm
         btnCategoryUpload = New Button()
         btnCategoryOptions = New Button()
         btnCategoryHelp = New Button()
-        btnSpecialCharacters = New Button()
-        btnClearCell = New Button()
         commandStrip = New FlowLayoutPanel()
         btnNewFile = New Button()
         btnFileOpen = New Button()
@@ -42,6 +40,8 @@ Partial Class TranscriptionForm
         btnFileSaveAs = New Button()
         btnFileExit = New Button()
         btnFileEditHeader = New Button()
+        btnSpecialCharacters = New Button()
+        btnClearCell = New Button()
         gridHostPanel = New Panel()
         transcriptionGrid = New DataGridView()
         statusStrip = New StatusStrip()
@@ -62,40 +62,42 @@ Partial Class TranscriptionForm
         ' 
         ' filePanel
         ' 
+        filePanel.Controls.Add(btnScanToRow1)
         filePanel.Controls.Add(categoryBarPanel)
         filePanel.Controls.Add(commandStrip)
+        filePanel.Controls.Add(btnSpecialCharacters)
+        filePanel.Controls.Add(btnClearCell)
         filePanel.Dock = DockStyle.Top
+        filePanel.HeaderHeight = 28
         filePanel.HeaderText = ""
         filePanel.Location = New Point(0, 0)
         filePanel.MinimumSize = New Size(0, 20)
         filePanel.Name = "filePanel"
-        filePanel.Padding = New Padding(1, 20, 1, 1)
-        filePanel.Size = New Size(884, 92)
+        filePanel.Padding = New Padding(1, 28, 1, 1)
+        filePanel.Size = New Size(884, 100)
         filePanel.TabIndex = 0
-        ' 
-        ' categoryBarPanel
-        ' 
-        categoryBarPanel.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
-        categoryBarPanel.Controls.Add(btnScanToRow1)
-        categoryBarPanel.Controls.Add(categoryStrip)
-        categoryBarPanel.Controls.Add(btnSpecialCharacters)
-        categoryBarPanel.Controls.Add(btnClearCell)
-        categoryBarPanel.Location = New Point(6, 23)
-        categoryBarPanel.Name = "categoryBarPanel"
-        categoryBarPanel.Size = New Size(872, 28)
-        categoryBarPanel.TabIndex = 0
         ' 
         ' btnScanToRow1
         ' 
         btnScanToRow1.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnScanToRow1.Location = New Point(765, 1)
+        btnScanToRow1.Location = New Point(708, 1)
         btnScanToRow1.Name = "btnScanToRow1"
         btnScanToRow1.Size = New Size(34, 25)
         btnScanToRow1.TabIndex = 8
         btnScanToRow1.TabStop = False
+        btnScanToRow1.Tag = "Header"
         btnScanToRow1.Text = "1"
         uploadToolTip.SetToolTip(btnScanToRow1, "Move the scan to row 1 (needs to have done ruler setup)")
         btnScanToRow1.UseVisualStyleBackColor = True
+        ' 
+        ' categoryBarPanel
+        ' 
+        categoryBarPanel.Anchor = AnchorStyles.Top Or AnchorStyles.Left Or AnchorStyles.Right
+        categoryBarPanel.Controls.Add(categoryStrip)
+        categoryBarPanel.Location = New Point(6, 31)
+        categoryBarPanel.Name = "categoryBarPanel"
+        categoryBarPanel.Size = New Size(872, 30)
+        categoryBarPanel.TabIndex = 0
         ' 
         ' categoryStrip
         ' 
@@ -108,7 +110,7 @@ Partial Class TranscriptionForm
         categoryStrip.Location = New Point(0, 0)
         categoryStrip.Margin = New Padding(0)
         categoryStrip.Name = "categoryStrip"
-        categoryStrip.Padding = New Padding(2)
+        categoryStrip.Padding = New Padding(2, 0, 2, 0)
         categoryStrip.Size = New Size(420, 28)
         categoryStrip.TabIndex = 0
         categoryStrip.WrapContents = False
@@ -116,7 +118,7 @@ Partial Class TranscriptionForm
         ' btnCategoryFile
         ' 
         btnCategoryFile.FlatStyle = FlatStyle.Flat
-        btnCategoryFile.Location = New Point(5, 2)
+        btnCategoryFile.Location = New Point(5, 0)
         btnCategoryFile.Margin = New Padding(3, 0, 3, 0)
         btnCategoryFile.Name = "btnCategoryFile"
         btnCategoryFile.Size = New Size(62, 24)
@@ -127,7 +129,7 @@ Partial Class TranscriptionForm
         ' btnCategoryScan
         ' 
         btnCategoryScan.FlatStyle = FlatStyle.Flat
-        btnCategoryScan.Location = New Point(73, 2)
+        btnCategoryScan.Location = New Point(73, 0)
         btnCategoryScan.Margin = New Padding(3, 0, 3, 0)
         btnCategoryScan.Name = "btnCategoryScan"
         btnCategoryScan.Size = New Size(62, 24)
@@ -138,7 +140,7 @@ Partial Class TranscriptionForm
         ' btnCategoryVerify
         ' 
         btnCategoryVerify.FlatStyle = FlatStyle.Flat
-        btnCategoryVerify.Location = New Point(141, 2)
+        btnCategoryVerify.Location = New Point(141, 0)
         btnCategoryVerify.Margin = New Padding(3, 0, 3, 0)
         btnCategoryVerify.Name = "btnCategoryVerify"
         btnCategoryVerify.Size = New Size(62, 24)
@@ -149,7 +151,7 @@ Partial Class TranscriptionForm
         ' btnCategoryUpload
         ' 
         btnCategoryUpload.FlatStyle = FlatStyle.Flat
-        btnCategoryUpload.Location = New Point(209, 2)
+        btnCategoryUpload.Location = New Point(209, 0)
         btnCategoryUpload.Margin = New Padding(3, 0, 3, 0)
         btnCategoryUpload.Name = "btnCategoryUpload"
         btnCategoryUpload.Size = New Size(62, 24)
@@ -160,7 +162,7 @@ Partial Class TranscriptionForm
         ' btnCategoryOptions
         ' 
         btnCategoryOptions.FlatStyle = FlatStyle.Flat
-        btnCategoryOptions.Location = New Point(277, 2)
+        btnCategoryOptions.Location = New Point(277, 0)
         btnCategoryOptions.Margin = New Padding(3, 0, 3, 0)
         btnCategoryOptions.Name = "btnCategoryOptions"
         btnCategoryOptions.Size = New Size(70, 24)
@@ -171,36 +173,13 @@ Partial Class TranscriptionForm
         ' btnCategoryHelp
         ' 
         btnCategoryHelp.FlatStyle = FlatStyle.Flat
-        btnCategoryHelp.Location = New Point(353, 2)
+        btnCategoryHelp.Location = New Point(353, 0)
         btnCategoryHelp.Margin = New Padding(3, 0, 3, 0)
         btnCategoryHelp.Name = "btnCategoryHelp"
         btnCategoryHelp.Size = New Size(62, 24)
         btnCategoryHelp.TabIndex = 6
         btnCategoryHelp.Text = "Help"
         btnCategoryHelp.UseVisualStyleBackColor = False
-        ' 
-        ' btnSpecialCharacters
-        ' 
-        btnSpecialCharacters.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnSpecialCharacters.Location = New Point(801, 1)
-        btnSpecialCharacters.Name = "btnSpecialCharacters"
-        btnSpecialCharacters.Size = New Size(34, 25)
-        btnSpecialCharacters.TabIndex = 7
-        btnSpecialCharacters.TabStop = False
-        btnSpecialCharacters.Text = "F4"
-        btnSpecialCharacters.UseVisualStyleBackColor = True
-        ' 
-        ' btnClearCell
-        ' 
-        btnClearCell.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnClearCell.Location = New Point(838, 1)
-        btnClearCell.Name = "btnClearCell"
-        btnClearCell.Size = New Size(34, 25)
-        btnClearCell.TabIndex = 8
-        btnClearCell.TabStop = False
-        btnClearCell.Text = "F9"
-        uploadToolTip.SetToolTip(btnClearCell, "Clear the current cell (F9)")
-        btnClearCell.UseVisualStyleBackColor = True
         ' 
         ' commandStrip
         ' 
@@ -211,7 +190,7 @@ Partial Class TranscriptionForm
         commandStrip.Controls.Add(btnFileSaveAs)
         commandStrip.Controls.Add(btnFileExit)
         commandStrip.Controls.Add(btnFileEditHeader)
-        commandStrip.Location = New Point(6, 52)
+        commandStrip.Location = New Point(6, 60)
         commandStrip.Margin = New Padding(0)
         commandStrip.Name = "commandStrip"
         commandStrip.Padding = New Padding(2)
@@ -280,14 +259,39 @@ Partial Class TranscriptionForm
         btnFileEditHeader.Text = "Edit Header"
         btnFileEditHeader.UseVisualStyleBackColor = False
         ' 
+        ' btnSpecialCharacters
+        ' 
+        btnSpecialCharacters.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnSpecialCharacters.Location = New Point(744, 1)
+        btnSpecialCharacters.Name = "btnSpecialCharacters"
+        btnSpecialCharacters.Size = New Size(34, 25)
+        btnSpecialCharacters.TabIndex = 7
+        btnSpecialCharacters.TabStop = False
+        btnSpecialCharacters.Tag = "Header"
+        btnSpecialCharacters.Text = "F4"
+        btnSpecialCharacters.UseVisualStyleBackColor = True
+        ' 
+        ' btnClearCell
+        ' 
+        btnClearCell.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnClearCell.Location = New Point(781, 1)
+        btnClearCell.Name = "btnClearCell"
+        btnClearCell.Size = New Size(34, 25)
+        btnClearCell.TabIndex = 8
+        btnClearCell.TabStop = False
+        btnClearCell.Tag = "Header"
+        btnClearCell.Text = "F9"
+        uploadToolTip.SetToolTip(btnClearCell, "Clear the current cell (F9)")
+        btnClearCell.UseVisualStyleBackColor = True
+        ' 
         ' gridHostPanel
         ' 
         gridHostPanel.BackColor = SystemColors.Window
         gridHostPanel.Controls.Add(transcriptionGrid)
         gridHostPanel.Dock = DockStyle.Fill
-        gridHostPanel.Location = New Point(0, 92)
+        gridHostPanel.Location = New Point(0, 100)
         gridHostPanel.Name = "gridHostPanel"
-        gridHostPanel.Size = New Size(884, 367)
+        gridHostPanel.Size = New Size(884, 359)
         gridHostPanel.TabIndex = 1
         ' 
         ' transcriptionGrid
@@ -297,15 +301,14 @@ Partial Class TranscriptionForm
         transcriptionGrid.AllowUserToResizeRows = False
         transcriptionGrid.BorderStyle = BorderStyle.None
         transcriptionGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
-        transcriptionGrid.Dock = DockStyle.Fill
         transcriptionGrid.Location = New Point(0, 0)
         transcriptionGrid.MultiSelect = False
         transcriptionGrid.Name = "transcriptionGrid"
-        transcriptionGrid.RowHeadersVisible = False
+        transcriptionGrid.RowHeadersWidth = 28
         transcriptionGrid.SelectionMode = DataGridViewSelectionMode.CellSelect
         transcriptionGrid.ShowEditingIcon = False
         transcriptionGrid.ShowRowErrors = False
-        transcriptionGrid.Size = New Size(884, 367)
+        transcriptionGrid.Size = New Size(884, 359)
         transcriptionGrid.TabIndex = 2
         ' 
         ' statusStrip
@@ -353,7 +356,7 @@ Partial Class TranscriptionForm
         ' 
         ' TranscriptionForm
         ' 
-        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
+        AutoScaleDimensions = New SizeF(7F, 15F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(884, 481)
         Controls.Add(gridHostPanel)

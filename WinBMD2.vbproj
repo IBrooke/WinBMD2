@@ -13,7 +13,7 @@
 
     <Product>WinBMD2</Product>
     <Title>WinBMD2</Title>
-    <Version>20.0.11</Version>
+    <Version>20.0.20</Version>
     <Company>FreeBMD</Company>
     <Copyright>© FreeBMD</Copyright>
 
@@ -26,7 +26,6 @@
 
   <ItemGroup>
     <None Remove="HelpTopics\Help_About.rtf" />
-    <None Remove="HelpTopics\Help_Directives.rtf" />
     <None Remove="HelpTopics\Help_Files.rtf" />
     <None Remove="HelpTopics\Help_FindingScans.rtf" />
     <None Remove="HelpTopics\Help_GettingStarted.rtf" />
@@ -51,7 +50,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="HelpTopics\Help_Directives.rtf" />
     <EmbeddedResource Include="HelpTopics\Help_FindingScans.rtf" />
     <EmbeddedResource Include="HelpTopics\Help_GettingStarted.rtf" />
     <EmbeddedResource Include="HelpTopics\Help_Grid.rtf" />

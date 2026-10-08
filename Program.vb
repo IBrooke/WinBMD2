@@ -4,6 +4,7 @@ Imports System.Threading
 
 Friend Module Program
     Public AbnormalShutdown As Boolean = False
+    Private _controller As CommandController
     <STAThread>
     Public Sub Main(args() As String)
 
@@ -69,11 +70,11 @@ Friend Module Program
                     Return
                 End If
 
-                Dim controller As New CommandController()
+                _controller = New CommandController()
 
-                controller.Start(startupFile)
+                _controller.Start(startupFile)
 
-                Application.Run(controller)
+                Application.Run(_controller)
 
             Catch ex As Exception
 
@@ -89,10 +90,8 @@ Friend Module Program
         AbnormalShutdown = True
         ShowUnhandledException("An unexpected program error occurred. WinBMD2 must now close.", e.Exception)
 
-        If Application.OpenForms.Count > 0 Then
-            Application.OpenForms(0).BeginInvoke(Sub() Application.Exit())
-        Else
-            Application.Exit()
+        If _controller IsNot Nothing Then
+            _controller.ExitThread()
         End If
 
     End Sub

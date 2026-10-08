@@ -6,6 +6,7 @@
     Private ReadOnly _arrangeButton As New Button()
     Private _arrangeMode As Boolean
     Public Event VerifiedClicked As EventHandler
+    Public Event FieldFocused(field As GridField)
     Public Sub New()
 
         DoubleBuffered = True
@@ -68,9 +69,7 @@
         End If
 
     End Sub
-    Private Sub ArrangeButton_Click(
-    sender As Object,
-    e As EventArgs)
+    Private Sub ArrangeButton_Click(sender As Object, e As EventArgs)
 
         _arrangeMode = Not _arrangeMode
 
@@ -93,20 +92,23 @@
 
         Dim savedLayout As Dictionary(Of String, VerifyFieldLayoutData) = Nothing
 
-        ProjectValues.VerifyFieldLayouts.TryGetValue(
-        layoutKey,
-        savedLayout)
+        ProjectValues.VerifyFieldLayouts.TryGetValue(layoutKey, savedLayout)
+
+        Dim verifyFont As New Font(UiFonts.Normal.FontFamily, ProjectValues.VerifyFontSize)
+        Dim verifyBoxHeight As Integer = Math.Max(30, verifyFont.Height + 10)
+        Height = verifyBoxHeight + 20
 
         For Each field As GridField In fields
 
             Dim box As New VerifyFieldBox With {
-            .Field = field,
-            .Left = left,
-            .Top = 10,
-            .Width = 120,
-            .ArrangeMode = True,
-            .Font = New Font(UiFonts.Normal.FontFamily, ProjectValues.VerifyFontSize)
-        }
+                .Field = field,
+                .Left = left,
+                .Top = 10,
+                .Width = 120,
+                .Height = verifyBoxHeight,
+                .ArrangeMode = True,
+                .Font = verifyFont
+            }
 
             If savedLayout IsNot Nothing Then
 
@@ -127,6 +129,7 @@
                 End Sub
 
             AddHandler box.TabPressed, AddressOf VerifyBox_TabPressed
+            AddHandler box.FieldFocused, AddressOf VerifyBox_FieldFocused
 
             AddHandler box.LayoutFinished,
                 Sub()
@@ -157,6 +160,13 @@
         Else
             _verifiedButton.Focus()
         End If
+
+    End Sub
+    Private Sub VerifyBox_FieldFocused(sender As Object, e As EventArgs)
+
+        Dim box As VerifyFieldBox = DirectCast(sender, VerifyFieldBox)
+
+        RaiseEvent FieldFocused(box.Field)
 
     End Sub
     Private Function GetLayoutKey() As String

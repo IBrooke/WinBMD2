@@ -85,7 +85,7 @@ Public Module FieldMetaData
                 .Align = CellTextAlign.Right,
                 .PreferredWidth = 60,
                 .MinWidth = 50,
-                .Validator = AddressOf Validator.ValidatePage
+                .Validator = AddressOf Validator.ValidatePageDirective
             }
         },
         {

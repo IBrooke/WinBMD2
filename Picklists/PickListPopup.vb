@@ -1,59 +1,32 @@
 ﻿Public Class PickListPopup
     Implements IDisposable
 
-    ' Note there are actually two pickkists, the fixed position pop-up version plus a floating one
     Public Event ItemClicked As EventHandler
-    Private ReadOnly _listBox As ListBox
-    Private ReadOnly _host As ToolStripControlHost
-    Private ReadOnly _dropDown As ToolStripDropDown
 
-    Private ReadOnly _floatingListBox As ListBox
+    Private ReadOnly _listBox As ListBox
     Private ReadOnly _floatingForm As Form
 
-    Private _floating As Boolean = False
-
     Private _disposed As Boolean
+    Private _fixedOwner As Control
+    Private _fixedCellBounds As Rectangle
 
     Public Sub New()
 
         _listBox = New ListBox With {
-            .BorderStyle = BorderStyle.FixedSingle,
+            .Dock = DockStyle.Fill,
+            .BorderStyle = BorderStyle.None,
             .Font = UiFonts.Normal,
             .IntegralHeight = False,
             .DrawMode = DrawMode.OwnerDrawFixed,
             .ItemHeight = 24
         }
+
         AddHandler _listBox.DrawItem, AddressOf ListBox_DrawItem
         AddHandler _listBox.MouseClick, AddressOf ListBox_MouseClick
 
-        _host = New ToolStripControlHost(_listBox) With {
-            .AutoSize = False,
-            .Margin = Padding.Empty,
-            .Padding = Padding.Empty
-        }
-
-        _dropDown = New ToolStripDropDown With {
-            .AutoClose = False,
-            .Margin = Padding.Empty,
-            .Padding = Padding.Empty
-        }
-
-        _dropDown.Items.Add(_host)
-
-        _floatingListBox = New ListBox With {
-    .Dock = DockStyle.Fill,
-    .BorderStyle = BorderStyle.None,
-    .Font = UiFonts.Normal,
-    .IntegralHeight = False,
-    .DrawMode = DrawMode.OwnerDrawFixed,
-    .ItemHeight = 24
-}
-
-        AddHandler _floatingListBox.DrawItem, AddressOf ListBox_DrawItem
-        AddHandler _floatingListBox.MouseClick, AddressOf ListBox_MouseClick
-
         _floatingForm = New FloatingPickListForm With {
             .Text = "Picklist",
+            .Icon = My.Resources.WinBMDResources.WinBMD2Icon,
             .FormBorderStyle = FormBorderStyle.Sizable,
             .StartPosition = FormStartPosition.Manual,
             .ShowInTaskbar = False,
@@ -63,11 +36,14 @@
             .Size = New Size(300, 250)
         }
 
-        _floatingForm.Controls.Add(_floatingListBox)
+        _floatingForm.Controls.Add(_listBox)
+
         AddHandler _floatingForm.Move, AddressOf FloatingForm_BoundsChanged
         AddHandler _floatingForm.Resize, AddressOf FloatingForm_BoundsChanged
         AddHandler _floatingForm.FormClosing, AddressOf FloatingForm_FormClosing
+        AddHandler _floatingForm.Shown, AddressOf FloatingForm_Shown
     End Sub
+
     Private Sub FloatingForm_FormClosing(sender As Object, e As FormClosingEventArgs)
 
         If e.CloseReason = CloseReason.UserClosing Then
@@ -76,17 +52,54 @@
         End If
 
     End Sub
-    Private ReadOnly Property ActiveListBox As ListBox
-        Get
+    Private Sub FloatingForm_Shown(sender As Object, e As EventArgs)
 
-            If _floatingForm.Visible Then
-                Return _floatingListBox
-            End If
+        If _floatingForm.Owner Is Nothing Then
+            Return
+        End If
 
-            Return _listBox
+        AddHandler _floatingForm.Owner.Move, AddressOf OwnerForm_Move
 
-        End Get
-    End Property
+    End Sub
+
+    Private Sub OwnerForm_Move(sender As Object, e As EventArgs)
+
+        If ProjectValues.FloatingPickList OrElse Not _floatingForm.Visible OrElse _fixedOwner Is Nothing Then
+            Return
+        End If
+
+        Dim height As Integer = _floatingForm.Height
+        Dim width As Integer = _floatingForm.Width
+        Dim screenBelow As Point = _fixedOwner.PointToScreen(New Point(_fixedCellBounds.Left, _fixedCellBounds.Bottom))
+        Dim screenAbove As Point = _fixedOwner.PointToScreen(New Point(_fixedCellBounds.Left, _fixedCellBounds.Top - height))
+        Dim workingArea As Rectangle = Screen.FromControl(_fixedOwner).WorkingArea
+        Dim screenLocation As Point
+
+        If screenBelow.Y + height <= workingArea.Bottom Then
+            screenLocation = screenBelow
+        ElseIf screenAbove.Y >= workingArea.Top Then
+            screenLocation = screenAbove
+        Else
+            screenLocation = New Point(screenBelow.X, workingArea.Bottom - height)
+        End If
+
+        If screenLocation.X + width > workingArea.Right Then
+            screenLocation.X = workingArea.Right - width
+        End If
+
+        If screenLocation.X < workingArea.Left Then
+            screenLocation.X = workingArea.Left
+        End If
+
+        _floatingForm.Location = screenLocation
+
+    End Sub
+    Public Sub ClearSelection()
+
+        _listBox.SelectedIndex = -1
+
+    End Sub
+
     Private Sub ListBox_MouseClick(sender As Object, e As MouseEventArgs)
 
         Dim listBox As ListBox = DirectCast(sender, ListBox)
@@ -100,6 +113,7 @@
         RaiseEvent ItemClicked(Me, EventArgs.Empty)
 
     End Sub
+
     Private Sub ListBox_DrawItem(sender As Object, e As DrawItemEventArgs)
 
         Dim listBox As ListBox = DirectCast(sender, ListBox)
@@ -140,7 +154,6 @@
             Dim textRectangle As New Rectangle(textLeft, e.Bounds.Top, Math.Max(0, secondaryRectangle.Left - textLeft - 8), e.Bounds.Height)
 
             TextRenderer.DrawText(e.Graphics, item.Text, listBox.Font, textRectangle, listBox.ForeColor, TextFormatFlags.Left Or TextFormatFlags.VerticalCenter Or TextFormatFlags.EndEllipsis Or TextFormatFlags.NoPrefix)
-
             TextRenderer.DrawText(e.Graphics, item.Volume, listBox.Font, secondaryRectangle, UiColors.TextSecondary, TextFormatFlags.Left Or TextFormatFlags.VerticalCenter Or TextFormatFlags.NoPrefix)
 
         End If
@@ -160,99 +173,93 @@
         e.DrawFocusRectangle()
 
     End Sub
+
     Public ReadOnly Property IsOpen As Boolean
         Get
-            Return _dropDown.Visible OrElse _floatingForm.Visible
+            Return _floatingForm.Visible
         End Get
     End Property
 
     Public ReadOnly Property SelectedItem As PickListItem
         Get
-            Return TryCast(ActiveListBox.SelectedItem, PickListItem)
+            Return TryCast(_listBox.SelectedItem, PickListItem)
         End Get
     End Property
+
     Public ReadOnly Property ItemCount As Integer
         Get
-            Return ActiveListBox.Items.Count
+            Return _listBox.Items.Count
         End Get
     End Property
+
     Public Sub MoveSelectionUp()
 
-        Dim listBox As ListBox = ActiveListBox
-
-        If listBox.Items.Count = 0 Then
+        If _listBox.Items.Count = 0 Then
             Return
         End If
 
-        If listBox.SelectedIndex > 0 Then
-            listBox.SelectedIndex -= 1
+        If _listBox.SelectedIndex > 0 Then
+            _listBox.SelectedIndex -= 1
         End If
 
     End Sub
+
     Public Sub MoveSelectionDown()
 
-        Dim listBox As ListBox = ActiveListBox
-
-        If listBox.Items.Count = 0 Then
+        If _listBox.Items.Count = 0 Then
             Return
         End If
 
-        If listBox.SelectedIndex < 0 Then
-            listBox.SelectedIndex = 0
-        ElseIf listBox.SelectedIndex < listBox.Items.Count - 1 Then
-            listBox.SelectedIndex += 1
+        If _listBox.SelectedIndex < 0 Then
+            _listBox.SelectedIndex = 0
+        ElseIf _listBox.SelectedIndex < _listBox.Items.Count - 1 Then
+            _listBox.SelectedIndex += 1
         End If
 
     End Sub
 
     Public Function SelectItemByNumber(number As Integer) As Boolean
 
-        Dim listBox As ListBox = ActiveListBox
         Dim index As Integer = number - 1
 
-        If index < 0 OrElse index >= listBox.Items.Count Then
+        If index < 0 OrElse index >= _listBox.Items.Count Then
             Return False
         End If
 
-        listBox.SelectedIndex = index
+        _listBox.SelectedIndex = index
 
         Return True
 
     End Function
+
     Public Sub SetItems(items As IEnumerable(Of PickListItem))
 
         _listBox.BeginUpdate()
-        _floatingListBox.BeginUpdate()
 
         Try
 
             _listBox.Items.Clear()
-            _floatingListBox.Items.Clear()
 
             If items IsNot Nothing Then
 
                 For Each item As PickListItem In items
                     _listBox.Items.Add(item)
-                    _floatingListBox.Items.Add(item)
                 Next
 
             End If
 
             If _listBox.Items.Count > 0 Then
                 _listBox.SelectedIndex = 0
-                _floatingListBox.SelectedIndex = 0
             Else
                 _listBox.SelectedIndex = -1
-                _floatingListBox.SelectedIndex = -1
             End If
 
         Finally
 
             _listBox.EndUpdate()
-            _floatingListBox.EndUpdate()
 
         End Try
-
+        DebugLog.WriteAlways($"[PICKLIST] SetItems complete. Count={_listBox.Items.Count}, SelectedIndex={_listBox.SelectedIndex}")
     End Sub
 
     Public Sub Show(owner As Control, cellBounds As Rectangle)
@@ -268,9 +275,8 @@
 
         If ProjectValues.FloatingPickList Then
 
-            If _dropDown.Visible Then
-                _dropDown.Close(ToolStripDropDownCloseReason.CloseCalled)
-            End If
+            _floatingForm.FormBorderStyle = FormBorderStyle.Sizable
+            _floatingForm.MinimumSize = New Size(180, 120)
 
             If Not _floatingForm.Visible Then
 
@@ -290,16 +296,15 @@
 
         End If
 
-        If _floatingForm.Visible Then
-            _floatingForm.Hide()
-        End If
+        _fixedOwner = owner
+        _fixedCellBounds = cellBounds
+
+        _floatingForm.FormBorderStyle = FormBorderStyle.None
+        _floatingForm.MinimumSize = Size.Empty
 
         Dim width As Integer = Math.Max(180, cellBounds.Width + 40)
         Dim visibleItemCount As Integer = Math.Min(9, _listBox.Items.Count)
-        Dim height As Integer = Math.Max(24, visibleItemCount * _listBox.ItemHeight + 4)
-
-        _listBox.Size = New Size(width, height)
-        _host.Size = _listBox.Size
+        Dim height As Integer = Math.Max(24, visibleItemCount * _listBox.ItemHeight)
 
         Dim screenBelow As Point = owner.PointToScreen(New Point(cellBounds.Left, cellBounds.Bottom))
         Dim screenAbove As Point = owner.PointToScreen(New Point(cellBounds.Left, cellBounds.Top - height))
@@ -323,12 +328,25 @@
             screenLocation.X = workingArea.Left
         End If
 
-        Dim ownerLocation As Point = owner.PointToClient(screenLocation)
+        _floatingForm.SetBounds(screenLocation.X, screenLocation.Y, width, height)
 
-        _dropDown.Show(owner, ownerLocation)
+        Dim ownerForm As Form = owner.FindForm()
+
+        If _floatingForm.Owner IsNot ownerForm Then
+            _floatingForm.Owner = ownerForm
+        End If
+
+        If Not _floatingForm.Visible Then
+            _floatingForm.Show(ownerForm)
+        End If
 
     End Sub
+
     Private Sub FloatingForm_BoundsChanged(sender As Object, e As EventArgs)
+
+        If Not ProjectValues.FloatingPickList Then
+            Return
+        End If
 
         If Not _floatingForm.Visible OrElse _floatingForm.WindowState <> FormWindowState.Normal Then
             Return
@@ -342,11 +360,8 @@
         ProjectValuesStore.Save()
 
     End Sub
-    Public Sub Hide()
 
-        If _dropDown.Visible Then
-            _dropDown.Close(ToolStripDropDownCloseReason.CloseCalled)
-        End If
+    Public Sub Hide()
 
         If _floatingForm.Visible Then
             _floatingForm.Hide()
@@ -366,12 +381,6 @@
         _listBox.ItemHeight = itemHeight
         _listBox.Invalidate()
 
-        _floatingListBox.Font = New Font(pickListFont, pickListFont.Style)
-        _floatingListBox.BackColor = UiColors.PanelBackground
-        _floatingListBox.ForeColor = pickListColour
-        _floatingListBox.ItemHeight = itemHeight
-        _floatingListBox.Invalidate()
-
         _floatingForm.BackColor = UiColors.PanelBackground
 
     End Sub
@@ -382,10 +391,6 @@
             Return
         End If
 
-        _dropDown.Dispose()
-        _host.Dispose()
-        _listBox.Dispose()
-
         _floatingForm.Dispose()
 
         _disposed = True
@@ -393,6 +398,7 @@
         GC.SuppressFinalize(Me)
 
     End Sub
+
     Private NotInheritable Class FloatingPickListForm
         Inherits Form
 
@@ -401,6 +407,7 @@
                 Return True
             End Get
         End Property
+
     End Class
 
 End Class

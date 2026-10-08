@@ -100,12 +100,19 @@ Public NotInheritable Class LoadSaveFiles
             For rowIndex As Integer = 0 To lastDataRow
 
                 Dim row As DataGridViewRow = grid.Rows(rowIndex)
-                Dim directive As RowDirective = RowDirective.FromGridRow(row)
 
-                If directive IsNot Nothing Then
-                    lines.Add(BuildDirectiveLine(directive))
+                If TypeOf row.Tag Is Boolean AndAlso CBool(row.Tag) Then
+
+                    Dim firstColumnIndex As Integer = FindGridColumn(grid, fields(0))
+
+                    If firstColumnIndex >= 0 Then
+                        lines.Add(If(row.Cells(firstColumnIndex).Value, "").ToString())
+                    End If
+
                 Else
+
                     lines.Add(BuildDataLine(row, fields))
+
                 End If
 
             Next
@@ -150,9 +157,7 @@ Public NotInheritable Class LoadSaveFiles
             ToArray()
 
     End Function
-    Private Shared Function FindGridColumn(
-        grid As DataGridView,
-        field As GridField) As Integer
+    Friend Shared Function FindGridColumn(grid As DataGridView, field As GridField) As Integer
 
         For columnIndex As Integer = 0 To grid.Columns.Count - 1
 
@@ -272,14 +277,13 @@ Public NotInheritable Class LoadSaveFiles
 
                 Dim directiveRowIndex As Integer = grid.Rows.Add()
                 Dim directiveRow As DataGridViewRow = grid.Rows(directiveRowIndex)
-                Dim directive As RowDirective = ParseDirectiveLine(directiveLine, directiveRowIndex)
 
-                directiveRow.Tag = directive
+                directiveRow.Tag = True
                 directiveRow.Cells("RowNumber").Value = directiveRowIndex + 1
 
                 Dim firstColumnIndex As Integer = FindGridColumn(grid, fields(0))
 
-                If firstColumnIndex >= 0 Then directiveRow.Cells(firstColumnIndex).Value = BuildDirectiveLine(directive)
+                If firstColumnIndex >= 0 Then directiveRow.Cells(firstColumnIndex).Value = directiveLine
 
                 Continue For
 
@@ -334,80 +338,6 @@ Public NotInheritable Class LoadSaveFiles
             values)
 
     End Function
-    Friend Shared Function ParseDirectiveLine(line As String, rowIndex As Integer) As RowDirective
-
-        Dim directive As New RowDirective With {.RowIndex = rowIndex}
-
-        If line.StartsWith("+PAGE,", StringComparison.OrdinalIgnoreCase) Then
-
-            directive.DirectiveType = "+PAGE"
-            directive.Text = line.Substring("+PAGE,".Length).Trim()
-
-        ElseIf line.Equals("+BREAK", StringComparison.OrdinalIgnoreCase) Then
-
-            directive.DirectiveType = "+BREAK"
-
-        ElseIf line.StartsWith("#THEORY,REF,", StringComparison.OrdinalIgnoreCase) Then
-
-            directive.DirectiveType = "#THEORY,REF"
-            directive.Text = line.Substring("#THEORY,REF,".Length).Trim()
-
-        ElseIf line.StartsWith("#COMMENT", StringComparison.OrdinalIgnoreCase) Then
-
-            directive.DirectiveType = "#COMMENT"
-
-            Dim remainder As String =
-        line.Substring("#COMMENT".Length).Trim()
-
-            ' Accept the old erroneous comma-separated form as well.
-            remainder = remainder.TrimStart(","c).Trim()
-
-            If remainder.StartsWith("(") Then
-
-                Dim closeBracket As Integer = remainder.IndexOf(")"c)
-
-                If closeBracket > 1 Then
-
-                    Dim linesText As String = remainder.Substring(1, closeBracket - 1)
-
-                    Dim lines As Integer
-
-                    If Integer.TryParse(linesText, lines) AndAlso lines > 0 Then
-
-                        directive.Lines = lines
-
-                        remainder = remainder.Substring(closeBracket + 1).TrimStart(","c).Trim()
-
-                    End If
-
-                End If
-
-            End If
-
-            directive.Text = remainder
-
-        ElseIf line.StartsWith("#THEORY", StringComparison.OrdinalIgnoreCase) Then
-
-            directive.DirectiveType = "#THEORY"
-            directive.Text = ExtractDirectiveText(line, "#THEORY")
-
-        ElseIf line.StartsWith("#", StringComparison.OrdinalIgnoreCase) Then
-
-            directive.DirectiveType = "#"
-
-            If line.Length > 1 Then
-                directive.Text = line.Substring(1).TrimStart()
-            End If
-
-        Else
-
-            directive.DirectiveType = line.Trim()
-
-        End If
-
-        Return directive
-
-    End Function
     Private Shared Function ExtractDirectiveText(line As String, directivePrefix As String) As String
 
         If line.Length <= directivePrefix.Length Then
@@ -456,48 +386,32 @@ Public NotInheritable Class LoadSaveFiles
         Return -1
 
     End Function
-    Private Shared Sub ValidateHeaderLines(
-        lines As List(Of String))
+    Private Shared Sub ValidateHeaderLines(lines As List(Of String))
 
-        If Not lines(0).StartsWith(
-            "+INFO",
-            StringComparison.OrdinalIgnoreCase) Then
-
-            Throw New InvalidDataException(
-                "Line 1 must start with +INFO.")
+        If Not lines(0).StartsWith("+INFO", StringComparison.OrdinalIgnoreCase) Then
+            Throw New InvalidDataException("Line 1 must start with +INFO.")
         End If
 
         If Not lines(1).StartsWith("#") Then
-            Throw New InvalidDataException(
-                "Line 2 must start with #.")
+            Throw New InvalidDataException("Line 2 must start with #.")
         End If
 
         If Not lines(2).StartsWith("#") Then
-            Throw New InvalidDataException(
-                "Line 3 must start with #.")
+            Throw New InvalidDataException("Line 3 must start with #.")
         End If
 
-        If Not lines(3).StartsWith(
-            "+S",
-            StringComparison.OrdinalIgnoreCase) Then
-
-            Throw New InvalidDataException(
-                "Line 4 must start with +S.")
+        If Not lines(3).StartsWith("+S", StringComparison.OrdinalIgnoreCase) Then
+            Throw New InvalidDataException("Line 4 must start with +S.")
         End If
 
-        If Not lines(4).StartsWith(
-            "+PAGE",
-            StringComparison.OrdinalIgnoreCase) Then
-
-            Throw New InvalidDataException(
-                "Line 5 must start with +PAGE.")
+        If Not lines(4).StartsWith("+PAGE", StringComparison.OrdinalIgnoreCase) Then
+            Throw New InvalidDataException("Line 5 must start with +PAGE.")
         End If
 
     End Sub
     Private Shared Sub ParseInfoLine(line As String)
 
-        Dim parts As List(Of String) =
-            SplitCsv(line)
+        Dim parts As List(Of String) = SplitCsv(line)
 
         If parts.Count < 5 Then
             Return
@@ -506,8 +420,7 @@ Public NotInheritable Class LoadSaveFiles
         ProjectValues.CreatorEmail =
             parts(1)
 
-        ProjectValues.SequenceType =
-            parts(3)
+        ProjectValues.SequenceType = parts(3)
 
         Select Case parts(4).Trim().ToUpperInvariant()
 
@@ -540,20 +453,15 @@ Public NotInheritable Class LoadSaveFiles
 
         DebugLog.Write($"[HEADER LOAD] ProjectValues.VNF set to '{ProjectValues.VNF}'.")
 
-        ProjectValues.Creator =
-            parts(2)
+        ProjectValues.Creator = parts(2)
 
-        ProjectValues.Syndicate =
-            parts(3)
+        ProjectValues.Syndicate = parts(3)
 
-        ProjectValues.BatchName =
-            parts(4)
+        ProjectValues.BatchName = parts(4)
 
-        ProjectValues.Created =
-            parts(5)
+        ProjectValues.Created = parts(5)
 
-        ProjectValues.PageLetter =
-            parts(9)
+        ProjectValues.PageLetter = parts(9)
 
     End Sub
     Private Shared Sub ParseHeaderLine2(line As String)
@@ -645,33 +553,6 @@ Public NotInheritable Class LoadSaveFiles
         End If
 
     End Sub
-    Friend Shared Function BuildDirectiveLine(directive As RowDirective) As String
-
-        Dim directiveType As String =
-        If(directive.DirectiveType, "").Trim()
-
-        Dim text As String =
-        If(directive.Text, "").Trim()
-
-        If directiveType.Equals("#COMMENT", StringComparison.OrdinalIgnoreCase) Then
-
-            If directive.Lines.HasValue AndAlso directive.Lines.Value > 0 Then
-
-                Return $"#COMMENT ({directive.Lines.Value}) {text}"
-
-            End If
-
-            Return $"#COMMENT {text}".TrimEnd()
-
-        End If
-
-        If String.IsNullOrWhiteSpace(text) Then
-            Return directiveType
-        End If
-
-        Return directiveType & "," & text
-
-    End Function
     Friend Shared Function BuildInfoLine() As String
 
         Dim recordType As String

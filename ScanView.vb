@@ -8,6 +8,7 @@ Public Class ScanView
     Private ReadOnly _rulerController As RulerController
     Public Event RulerSetupStarted As EventHandler
     Public Event RulerSetupFinished As EventHandler
+    Public Event VerifyFieldFocused(field As GridField)
     Private _rulerInstructionForm As RulerInstructionForm
     Private ReadOnly _verifyBar As New VerifyBar()
     Private _rulerWasVisibleBeforeVerify As Boolean
@@ -51,6 +52,7 @@ Public Class ScanView
         Controls.Add(_verifyBar)
         _verifyBar.BringToFront()
         AddHandler _verifyBar.VerifiedClicked, AddressOf VerifyBar_VerifiedClicked
+        AddHandler _verifyBar.FieldFocused, AddressOf VerifyBar_FieldFocused
 
     End Sub
 
@@ -219,7 +221,7 @@ Public Class ScanView
         ScanProgressBar.Visible = True
 
         Try
-
+            DebugLog.WriteAlways($"[SCAN THREAD] Before LocateScanAsync: Thread={Environment.CurrentManagedThreadId}, InvokeRequired={InvokeRequired}")
             Dim locator As New ScanLocator()
             Dim result As ScanSearchResult = Await locator.LocateScanAsync()
 
@@ -337,6 +339,7 @@ Public Class ScanView
         _viewer.ZoomIn()
         UpdateZoomDisplay()
         SaveScanViewSettings()
+        _commandExecutor.RestoreGridFocus()
 
     End Sub
 
@@ -351,6 +354,7 @@ Public Class ScanView
         _viewer.ZoomOut()
         UpdateZoomDisplay()
         SaveScanViewSettings()
+        _commandExecutor.RestoreGridFocus()
 
     End Sub
 
@@ -358,6 +362,7 @@ Public Class ScanView
 
         _viewer.RotateLeft()
         SaveScanViewSettings()
+        _commandExecutor.RestoreGridFocus()
 
     End Sub
 
@@ -365,6 +370,7 @@ Public Class ScanView
 
         _viewer.RotateRight()
         SaveScanViewSettings()
+        _commandExecutor.RestoreGridFocus()
 
     End Sub
 
@@ -528,7 +534,11 @@ Public Class ScanView
         _commandExecutor.CompleteVerifyRow()
 
     End Sub
+    Private Sub VerifyBar_FieldFocused(field As GridField)
 
+        RaiseEvent VerifyFieldFocused(field)
+
+    End Sub
     Public Sub MoveScanToVerifyRow(rowNumber As Integer)
 
         If Not _verifyBar.Visible Then Return
