@@ -7,6 +7,7 @@ Public NotInheritable Class CommandController
     Private _transcriptionForm As TranscriptionForm
     Private _scanView As ScanView
     Private _startingNewFile As Boolean
+    Private _previousGridRow As Integer = 0
 
     Public Sub Start(Optional startupFile As String = "")
 
@@ -61,7 +62,12 @@ Public NotInheritable Class CommandController
         ShowHeaderForm()
 
     End Sub
-
+    Public ReadOnly Property MaximumRulerHeight As Integer Implements ICommandExecutor.MaximumRulerHeight
+        Get
+            If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return 30
+            Return _scanView.MaximumRulerHeight
+        End Get
+    End Property
     Public Sub NudgeScan(deltaX As Single, deltaY As Single) Implements ICommandExecutor.NudgeScan
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then
@@ -85,6 +91,31 @@ Public NotInheritable Class CommandController
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
 
         _scanView.MoveScanByRows(deltaRows)
+
+    End Sub
+    Public Sub MoveScanForInsertedGridRow(rowNumber As Integer) Implements ICommandExecutor.MoveScanForInsertedGridRow
+
+        DebugLog.Write($"[SCAN] Inserted grid row {rowNumber}. ScanView available: {_scanView IsNot Nothing AndAlso Not _scanView.IsDisposed}")
+
+        _previousGridRow = rowNumber
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+
+        _scanView.MoveScanByRows(-1.0F)
+
+    End Sub
+    Public Sub ResetPreviousGridRow() Implements ICommandExecutor.ResetPreviousGridRow
+
+        _previousGridRow = 0
+
+    End Sub
+    Public Sub ScanRowInserted(rowNumber As Integer)
+
+        _previousGridRow = rowNumber
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+
+        _scanView.MoveScanByRows(-1.0F)
 
     End Sub
     Public Sub MoveScanToRow1() Implements ICommandExecutor.MoveScanToRow1
@@ -113,6 +144,15 @@ Public NotInheritable Class CommandController
         _scanView.ApplyColourScheme()
 
     End Sub
+    Public Sub RefreshVerifyFont() Implements ICommandExecutor.RefreshVerifyFont
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then
+            Return
+        End If
+
+        _scanView.RefreshVerifyFont()
+
+    End Sub
     Private Sub ShowHeaderForm()
 
         Dim headerForm As New HeaderForm()
@@ -126,12 +166,17 @@ Public NotInheritable Class CommandController
 
     Private Async Sub ShowTranscriptionForms(Optional filePath As String = "", Optional recoveringWorkfile As Boolean = False)
 
+        _previousGridRow = 0
+
         _transcriptionForm = New TranscriptionForm(Me)
         _scanView = New ScanView(Me)
 
         AddHandler _transcriptionForm.FormClosed, AddressOf TranscriptionForm_FormClosed
+        AddHandler _transcriptionForm.Resize, AddressOf TranscriptionForm_Resize
         AddHandler _transcriptionForm.CurrentGridRowChanged, AddressOf TranscriptionForm_CurrentGridRowChanged
         AddHandler _scanView.RulerSetupFinished, AddressOf ScanView_RulerSetupFinished
+        AddHandler _scanView.VerifyArrangeModeChanged, AddressOf ScanView_VerifyArrangeModeChanged
+        AddHandler _scanView.Resize, AddressOf ScanView_Resize
         AddHandler _scanView.VerifyFieldFocused, AddressOf ScanView_VerifyFieldFocused
 
         MainForm = _transcriptionForm
@@ -217,6 +262,7 @@ Public NotInheritable Class CommandController
         Await _scanView.FindScanAsync()
 
     End Function
+
     Public Sub SetVerifyVisible(visible As Boolean) Implements ICommandExecutor.SetVerifyVisible
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then
@@ -248,15 +294,8 @@ Public NotInheritable Class CommandController
         End If
 
         _transcriptionForm.EndGridEdit()
-        _scanView.LoadVerifyValues(values)
+        _scanView.LoadVerifyValues(values, _transcriptionForm.GetPreviousVerifySurname())
 
-        Dim rowIndex As Integer =
-        _transcriptionForm.CurrentVerifyRowIndex
-
-        If rowIndex >= 0 Then
-            _scanView.MoveRulerToRow(rowIndex + 1)
-        End If
-        _scanView.MoveScanToVerifyRow(rowIndex + 1)
         _scanView.BeginInvoke(Sub() _scanView.FocusFirstVerifyBox())
 
     End Sub
@@ -282,8 +321,7 @@ Public NotInheritable Class CommandController
             Return
         End If
 
-        _scanView.LoadVerifyValues(_transcriptionForm.GetCurrentVerifyValues())
-        _scanView.MoveRulerToRow(nextRow + 1)
+        _scanView.LoadVerifyValues(_transcriptionForm.GetCurrentVerifyValues(), _transcriptionForm.GetPreviousVerifySurname())
         _scanView.BeginInvoke(Sub() _scanView.FocusFirstVerifyBox())
 
     End Sub
@@ -291,51 +329,67 @@ Public NotInheritable Class CommandController
     Private Sub TranscriptionForm_CurrentGridRowChanged(sender As Object, e As EventArgs)
 
         If _transcriptionForm Is Nothing OrElse
-       _transcriptionForm.CurrentGridCell Is Nothing OrElse
-       _scanView Is Nothing Then
-
-            Return
-
-        End If
+       _transcriptionForm.CurrentGridCell Is Nothing Then Return
 
         Dim rowNumber As Integer = _transcriptionForm.CurrentGridCell.RowIndex + 1
 
-        If _scanView.VerifyVisible Then
+        DebugLog.WriteAlways($"[VERIFY POSITION] GridRow={rowNumber}, PreviousRow={_previousGridRow}, VerifyVisible={_scanView IsNot Nothing AndAlso _scanView.VerifyVisible}")
 
-            _scanView.MoveScanToVerifyRow(rowNumber)
-
-        ElseIf _transcriptionForm.CurrentGridRowIsDirective Then
-
-            _scanView.SetCurrentRulerRow(rowNumber)
-
-        Else
-
-            _scanView.MoveRulerToRow(rowNumber)
-
+        If _previousGridRow = 0 Then
+            _previousGridRow = 1
         End If
+
+        Dim deltaRows As Integer = _transcriptionForm.CountScanRowsBetween(_previousGridRow - 1, rowNumber - 1)
+
+        _previousGridRow = rowNumber
+
+        If deltaRows = 0 Then Return
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+        If Not _scanView.RulerVisible Then Return
+
+        _scanView.MoveScanByRows(deltaRows)
 
     End Sub
     Private Sub ScanView_RulerSetupFinished(sender As Object, e As EventArgs)
 
         If _transcriptionForm Is Nothing OrElse
-       _transcriptionForm.CurrentGridCell Is Nothing Then
+       _transcriptionForm.CurrentGridCell Is Nothing OrElse
+       _scanView Is Nothing Then Return
 
-            Return
+        Dim rowIndex As Integer = _transcriptionForm.CurrentGridCell.RowIndex
+        Dim rowNumber As Integer = rowIndex + 1
 
+        _scanView.MoveScanToRow1()
+
+        If rowNumber > 1 Then
+            _scanView.MoveScanByRows(rowNumber - 1)
         End If
 
-        Dim rowIndex As Integer =
-        _transcriptionForm.CurrentGridCell.RowIndex
-
-        Dim rowNumber As Integer =
-        rowIndex + 1
-
-        _scanView.MoveRulerToRow(rowNumber)
-
         _transcriptionForm.FocusGridRow(rowIndex)
+        _previousGridRow = rowNumber
 
-        DebugLog.Write(
-        $"[RULER] Setup finished. Returned to grid row {rowNumber}.")
+        DebugLog.Write($"[RULER] Setup finished. Scan aligned with grid row {rowNumber}.")
+
+    End Sub
+    Private Sub ScanView_VerifyArrangeModeChanged(active As Boolean)
+
+        If _transcriptionForm Is Nothing OrElse _transcriptionForm.IsDisposed Then Return
+
+        _transcriptionForm.Enabled = Not active
+
+        If Not active Then
+            _transcriptionForm.Activate()
+        End If
+
+    End Sub
+    Private Sub ScanView_Resize(sender As Object, e As EventArgs)
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+        If _transcriptionForm Is Nothing OrElse _transcriptionForm.IsDisposed Then Return
+
+        If _scanView.WindowState = FormWindowState.Minimized Then
+            _transcriptionForm.HidePickList()
+        End If
 
     End Sub
     Private Sub HeaderForm_FormClosed(sender As Object, e As FormClosedEventArgs)
@@ -460,6 +514,14 @@ Public NotInheritable Class CommandController
         End If
 
     End Sub
+ 
+    Public Sub UpdateRulerHeight() Implements ICommandExecutor.UpdateRulerHeight
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+
+        _scanView.UpdateRulerHeight()
+
+    End Sub
     Private Sub TranscriptionForm_FormClosed(sender As Object, e As FormClosedEventArgs)
 
         If _scanView IsNot Nothing AndAlso Not _scanView.IsDisposed Then
@@ -468,6 +530,9 @@ Public NotInheritable Class CommandController
 
         If _startingNewFile Then
             _startingNewFile = False
+            If ProjectValues.Page > 0 Then
+                ProjectValues.Page += 1
+            End If
             ShowHeaderForm()
             Return
         End If
@@ -475,7 +540,22 @@ Public NotInheritable Class CommandController
         ExitThread()
 
     End Sub
+    Private Sub TranscriptionForm_Resize(sender As Object, e As EventArgs)
 
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+        If Not _scanView.Visible Then Return
+
+        If _transcriptionForm.WindowState = FormWindowState.Minimized Then
+
+            _scanView.WindowState = FormWindowState.Minimized
+
+        ElseIf _scanView.WindowState = FormWindowState.Minimized Then
+
+            _scanView.WindowState = FormWindowState.Normal
+
+        End If
+
+    End Sub
     Public Async Sub Execute(command As AppCommand) Implements ICommandExecutor.Execute
 
         Select Case command
@@ -499,6 +579,8 @@ Public NotInheritable Class CommandController
                     If dialog.ShowDialog(_transcriptionForm) <> DialogResult.OK Then
                         Return
                     End If
+
+                    _previousGridRow = 0
 
                     If Not _transcriptionForm.LoadBatchFile(dialog.FileName) Then
 

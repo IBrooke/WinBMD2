@@ -36,6 +36,13 @@
     Public Sub New(viewer As ScanViewerControl)
 
         _viewer = viewer
+        AddHandler _viewer.ZoomChanged, AddressOf Viewer_ZoomChanged
+        UpdateRulerHeight()
+
+    End Sub
+    Private Sub Viewer_ZoomChanged(sender As Object, e As EventArgs)
+
+        UpdateRulerHeight()
 
     End Sub
     ' During ruler setup the ruler remains at a fixed screen position and the
@@ -44,7 +51,8 @@
     '
     ' ConfirmCurrentPosition records the IMAGE Y coordinate beneath the ruler,
     ' so the saved calibration is independent of the ruler's screen position.
-    ' Once setup is complete, normal operation moves the ruler over the scan.
+    ' Once setup is complete, normal operation continues to move the scan
+    ' beneath the stationary ruler.
     Public Sub StartSetup()
 
         _row1ImageY = 0.0F
@@ -69,7 +77,7 @@
 
         _currentRow = 1
         _stage = RulerSetupStage.Complete
-        _viewer.SetRulerHeight(_rowStepImageY * _viewer.Zoom)
+        UpdateRulerHeight()
 
         DebugLog.Write(
             $"[RULER] Calibration loaded. " &
@@ -87,29 +95,23 @@
 
                 _panX = _viewer.GetImagePanX()
 
-                _row1ImageY =
-                    _viewer.GetImageYAtScreenY(
-                        _viewer.RulerScreenY)
+                _row1ImageY = _viewer.GetImageYAtScreenY(_viewer.RulerTop)
 
                 _stage = RulerSetupStage.AwaitingRow10
 
-                DebugLog.Write(
-                    $"[RULER] Row 1 captured. ImageY={_row1ImageY:0.###}")
+                DebugLog.Write($"[RULER] Row 1 captured. ImageY={_row1ImageY:0.###}")
 
                 Return True
 
             Case RulerSetupStage.AwaitingRow10
 
-                _row10ImageY =
-                    _viewer.GetImageYAtScreenY(
-                        _viewer.RulerScreenY)
+                _row10ImageY = _viewer.GetImageYAtScreenY(_viewer.RulerTop)
 
-                _rowStepImageY =
-                    (_row10ImageY - _row1ImageY) / 9.0F
+                _rowStepImageY = (_row10ImageY - _row1ImageY) / 9.0F
 
                 _currentRow = 10
                 _stage = RulerSetupStage.Complete
-                _viewer.SetRulerHeight(_rowStepImageY * _viewer.Zoom)
+                UpdateRulerHeight()
 
                 DebugLog.Write(
                     $"[RULER] Row 10 captured. " &
@@ -123,69 +125,20 @@
         Return False
 
     End Function
+    Public ReadOnly Property MaximumRulerHeight As Integer
+        Get
+            If _stage <> RulerSetupStage.Complete OrElse Math.Abs(_rowStepImageY) < 0.001F Then
+                Return Math.Max(30, CInt(Math.Round(30.0F * _viewer.DeviceDpi / 96.0F)))
+            End If
 
+            Return Math.Max(4, CInt(Math.Floor(Math.Abs(_rowStepImageY))))
+        End Get
+    End Property
     Public Sub CancelSetup()
 
         _stage = RulerSetupStage.None
 
         DebugLog.Write("[RULER] Setup cancelled.")
-
-    End Sub
-
-    Public Sub MoveToRow(rowNumber As Integer)
-
-        If _stage <> RulerSetupStage.Complete Then
-            Return
-        End If
-
-        If rowNumber < 1 Then
-            Return
-        End If
-
-        Dim previousRow As Integer = _currentRow
-
-        If rowNumber = 1 Then
-
-            Dim rulerY As Single = _viewer.RulerScreenY
-            Dim imageYBefore As Single = _viewer.GetImageYAtScreenY(rulerY)
-
-            DebugLog.Write($"[RULER] MoveToRow(1) BEFORE. RulerScreenY={rulerY:0.###}, ImageYAtRuler={imageYBefore:0.###}, TargetImageY={Row1ImageY:0.###}, Zoom={_viewer.Zoom:0.###}, ClientHeight={_viewer.ClientSize.Height}")
-
-            _viewer.PositionImageYAtScreenY(Row1ImageY, rulerY)
-
-            Dim imageYAfter As Single = _viewer.GetImageYAtScreenY(rulerY)
-
-            DebugLog.Write($"[RULER] MoveToRow(1) AFTER. RulerScreenY={_viewer.RulerScreenY:0.###}, ImageYAtRuler={imageYAfter:0.###}, TargetImageY={Row1ImageY:0.###}")
-
-            _currentRow = 1
-
-            DebugLog.Write($"[RULER] Grid moved from row {previousRow} to row 1 using absolute position. Row1ImageY={Row1ImageY:0.###}")
-
-            Return
-
-        End If
-
-        Dim deltaRows As Integer = _currentRow - rowNumber
-
-        If deltaRows = 0 Then
-            Return
-        End If
-
-        MoveByRows(deltaRows)
-
-        _currentRow = rowNumber
-
-        DebugLog.Write(
-        $"[RULER] Grid moved from row {previousRow} to row {rowNumber}. DeltaRows={deltaRows}, RowStepImageY={_rowStepImageY:0.###}")
-
-    End Sub
-    ' Updates the current grid row without moving the ruler.
-    ' Used when the grid moves onto a directive row.
-    Public Sub SetCurrentRow(rowNumber As Integer)
-
-        If rowNumber < 1 Then Return
-
-        _currentRow = rowNumber
 
     End Sub
     Public Sub MoveScanToRow1()
@@ -195,56 +148,41 @@
             Return
         End If
 
-        _viewer.PositionImageYAtScreenY(_row1ImageY, _viewer.RulerScreenY)
+        _viewer.PositionImageYAtScreenY(_row1ImageY, _viewer.RulerTop)
 
         DebugLog.Write(
         $"[RULER] Scan moved to row 1 absolute position. CurrentGridRow={_currentRow}, Row1ImageY={_row1ImageY:0.###}")
 
     End Sub
-    ' Moves the ruler vertically by a number of row spacings.
-    ' deltaRows may be fractional; for example, 1.0 moves one row and 0.1 moves one tenth of a row.
+    ' Moves the scan vertically by a number of calibrated row spacings.
+    ' Positive values advance through the grid, moving the scan upwards.
+    ' Negative values move backwards, moving the scan downwards.
     Public Sub MoveByRows(deltaRows As Single)
 
         If _stage <> RulerSetupStage.Complete Then Return
         If deltaRows = 0 Then Return
+        If Not _viewer.HasImage Then Return
 
-        Dim rulerMovement As Single = -deltaRows * _rowStepImageY * _viewer.Zoom
-        Dim newRulerY As Single = _viewer.RulerScreenY + rulerMovement
+        Dim scanMovement As Single = -deltaRows * _rowStepImageY * _viewer.Zoom
 
-        Dim currentImageY As Single = _viewer.GetImageYAtScreenY(_viewer.RulerScreenY)
-        Dim targetImageY As Single = currentImageY - (deltaRows * _rowStepImageY)
+        _viewer.NudgeImage(0.0F, scanMovement)
 
-        If targetImageY < 0.0F OrElse targetImageY > _viewer.ImageHeight Then Return
+        DebugLog.Write($"[RULER] Scan moved by {deltaRows:0.###} row(s). Movement={scanMovement:0.###}, PanY={_viewer.GetImagePanY():0.###}")
 
-        Dim proposedImageY As Single = _viewer.GetImageYAtScreenY(newRulerY)
+    End Sub
+    Public Sub UpdateRulerHeight()
 
-        If proposedImageY >= _viewer.ImageHeight Then Return
+        Dim height As Single = ProjectValues.RulerHeight * _viewer.Zoom
 
-        Dim topLimit As Single = _viewer.ClientSize.Height * 0.1F
-        Dim bottomLimit As Single = _viewer.ClientSize.Height * 0.9F
+        If _stage = RulerSetupStage.Complete AndAlso Math.Abs(_rowStepImageY) > 0.001F Then
 
-        If newRulerY > bottomLimit Then
+            Dim maximumHeight As Single = Math.Abs(_rowStepImageY * _viewer.Zoom)
 
-            Dim rolloverY As Single = topLimit + (_viewer.ClientSize.Height * 0.02F) + (_rowStepImageY * _viewer.Zoom)
-
-            _viewer.RulerScreenY = rolloverY
-            _viewer.PositionImageYAtScreenY(targetImageY, rolloverY)
-
-            DebugLog.Write($"[RULER] Bottom rollover. TargetImageY={targetImageY:0.###}, RulerScreenY={rolloverY:0.###}")
-
-        ElseIf newRulerY < topLimit Then
-
-            _viewer.RulerScreenY = bottomLimit
-            _viewer.PositionImageYAtScreenY(targetImageY, bottomLimit)
-
-            DebugLog.Write($"[RULER] Top rollover. TargetImageY={targetImageY:0.###}, RulerScreenY={bottomLimit:0.###}")
-
-        Else
-
-            _viewer.RulerScreenY = newRulerY
-            DebugLog.Write($"[RULER] Moved by {deltaRows} row(s). RulerScreenY={_viewer.RulerScreenY:0.###}, ImageY={_viewer.GetImageYAtScreenY(_viewer.RulerScreenY):0.###}, ImageHeight={_viewer.ImageHeight}")
+            height = Math.Min(height, maximumHeight)
 
         End If
+
+        _viewer.SetRulerHeight(Math.Max(4.0F, height))
 
     End Sub
 End Class

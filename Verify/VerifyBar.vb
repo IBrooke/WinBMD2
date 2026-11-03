@@ -7,6 +7,8 @@
     Private _arrangeMode As Boolean
     Public Event VerifiedClicked As EventHandler
     Public Event FieldFocused(field As GridField)
+    Public Event ArrangeModeChanged(active As Boolean)
+    Private ReadOnly _verifyToolTip As New ToolTip()
     Public Sub New()
 
         DoubleBuffered = True
@@ -34,6 +36,8 @@
         AddHandler _arrangeButton.Click, AddressOf ArrangeButton_Click
 
         Controls.Add(_arrangeButton)
+        _verifyToolTip.SetToolTip(_arrangeButton, "Click Arrange to move or resize the Verify Bar fields.")
+        _verifyToolTip.SetToolTip(Me, "Click Arrange to move or resize the Verify Bar fields.")
 
         ThemeManager.ApplyLozengeButton(_verifiedButton)
 
@@ -44,6 +48,22 @@
         AddHandler _verifiedButton.KeyDown, AddressOf VerifiedButton_KeyDown
 
         Controls.Add(_verifiedButton)
+
+    End Sub
+    Public Sub CancelArrangeMode()
+
+        If Not _arrangeMode Then Return
+
+        _arrangeMode = False
+
+        For Each box As VerifyFieldBox In _fieldBoxes
+            box.ArrangeMode = False
+        Next
+
+        _verifiedButton.Enabled = True
+        ThemeManager.ApplyLozengeButton(_arrangeButton)
+
+        RaiseEvent ArrangeModeChanged(False)
 
     End Sub
     Private Sub VerifiedButton_KeyDown(sender As Object, e As KeyEventArgs)
@@ -77,6 +97,19 @@
             box.ArrangeMode = _arrangeMode
         Next
 
+        _verifiedButton.Enabled = Not _arrangeMode
+
+        If _arrangeMode Then
+
+            _arrangeButton.BackColor = Color.Orange
+            _arrangeButton.ForeColor = Color.Black
+
+        Else
+
+            ThemeManager.ApplyLozengeButton(_arrangeButton)
+
+        End If
+        RaiseEvent ArrangeModeChanged(_arrangeMode)
     End Sub
     Public Sub ConfigureFields(fields As IEnumerable(Of GridField))
 
@@ -94,7 +127,20 @@
 
         ProjectValues.VerifyFieldLayouts.TryGetValue(layoutKey, savedLayout)
 
-        Dim verifyFont As New Font(UiFonts.Normal.FontFamily, ProjectValues.VerifyFontSize)
+        Dim verifyFont As Font
+
+        If String.IsNullOrWhiteSpace(ProjectValues.VerifyFontName) Then
+
+            verifyFont = UiFonts.Normal
+
+        Else
+
+            verifyFont = New Font(
+                ProjectValues.VerifyFontName,
+                ProjectValues.VerifyFontSize,
+                ProjectValues.VerifyFontStyle)
+
+        End If
         Dim verifyBoxHeight As Integer = Math.Max(30, verifyFont.Height + 10)
         Height = verifyBoxHeight + 20
 
@@ -106,7 +152,7 @@
                 .Top = 10,
                 .Width = 120,
                 .Height = verifyBoxHeight,
-                .ArrangeMode = True,
+                .ArrangeMode = _arrangeMode,
                 .Font = verifyFont
             }
 
@@ -118,6 +164,7 @@
 
                     box.Left = savedField.Left
                     box.Width = savedField.Width
+                    box.TextAlignment = savedField.TextAlignment
 
                 End If
 
@@ -144,6 +191,37 @@
         Next
 
         PositionVerifiedButton()
+        RefreshFont()
+
+    End Sub
+    Public Sub RefreshFont()
+
+        Dim verifyFont As Font
+        Dim verifyColour As Color
+
+        If String.IsNullOrWhiteSpace(ProjectValues.VerifyFontName) Then
+
+            verifyFont = New Font(ProjectValues.UiFontName, ProjectValues.UiFontSize, ProjectValues.UiFontStyle)
+            verifyColour = Color.FromArgb(ProjectValues.UiFontColourArgb)
+
+        Else
+
+            verifyFont = New Font(ProjectValues.VerifyFontName, ProjectValues.VerifyFontSize, ProjectValues.VerifyFontStyle)
+            verifyColour = Color.FromArgb(ProjectValues.VerifyFontColor)
+
+        End If
+
+        Dim verifyBoxHeight As Integer = Math.Max(30, verifyFont.Height + 10)
+
+        For Each box As VerifyFieldBox In _fieldBoxes
+
+            box.Font = verifyFont
+            box.ForeColor = verifyColour
+            box.Height = verifyBoxHeight
+
+        Next
+
+        Height = verifyBoxHeight + 20
 
     End Sub
     Private Sub VerifyBox_TabPressed(sender As Object, e As EventArgs)
@@ -202,7 +280,8 @@
             layout(box.Field.ToString()) =
             New VerifyFieldLayoutData With {
                 .Left = box.Left,
-                .Width = box.Width
+                .Width = box.Width,
+                .TextAlignment = box.TextAlignment
             }
 
         Next
@@ -222,7 +301,7 @@
         _arrangeButton.Left = _verifiedButton.Right + 10
 
     End Sub
-    Public Sub LoadValues(values As Dictionary(Of GridField, String))
+    Public Sub LoadValues(values As Dictionary(Of GridField, String), previousSurname As String)
 
         For Each box As VerifyFieldBox In _fieldBoxes
 
@@ -232,6 +311,10 @@
                 box.Value = value
             Else
                 box.Value = ""
+            End If
+
+            If box.Field = GridField.Surname Then
+                box.PreviousSurname = previousSurname
             End If
 
             box.ArrangeMode = False
@@ -252,11 +335,7 @@
     End Function
     Public Sub FocusFirstBox()
 
-        If _fieldBoxes.Count = 0 Then
-            Return
-        End If
-
-        _fieldBoxes(0).FocusEditor()
+        _verifiedButton.Focus()
 
     End Sub
 End Class

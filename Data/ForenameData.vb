@@ -206,4 +206,85 @@ Public Module ForenameData
         End Try
 
     End Function
+    Public Function SaveNames(names As IEnumerable(Of String)) As Boolean
+
+        Dim updatedNames As New List(Of String)(names)
+        updatedNames.Sort(StringComparer.OrdinalIgnoreCase)
+
+        Dim previousNames As New List(Of String)(_names)
+
+        _names.Clear()
+        _names.AddRange(updatedNames)
+
+        If Save() Then
+            Return True
+        End If
+
+        _names.Clear()
+        _names.AddRange(previousNames)
+
+        Return False
+
+    End Function
+    Public Function EditName(originalName As String, newName As String, isTopName As Boolean) As Boolean
+
+        If String.IsNullOrWhiteSpace(newName) Then
+            Return False
+        End If
+
+        newName = newName.Trim()
+
+        ' The @ prefix is reserved for top-name records in the file.
+        If newName.StartsWith("@", StringComparison.Ordinal) Then
+            Return False
+        End If
+
+        Dim namesToEdit As List(Of String)
+
+        If isTopName Then
+            namesToEdit = _topNames
+        Else
+            namesToEdit = _names
+        End If
+
+        Dim nameIndex As Integer = namesToEdit.FindIndex(Function(name) String.Equals(name, originalName, StringComparison.OrdinalIgnoreCase))
+
+        If nameIndex < 0 Then
+            Return False
+        End If
+
+        ' Check only this list, excluding the entry being edited.
+        For index As Integer = 0 To namesToEdit.Count - 1
+
+            If index <> nameIndex AndAlso String.Equals(namesToEdit(index), newName, StringComparison.OrdinalIgnoreCase) Then
+                Return False
+            End If
+
+        Next
+
+        namesToEdit(nameIndex) = newName
+
+        ' Top names must retain their existing suggestion order.
+        If Not isTopName Then
+            _names.Sort(StringComparer.OrdinalIgnoreCase)
+        End If
+
+        Return True
+
+    End Function
+
+    Public Function DeleteName(name As String) As Boolean
+
+        ' Only normal names can be deleted.
+        Dim nameIndex As Integer = _names.FindIndex(Function(existingName) String.Equals(existingName, name, StringComparison.OrdinalIgnoreCase))
+
+        If nameIndex < 0 Then
+            Return False
+        End If
+
+        _names.RemoveAt(nameIndex)
+
+        Return True
+
+    End Function
 End Module

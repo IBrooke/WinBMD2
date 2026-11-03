@@ -178,7 +178,15 @@ Public Module DistrictData
                     Continue For
                 End If
 
-                Dim fields() As String = rawLine.Split(","c)
+                Dim separatorIndex As Integer = rawLine.LastIndexOf(","c)
+
+                If separatorIndex < 0 Then
+                    invalidLines += 1
+                    DebugLog.Write($"[DISTRICTS] Supplementary file line {lineNumber}: missing separator.")
+                    Continue For
+                End If
+
+                Dim fields() As String = {rawLine.Substring(0, separatorIndex), rawLine.Substring(separatorIndex + 1)}
 
                 If fields.Length <> 2 Then
                     invalidLines += 1
@@ -609,7 +617,94 @@ Public Module DistrictData
         End Try
 
     End Function
+    Public Function DeleteSupplementaryDistrict(district As String, code As String) As Boolean
 
+        Dim entry As DistrictEntry = _aliveDistricts.FirstOrDefault(
+        Function(item) item.Supplementary AndAlso
+                       String.Equals(item.Name, district, StringComparison.OrdinalIgnoreCase) AndAlso
+                       String.Equals(item.Volume, code, StringComparison.OrdinalIgnoreCase))
+
+        If entry Is Nothing Then
+            Return False
+        End If
+
+        _aliveDistricts.Remove(entry)
+
+        If SaveSupplementaryDistrictFile() Then
+            Return True
+        End If
+
+        ' Restore the district if saving failed.
+        _aliveDistricts.Add(entry)
+        _aliveDistricts.Sort(Function(a, b) String.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase))
+
+        Return False
+
+    End Function
+    Public Function EditSupplementaryDistrict(
+            originalDistrict As String,
+            originalCode As String,
+            newDistrict As String,
+            newCode As String) As Boolean
+
+        originalDistrict = If(originalDistrict, "").Trim()
+        originalCode = If(originalCode, "").Trim()
+        newDistrict = If(newDistrict, "").Trim()
+        newCode = If(newCode, "").Trim()
+
+        ' Find the original supplementary district.
+        Dim entry As DistrictEntry = _aliveDistricts.FirstOrDefault(
+        Function(item) item.Supplementary AndAlso
+                       String.Equals(item.Name, originalDistrict, StringComparison.OrdinalIgnoreCase) AndAlso
+                       String.Equals(item.Volume, originalCode, StringComparison.OrdinalIgnoreCase))
+
+        If entry Is Nothing Then
+            Return False
+        End If
+
+        ' Validate the replacement.
+        If newDistrict.Length = 0 OrElse newCode.Length = 0 Then
+            Return False
+        End If
+
+        If newDistrict.IndexOfAny({"*"c, "?"c, "_"c}) >= 0 OrElse
+       newCode.IndexOfAny({"*"c, "?"c, "_"c}) >= 0 Then
+            Return False
+        End If
+
+        If Not String.Equals(Validator.CodeFormat(newCode), ProjectValues.VNF, StringComparison.OrdinalIgnoreCase) Then
+
+            Return False
+
+        End If
+
+        ' Check for duplicates, excluding the district being edited.
+        Dim duplicateExists As Boolean = _aliveDistricts.Any(
+        Function(item) item IsNot entry AndAlso
+                       String.Equals(item.Name, newDistrict, StringComparison.OrdinalIgnoreCase) AndAlso
+                       String.Equals(item.Volume, newCode, StringComparison.OrdinalIgnoreCase))
+
+        If duplicateExists Then
+            Return False
+        End If
+
+        ' Add the replacement before removing the original.
+        Dim newEntry As New DistrictEntry With {.Name = newDistrict, .Volume = newCode, .Supplementary = True}
+
+        _aliveDistricts.Add(newEntry)
+        _aliveDistricts.Remove(entry)
+        _aliveDistricts.Sort(Function(a, b) String.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase))
+
+        If SaveSupplementaryDistrictFile() Then Return True
+
+        ' Restore the original district if saving failed.
+        _aliveDistricts.Remove(newEntry)
+        _aliveDistricts.Add(entry)
+        _aliveDistricts.Sort(Function(a, b) String.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase))
+
+        Return False
+
+    End Function
     Private Function NormalizeDistrictCodeForSave(code As String) As String
 
         Dim value As String = If(code, "").Trim()
@@ -631,16 +726,25 @@ Public Module DistrictData
 
         Public Property Name As String = ""
         Public Property Volume As String = ""
+        Public Property Supplementary As Boolean
 
     End Class
+    Public Function GetDistricts() As List(Of DistrictMatch)
 
+        Dim results As New List(Of DistrictMatch)
+
+        For Each entry As DistrictEntry In _aliveDistricts
+            results.Add(New DistrictMatch With {.Name = entry.Name, .Volume = entry.Volume, .Supplementary = entry.Supplementary})
+        Next
+
+        Return results
+
+    End Function
     Private Class DistrictRecord
 
         Public Property Name As String = ""
-
         Public Property StartYear As Integer
         Public Property StartQuarter As Integer
-
         Public Property EndYear As Integer
         Public Property EndQuarter As Integer
 

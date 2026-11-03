@@ -27,7 +27,8 @@ Public Module AppPaths
 
     Public ReadOnly Property SettingsFilePath As String =
         Path.Combine(BaseFolder, "settings.json")
-
+    Public ReadOnly Property BatchSettingsFilePath As String =
+        Path.Combine(BaseFolder, "batchsettings.json")
     Public Sub EnsureFoldersExist()
         Directory.CreateDirectory(BaseFolder)
         Directory.CreateDirectory(DownloadedScansFolder)

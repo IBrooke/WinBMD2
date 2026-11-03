@@ -1,10 +1,6 @@
 ﻿Imports System.IO
 Imports System.Net.Mail
-Imports System.Linq
 Imports WinBMD2.My.Resources
-Imports System.ComponentModel
-Imports System.Threading
-Imports System.Runtime.CompilerServices
 
 Public Class HeaderForm
     Private ReadOnly _toolTip As New ToolTip()

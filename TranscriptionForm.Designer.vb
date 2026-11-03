@@ -24,6 +24,8 @@ Partial Class TranscriptionForm
     Private Sub InitializeComponent()
         components = New ComponentModel.Container()
         filePanel = New CollapsiblePanel()
+        btnViewMode = New Button()
+        btnFillDown = New Button()
         btnScanToRow1 = New Button()
         categoryBarPanel = New Panel()
         categoryStrip = New FlowLayoutPanel()
@@ -62,6 +64,8 @@ Partial Class TranscriptionForm
         ' 
         ' filePanel
         ' 
+        filePanel.Controls.Add(btnViewMode)
+        filePanel.Controls.Add(btnFillDown)
         filePanel.Controls.Add(btnScanToRow1)
         filePanel.Controls.Add(categoryBarPanel)
         filePanel.Controls.Add(commandStrip)
@@ -76,6 +80,32 @@ Partial Class TranscriptionForm
         filePanel.Padding = New Padding(1, 28, 1, 1)
         filePanel.Size = New Size(884, 100)
         filePanel.TabIndex = 0
+        ' 
+        ' btnViewMode
+        ' 
+        btnViewMode.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnViewMode.Location = New Point(819, 1)
+        btnViewMode.Name = "btnViewMode"
+        btnViewMode.Size = New Size(38, 25)
+        btnViewMode.TabIndex = 10
+        btnViewMode.TabStop = False
+        btnViewMode.Tag = "Header"
+        btnViewMode.Text = "F11"
+        uploadToolTip.SetToolTip(btnViewMode, "F11 - Toggle transcription view")
+        btnViewMode.UseVisualStyleBackColor = True
+        ' 
+        ' btnFillDown
+        ' 
+        btnFillDown.Anchor = AnchorStyles.Top Or AnchorStyles.Right
+        btnFillDown.Location = New Point(671, 1)
+        btnFillDown.Name = "btnFillDown"
+        btnFillDown.Size = New Size(34, 25)
+        btnFillDown.TabIndex = 9
+        btnFillDown.TabStop = False
+        btnFillDown.Tag = "Header"
+        btnFillDown.Text = "⇊"
+        uploadToolTip.SetToolTip(btnFillDown, "Fill Down - Copy the current cell into rows below")
+        btnFillDown.UseVisualStyleBackColor = True
         ' 
         ' btnScanToRow1
         ' 
@@ -225,7 +255,7 @@ Partial Class TranscriptionForm
         btnFileSave.Name = "btnFileSave"
         btnFileSave.Size = New Size(70, 28)
         btnFileSave.TabIndex = 1
-        btnFileSave.Text = "Save"
+        btnFileSave.Text = "Save (F3)"
         btnFileSave.UseVisualStyleBackColor = False
         ' 
         ' btnFileSaveAs
@@ -262,7 +292,7 @@ Partial Class TranscriptionForm
         ' btnSpecialCharacters
         ' 
         btnSpecialCharacters.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnSpecialCharacters.Location = New Point(744, 1)
+        btnSpecialCharacters.Location = New Point(745, 1)
         btnSpecialCharacters.Name = "btnSpecialCharacters"
         btnSpecialCharacters.Size = New Size(34, 25)
         btnSpecialCharacters.TabIndex = 7
@@ -274,7 +304,7 @@ Partial Class TranscriptionForm
         ' btnClearCell
         ' 
         btnClearCell.Anchor = AnchorStyles.Top Or AnchorStyles.Right
-        btnClearCell.Location = New Point(781, 1)
+        btnClearCell.Location = New Point(782, 1)
         btnClearCell.Name = "btnClearCell"
         btnClearCell.Size = New Size(34, 25)
         btnClearCell.TabIndex = 8
@@ -299,6 +329,7 @@ Partial Class TranscriptionForm
         transcriptionGrid.AllowUserToAddRows = False
         transcriptionGrid.AllowUserToDeleteRows = False
         transcriptionGrid.AllowUserToResizeRows = False
+        transcriptionGrid.Anchor = AnchorStyles.Top Or AnchorStyles.Bottom Or AnchorStyles.Left Or AnchorStyles.Right
         transcriptionGrid.BorderStyle = BorderStyle.None
         transcriptionGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize
         transcriptionGrid.Location = New Point(0, 0)
@@ -356,7 +387,7 @@ Partial Class TranscriptionForm
         ' 
         ' TranscriptionForm
         ' 
-        AutoScaleDimensions = New SizeF(7F, 15F)
+        AutoScaleDimensions = New SizeF(7.0F, 15.0F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(884, 481)
         Controls.Add(gridHostPanel)
@@ -407,5 +438,7 @@ Partial Class TranscriptionForm
     Friend WithEvents btnClearCell As Button
     Friend WithEvents btnScanToRow1 As Button
     Friend WithEvents btnNewFile As Button
+    Friend WithEvents btnFillDown As Button
+    Friend WithEvents btnViewMode As Button
 
 End Class

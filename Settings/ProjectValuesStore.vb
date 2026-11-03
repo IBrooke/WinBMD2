@@ -3,9 +3,13 @@ Imports System.Text.Json
 Imports System.Text.Json.Nodes
 Imports System.Drawing
 Public Module ProjectValuesStore
-
+    Private ReadOnly _saveTimer As New System.Windows.Forms.Timer With {.Interval = 2000}
+    Private _savePending As Boolean = False
     Public Sub Initialise()
         DebugLog.WriteAlways("[SETTINGS] ProjectValuesStore.Initialise called.")
+
+        AddHandler _saveTimer.Tick, AddressOf SaveTimer_Tick
+        AddHandler System.Windows.Forms.Application.ApplicationExit, AddressOf SaveTimer_Tick
 
         AppPaths.EnsureFoldersExist()
         Load()
@@ -13,51 +17,42 @@ Public Module ProjectValuesStore
     End Sub
 
     Public Sub Load()
-        ProjectValues.LoadingPersistedValues = False    ' This is set to True only after these initial checks
+
+        ProjectValues.LoadingPersistedValues = True
+
         Try
-            If Not File.Exists(AppPaths.SettingsFilePath) Then
-                Save()
-                Return
-            End If
 
-            Dim json As String = File.ReadAllText(AppPaths.SettingsFilePath)
+            Dim values As New ProjectValuesData()
 
-            If String.IsNullOrWhiteSpace(json) Then
-                Save()
-                Return
-            End If
+            For Each filePath As String In {AppPaths.SettingsFilePath, AppPaths.SettingsFilePath & ".bak"}
 
-            Dim jsonNode As JsonNode = JsonNode.Parse(json)
+                Try
 
-            If jsonNode IsNot Nothing AndAlso jsonNode("GridColumnWidths") IsNot Nothing Then
-                Dim widthsObject As JsonObject = TryCast(jsonNode("GridColumnWidths"), JsonObject)
+                    If Not File.Exists(filePath) Then Continue For
 
-                If widthsObject IsNot Nothing Then
-                    Dim oldFormatFound As Boolean = False
+                    Dim json As String = File.ReadAllText(filePath)
+                    Dim loadedValues As ProjectValuesData = JsonSerializer.Deserialize(Of ProjectValuesData)(json)
 
-                    For Each item In widthsObject
-                        If TypeOf item.Value Is JsonObject Then
-                            oldFormatFound = True
-                            Exit For
+                    If loadedValues IsNot Nothing Then
+
+                        values = loadedValues
+
+                        If filePath <> AppPaths.SettingsFilePath Then
+                            DebugLog.WriteAlways("[SETTINGS] General settings recovered from backup.")
                         End If
-                    Next
 
-                    If oldFormatFound Then
-                        jsonNode("GridColumnWidths") = New JsonObject()
-                        json = jsonNode.ToJsonString()
-                        DebugLog.WriteAlways("[SETTINGS] Old GridColumnWidths format found; saved column widths discarded.")
+                        Exit For
+
                     End If
-                End If
-            End If
 
-            Dim values As ProjectValuesData = JsonSerializer.Deserialize(Of ProjectValuesData)(json)
+                Catch ex As Exception
 
-            If values Is Nothing Then
-                Save()
-                Return
-            End If
+                    DebugLog.WriteAlways($"[SETTINGS] Could not load '{Path.GetFileName(filePath)}': {ex.Message}")
 
-            ProjectValues.LoadingPersistedValues = True
+                End Try
+
+            Next
+
 
             ProjectValues.FilePanelExpanded = values.FilePanelExpanded
             ProjectValues.TranscriptionFormBounds =
@@ -148,21 +143,157 @@ Public Module ProjectValuesStore
             ProjectValues.UiFontColourArgb = values.UiFontColourArgb
             ProjectValues.RulerColourArgb = values.RulerColourArgb
             ProjectValues.RulerTranslucent = values.RulerTranslucent
-            ProjectValues.VerifyFontSize =
-            If(values.VerifyFontSize >= 8.0F, values.VerifyFontSize, 12.0F)
+            ProjectValues.RulerHeight = Math.Max(4, values.RulerHeight)
+            ProjectValues.VerifyFontName = If(values.VerifyFontName, "")
+            ProjectValues.VerifyFontSize = values.VerifyFontSize
+            ProjectValues.VerifyFontStyle = values.VerifyFontStyle
+            ProjectValues.VerifyFontColor = values.VerifyFontColor
             ProjectValues.GridColumnWidths = If(values.GridColumnWidths, New Dictionary(Of String, List(Of Integer)))
+
+            For Each filePath As String In {AppPaths.BatchSettingsFilePath, AppPaths.BatchSettingsFilePath & ".bak"}
+
+                Try
+
+                    If Not File.Exists(filePath) Then Continue For
+
+                    Dim batchJson As String = File.ReadAllText(filePath)
+                    Dim batchValues As BatchSettingsData = JsonSerializer.Deserialize(Of BatchSettingsData)(batchJson)
+
+                    If batchValues Is Nothing Then Continue For
+
+                    ProjectValues.ScanViewSettings = If(batchValues.ScanViewSettings, New Dictionary(Of String, ScanViewData))
+                    ProjectValues.RulerSettings = If(batchValues.RulerSettings, New Dictionary(Of String, RulerData))
+                    ProjectValues.VerifyFieldLayouts = If(batchValues.VerifyFieldLayouts, New Dictionary(Of String, Dictionary(Of String, VerifyFieldLayoutData)))
+                    ProjectValues.GridColumnWidths = If(batchValues.GridColumnWidths, New Dictionary(Of String, List(Of Integer)))
+
+                    If filePath <> AppPaths.BatchSettingsFilePath Then
+                        DebugLog.WriteAlways("[SETTINGS] Batch settings recovered from backup.")
+                    End If
+
+                    Exit For
+
+                Catch ex As Exception
+
+                    DebugLog.WriteAlways($"[SETTINGS] Could not load '{Path.GetFileName(filePath)}': {ex.Message}")
+
+                End Try
+
+            Next
 
             ProjectValues.RecentFiles = If(values.RecentFiles, New List(Of String))
             SanityCheckPersistedValues()
         Catch ex As Exception
-            ProjectValues.LoadingPersistedValues = False
-            Save()
+
+            DebugLog.WriteAlways($"[SETTINGS] Error restoring settings: {ex.Message}")
+
         Finally
+
             ProjectValues.LoadingPersistedValues = False
+
         End Try
+
     End Sub
 
+    Private Sub WriteSettingsFile(filePath As String, json As String)
+
+        Dim temporaryPath As String = filePath & ".tmp"
+        Dim backupPath As String = filePath & ".bak"
+
+        For attempt As Integer = 1 To 3
+
+            Try
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath))
+
+                ' Write and flush the new contents before touching the existing file.
+                Using stream As New FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None)
+
+                    Using writer As New StreamWriter(stream)
+                        writer.Write(json)
+                        writer.Flush()
+                        stream.Flush(True)
+                    End Using
+
+                End Using
+
+                ' Verify the temporary file.
+                Using document As JsonDocument = JsonDocument.Parse(File.ReadAllText(temporaryPath))
+                    If document.RootElement.ValueKind <> JsonValueKind.Object Then
+                        Throw New InvalidDataException("Settings must contain a JSON object.")
+                    End If
+                End Using
+
+                If File.Exists(filePath) Then
+
+                    Dim existingFileValid As Boolean = False
+
+                    ' Check the existing file before allowing it to become our backup.
+                    Try
+                        Using document As JsonDocument = JsonDocument.Parse(File.ReadAllText(filePath))
+                            existingFileValid = document.RootElement.ValueKind = JsonValueKind.Object
+                        End Using
+                    Catch ex As JsonException
+                        DebugLog.WriteAlways($"[SETTINGS] Existing '{Path.GetFileName(filePath)}' contains invalid JSON.")
+                    End Try
+
+                    If existingFileValid Then
+
+                        ' The previous valid file becomes the backup.
+                        File.Replace(temporaryPath, filePath, backupPath)
+
+                    Else
+
+                        ' Preserve any existing backup.
+                        File.Move(temporaryPath, filePath, True)
+
+                    End If
+
+                Else
+
+                    ' Preserve any existing backup when the primary file is missing.
+                    File.Move(temporaryPath, filePath)
+
+                End If
+
+                Return
+
+            Catch ex As IOException
+
+                DebugLog.WriteAlways($"[SETTINGS] Save attempt {attempt} failed for '{Path.GetFileName(filePath)}': {ex.Message}")
+
+            Catch ex As UnauthorizedAccessException
+
+                DebugLog.WriteAlways($"[SETTINGS] Save attempt {attempt} failed for '{Path.GetFileName(filePath)}': {ex.Message}")
+
+            Catch ex As Exception
+
+                DebugLog.WriteAlways($"[SETTINGS] Failed to save '{Path.GetFileName(filePath)}': {ex.Message}")
+                Exit For
+
+            Finally
+
+                Try
+                    If File.Exists(temporaryPath) Then File.Delete(temporaryPath)
+                Catch
+                    ' A temporary file that cannot be deleted is harmless.
+                End Try
+
+            End Try
+
+            If attempt < 3 Then Threading.Thread.Sleep(150)
+
+        Next
+
+    End Sub
+    ' To ensure that we don't save too frequently, we use a timer to delay the actual save operation. This allows multiple changes to be batched together.
     Public Sub Save()
+        _savePending = True
+
+        _saveTimer.Stop()
+        _saveTimer.Start()
+
+    End Sub
+    Private Sub SaveImmediately()
+
         Try
             AppPaths.EnsureFoldersExist()
 
@@ -173,16 +304,12 @@ Public Module ProjectValuesStore
                 .ScanViewWidth = ProjectValues.ScanViewWidth,
                 .ScanViewHeight = ProjectValues.ScanViewHeight,
                 .ScanViewMaximized = ProjectValues.ScanViewMaximized,
-                .ScanViewSettings = ProjectValues.ScanViewSettings,
-                .RulerSettings = ProjectValues.RulerSettings,
-                .VerifyFieldLayouts = ProjectValues.VerifyFieldLayouts,
                 .HeaderFormLeft = ProjectValues.HeaderFormLeft,
                 .HeaderFormTop = ProjectValues.HeaderFormTop,
                 .HeaderFormWidth = ProjectValues.HeaderFormWidth,
                 .HeaderFormHeight = ProjectValues.HeaderFormHeight,
                 .HeaderFormMaximized = ProjectValues.HeaderFormMaximized,
                 .HelpFormBounds = ProjectValues.HelpFormBounds,
-                .GridColumnWidths = ProjectValues.GridColumnWidths,
                 .ColourScheme = ProjectValues.ColourScheme,
                 .UiFontName = ProjectValues.UiFontName,
                 .UiFontSize = ProjectValues.UiFontSize,
@@ -190,7 +317,11 @@ Public Module ProjectValuesStore
                 .UiFontColourArgb = ProjectValues.UiFontColourArgb,
                 .RulerColourArgb = ProjectValues.RulerColourArgb,
                 .RulerTranslucent = ProjectValues.RulerTranslucent,
+                .RulerHeight = ProjectValues.RulerHeight,
+                .VerifyFontName = ProjectValues.VerifyFontName,
                 .VerifyFontSize = ProjectValues.VerifyFontSize,
+                .VerifyFontStyle = ProjectValues.VerifyFontStyle,
+                .VerifyFontColor = ProjectValues.VerifyFontColor,
                 .UserName = ProjectValues.UserName,
                 .UserEmail = ProjectValues.UserEmail,
                 .UserPW = ProjectValues.UserPW,     ' We keep this encrypted
@@ -237,11 +368,42 @@ Public Module ProjectValuesStore
             }
 
             Dim json As String = JsonSerializer.Serialize(values, options)
-            File.WriteAllText(AppPaths.SettingsFilePath, json)
+            Dim jsonNode As JsonNode = JsonNode.Parse(json)
+
+            Dim jsonObject As JsonObject = DirectCast(jsonNode, JsonObject)
+
+            jsonObject.Remove("ScanViewSettings")
+            jsonObject.Remove("RulerSettings")
+            jsonObject.Remove("VerifyFieldLayouts")
+            jsonObject.Remove("GridColumnWidths")
+
+            WriteSettingsFile(AppPaths.SettingsFilePath, jsonObject.ToJsonString(options))
+
+            Dim batchValues As New BatchSettingsData With {
+                .ScanViewSettings = ProjectValues.ScanViewSettings,
+                .RulerSettings = ProjectValues.RulerSettings,
+                .VerifyFieldLayouts = ProjectValues.VerifyFieldLayouts,
+                .GridColumnWidths = ProjectValues.GridColumnWidths
+            }
+
+            Dim batchJson As String = JsonSerializer.Serialize(batchValues, options)
+
+            WriteSettingsFile(AppPaths.BatchSettingsFilePath, batchJson)
 
         Catch ex As Exception
-            ' A settings failure must not crash the application.
+            DebugLog.WriteAlways($"[SETTINGS] Error saving settings: {ex.Message}")
         End Try
+    End Sub
+    Private Sub SaveTimer_Tick(sender As Object, e As EventArgs)
+
+        _saveTimer.Stop()
+
+        If Not _savePending Then Return
+
+        _savePending = False
+
+        SaveImmediately()
+
     End Sub
     Private Sub SanityCheckPersistedValues()
 
@@ -264,6 +426,14 @@ Public Module ProjectValuesStore
         Next
 
     End Sub
+    Private Class BatchSettingsData
+
+        Public Property ScanViewSettings As New Dictionary(Of String, ScanViewData)
+        Public Property RulerSettings As New Dictionary(Of String, RulerData)
+        Public Property VerifyFieldLayouts As New Dictionary(Of String, Dictionary(Of String, VerifyFieldLayoutData))
+        Public Property GridColumnWidths As New Dictionary(Of String, List(Of Integer))
+
+    End Class
     Private Class ProjectValuesData
 
         Public Property FilePanelExpanded As Boolean = True
@@ -325,11 +495,15 @@ Public Module ProjectValuesStore
         Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size
         Public Property UiFontStyle As FontStyle = SystemFonts.MessageBoxFont.Style
         Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
-        Public Property VerifyFontSize As Single = 12.0F
+        Public Property VerifyFontName As String = ""
+        Public Property VerifyFontSize As Single = 0
+        Public Property VerifyFontStyle As FontStyle = FontStyle.Regular
+        Public Property VerifyFontColor As Integer = Color.Empty.ToArgb()
         Public Property RecentFiles As New List(Of String)
         Public Property HelpFormBounds As New FormBoundsData()
         Public Property RulerColourArgb As Integer = Color.Red.ToArgb()
         Public Property RulerTranslucent As Boolean = False
+        Public Property RulerHeight As Integer = 4
     End Class
 
 End Module

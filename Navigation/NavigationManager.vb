@@ -59,7 +59,7 @@
 
             End If
 
-            If e.KeyCode = Keys.D0 OrElse e.KeyCode = Keys.NumPad0 Then
+            If (Not e.Shift AndAlso e.KeyCode = Keys.D0) OrElse e.KeyCode = Keys.NumPad0 Then
                 _owner.CopyNextWordFromAbove(editor)
                 Return True
             End If
@@ -67,20 +67,6 @@
         End If
 
         Select Case e.KeyCode
-
-            Case Keys.Up
-
-                If e.Alt AndAlso _owner.PickListIsActive Then
-                    _owner.MovePickListSelectionUp()
-                    Return True
-                End If
-
-            Case Keys.Down
-
-                If e.Alt AndAlso _owner.PickListIsActive Then
-                    _owner.MovePickListSelectionDown()
-                    Return True
-                End If
 
             Case Keys.Left, Keys.Back
 
@@ -97,7 +83,7 @@
                     If editor.SelectionStart <> editor.TextLength OrElse editor.SelectionLength <> 0 Then Return False
                 End If
 
-                _owner.MoveToNextDataCell(moveToStart:=True)
+                _owner.MoveToNextDataCell(moveToStart:=True, applySkipSurname:=False)
                 Return True
 
             Case Keys.Tab

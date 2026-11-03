@@ -1,6 +1,8 @@
 ﻿Imports System.Drawing
 Imports System.Windows.Forms
 Imports System.ComponentModel
+Imports System.Drawing.Imaging
+Imports System.Runtime.InteropServices
 
 Public Class ScanViewerControl
     Inherits ScrollableControl
@@ -8,6 +10,7 @@ Public Class ScanViewerControl
     Public Event EnterPressed As EventHandler
     Public Event PanChanged As EventHandler
     Public Event DragFinished As EventHandler
+    Public Event ZoomChanged As EventHandler
     Private _image As Image
     Private _displayImage As Bitmap
     Private _displayImageDirty As Boolean = True
@@ -34,7 +37,11 @@ Public Class ScanViewerControl
 
     Private _showRuler As Boolean
     Private _rulerScreenY As Single
-    Private _rulerHeight As Single = 1.0F
+    Private _rulerHeight As Single = 4.0F
+
+    ' Reusable ruler-sized buffers; never modify the cached scan pixels.
+    Private _maskedRuler As Bitmap
+    Private _rulerRowBytes As Byte()
 
     <DefaultValue(False)>
     Public Property ShowRuler As Boolean
@@ -50,8 +57,6 @@ Public Class ScanViewerControl
 
         End Set
     End Property
-
-
     <DefaultValue(0.0F)>
     Public Property RulerScreenY As Single
         Get
@@ -64,9 +69,14 @@ Public Class ScanViewerControl
 
         End Set
     End Property
+    Public ReadOnly Property RulerTop As Single
+        Get
+            Return _rulerScreenY - (_rulerHeight / 2.0F)
+        End Get
+    End Property
     Public Sub SetRulerHeight(height As Single)
 
-        _rulerHeight = Math.Max(1.0F, height)
+        _rulerHeight = Math.Max(4.0F, height)
         Invalidate()
 
     End Sub
@@ -95,10 +105,16 @@ Public Class ScanViewerControl
         End Get
         Set(value As Single)
 
-            _zoom = Math.Max(MinZoom, Math.Min(MaxZoom, value))
+            Dim newZoom As Single = Math.Max(MinZoom, Math.Min(MaxZoom, value))
+
+            If newZoom = _zoom Then Return
+
+            _zoom = newZoom
 
             UpdateScrollArea()
             InvalidateDisplayImage()
+
+            RaiseEvent ZoomChanged(Me, EventArgs.Empty)
 
         End Set
     End Property
@@ -181,6 +197,7 @@ Public Class ScanViewerControl
 
         DisposeCurrentImage()
         DisposeDisplayImage()
+        DisposeMaskedRuler()
         UpdateScrollArea()
         Invalidate()
 
@@ -217,14 +234,99 @@ Public Class ScanViewerControl
 
             Dim rulerTop As Single = _rulerScreenY - (_rulerHeight / 2.0F)
 
-            Using rulerBrush As New SolidBrush(ThemeManager.RulerColour)
-                e.Graphics.FillRectangle(rulerBrush, 0.0F, rulerTop, ClientSize.Width, _rulerHeight)
-            End Using
+            If ProjectValues.RulerTranslucent Then
+                DrawMaskedRuler(e.Graphics, rulerTop, ThemeManager.RulerColour)
+            Else
+                Using rulerBrush As New SolidBrush(ThemeManager.RulerColour)
+                    e.Graphics.FillRectangle(rulerBrush, 0.0F, rulerTop, ClientSize.Width, _rulerHeight)
+                End Using
+            End If
 
         End If
 
-        'Dim paintMilliseconds As Double = Stopwatch.GetElapsedTime(paintStarted).TotalMilliseconds
-        'DebugLog.Write($"[SCAN PAINT] Redrawn={scanRedrawn}, Time={paintMilliseconds:0.0} ms")
+    End Sub
+
+    Private Sub DrawMaskedRuler(graphics As Graphics, rulerTop As Single, colour As Color)
+
+        If ClientSize.Width <= 0 OrElse ClientSize.Height <= 0 Then Return
+
+        ' Cover the visible ruler band, including fractional screen positions.
+        Dim top As Integer = CInt(Math.Max(0.0, Math.Min(CDbl(ClientSize.Height), Math.Floor(CDbl(rulerTop)))))
+        Dim bottom As Integer = CInt(Math.Max(0.0, Math.Min(CDbl(ClientSize.Height), Math.Ceiling(CDbl(rulerTop) + _rulerHeight))))
+        If bottom <= top Then Return
+
+        If _displayImage Is Nothing Then
+            ' Match the mask operation even when the viewer has no scan.
+            Dim maskedBackground As Color = Color.FromArgb(
+                CInt(BackColor.R) And CInt(colour.R),
+                CInt(BackColor.G) And CInt(colour.G),
+                CInt(BackColor.B) And CInt(colour.B))
+            Using brush As New SolidBrush(maskedBackground)
+                graphics.FillRectangle(brush, 0, top, ClientSize.Width, bottom - top)
+            End Using
+            Return
+        End If
+
+        Dim band As Rectangle = Rectangle.Intersect(
+            New Rectangle(0, top, ClientSize.Width, bottom - top),
+            New Rectangle(0, 0, _displayImage.Width, _displayImage.Height))
+        If band.Width <= 0 OrElse band.Height <= 0 Then Return
+
+        If _maskedRuler Is Nothing OrElse
+           _maskedRuler.Width <> band.Width OrElse
+           _maskedRuler.Height <> band.Height Then
+            DisposeMaskedRuler()
+            _maskedRuler = New Bitmap(band.Width, band.Height, PixelFormat.Format32bppArgb)
+        End If
+
+        Dim rowLength As Integer = band.Width * 4
+        If _rulerRowBytes Is Nothing OrElse _rulerRowBytes.Length <> rowLength Then
+            _rulerRowBytes = New Byte(rowLength - 1) {}
+        End If
+
+        Dim sourceData As BitmapData = _displayImage.LockBits(
+            band, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb)
+        Try
+            Dim targetData As BitmapData = _maskedRuler.LockBits(
+                New Rectangle(0, 0, band.Width, band.Height),
+                ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb)
+            Try
+                For row As Integer = 0 To band.Height - 1
+                    Marshal.Copy(IntPtr.Add(sourceData.Scan0, row * sourceData.Stride),
+                                 _rulerRowBytes, 0, rowLength)
+
+                    ' vbMaskPen / R2_MASKPEN: destination RGB AND selected RGB.
+                    ' Windows 32-bit bitmap byte order is blue, green, red, alpha.
+                    ' Ignore the theme colour's alpha: this is a Boolean mask.
+                    For pixel As Integer = 0 To rowLength - 1 Step 4
+                        _rulerRowBytes(pixel) = CByte(_rulerRowBytes(pixel) And colour.B)
+                        _rulerRowBytes(pixel + 1) = CByte(_rulerRowBytes(pixel + 1) And colour.G)
+                        _rulerRowBytes(pixel + 2) = CByte(_rulerRowBytes(pixel + 2) And colour.R)
+                        _rulerRowBytes(pixel + 3) = Byte.MaxValue
+                    Next
+
+                    Marshal.Copy(_rulerRowBytes, 0,
+                                 IntPtr.Add(targetData.Scan0, row * targetData.Stride), rowLength)
+                Next
+            Finally
+                _maskedRuler.UnlockBits(targetData)
+            End Try
+        Finally
+            _displayImage.UnlockBits(sourceData)
+        End Try
+
+        graphics.DrawImageUnscaled(_maskedRuler, band.Left, band.Top)
+
+    End Sub
+
+    Private Sub DisposeMaskedRuler()
+
+        If _maskedRuler IsNot Nothing Then
+            _maskedRuler.Dispose()
+            _maskedRuler = Nothing
+        End If
+        _rulerRowBytes = Nothing
+
     End Sub
 
     Private Sub DrawScan(graphics As Graphics)
@@ -243,6 +345,8 @@ Public Class ScanViewerControl
         ' use exactly the same image position.
         Dim x As Single = _imageOffsetX + _panX + AutoScrollPosition.X
         Dim y As Single = _imageOffsetY + _panY + AutoScrollPosition.Y
+
+        ' DebugLog.Write($"[SCAN DRAW] OffsetY={_imageOffsetY:0.###}, PanY={_panY:0.###}, ScrollY={AutoScrollPosition.Y}, ActualY={y:0.###}")
 
         ' Make sure that at least part of the image remains visible.
         If x >= ClientSize.Width OrElse x + scaledWidth <= 0 Then
@@ -305,11 +409,20 @@ Public Class ScanViewerControl
         InvalidateDisplayImage()
 
     End Sub
+    Protected Overrides Sub OnMouseWheel(e As MouseEventArgs)
+        ' Mouse-wheel scrolling bypasses OnScroll, so refresh the cached scan
+        ' and repaint the whole viewer to prevent image strips and a missing ruler.
+
+        MyBase.OnMouseWheel(e)
+        InvalidateDisplayImage()
+
+    End Sub
     Protected Overrides Sub Dispose(disposing As Boolean)
 
         If disposing Then
             DisposeCurrentImage()
             DisposeDisplayImage()
+            DisposeMaskedRuler()
         End If
 
         MyBase.Dispose(disposing)
@@ -366,14 +479,11 @@ Public Class ScanViewerControl
         _imageOffsetX = ClientSize.Width \ 2
         _imageOffsetY = ClientSize.Height \ 2
 
-        Dim radians As Single =
-        Math.Abs(_rotation) * CSng(Math.PI) / 180.0F
+        Dim radians As Single = Math.Abs(_rotation) * CSng(Math.PI) / 180.0F
 
-        Dim cosValue As Single =
-        Math.Abs(CSng(Math.Cos(radians)))
+        Dim cosValue As Single = Math.Abs(CSng(Math.Cos(radians)))
 
-        Dim sinValue As Single =
-        Math.Abs(CSng(Math.Sin(radians)))
+        Dim sinValue As Single = Math.Abs(CSng(Math.Sin(radians)))
 
         Dim width As Integer =
         CInt(Math.Ceiling(
@@ -385,10 +495,7 @@ Public Class ScanViewerControl
             (_image.Width * sinValue +
              _image.Height * cosValue) * _zoom))
 
-        AutoScrollMinSize =
-        New Size(
-            width + (_imageOffsetX * 2),
-            height + (_imageOffsetY * 2))
+        AutoScrollMinSize = New Size(width + (_imageOffsetX * 2), height + (_imageOffsetY * 2))
 
     End Sub
     Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
@@ -481,20 +588,17 @@ Public Class ScanViewerControl
     End Sub
     Public Function GetImageYAtScreenY(screenY As Single) As Single
 
-        If _image Is Nothing Then
-            Return 0.0F
-        End If
+        If _image Is Nothing Then Return 0.0F
 
-        Return (screenY - _imageOffsetY - _panY) / _zoom
+        Return (screenY - _imageOffsetY - _panY - AutoScrollPosition.Y) / _zoom
 
     End Function
+
     Public Sub PositionImageYAtScreenY(imageY As Single, screenY As Single)
 
-        If _image Is Nothing Then
-            Return
-        End If
+        If _image Is Nothing Then Return
 
-        _panY = screenY - _imageOffsetY - (imageY * _zoom)
+        _panY = screenY - _imageOffsetY - AutoScrollPosition.Y - (imageY * _zoom)
 
         InvalidateDisplayImage()
 

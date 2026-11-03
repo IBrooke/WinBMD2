@@ -9,6 +9,7 @@ Public Class OptionsForm
     Private ReadOnly _appearanceTab As New TabPage()
     Private ReadOnly _scanningTab As New TabPage()
     Private ReadOnly _uploadTab As New TabPage()
+    Private ReadOnly _editTab As New TabPage()
     Private ReadOnly _diagnosticsTab As New TabPage()
 
     Private ReadOnly _colourSchemeComboBox As New ComboBox()
@@ -20,7 +21,9 @@ Public Class OptionsForm
     Private ReadOnly _uiFontPreviewLabel As New Label()
     Private _selectedUiFont As Font
     Private _selectedUiFontColour As Color
-    Private ReadOnly _verifyFontSizeNumeric As New NumericUpDown()
+    Private _selectedVerifyFont As Font
+    Private _selectedVerifyFontColour As Color
+    Private ReadOnly _verifyFontButton As New Button()
     Private ReadOnly _entryPanel As New Panel()
     Private ReadOnly _picklistsPanel As New Panel()
     Private ReadOnly _capitalisationPanel As New Panel()
@@ -30,6 +33,8 @@ Public Class OptionsForm
     Private ReadOnly _autoShowRulerToggle As New ToggleSwitch()
     Private ReadOnly _rulerTranslucentToggle As New ToggleSwitch()
     Private ReadOnly _rulerColourButton As New Button()
+    Private ReadOnly _rulerHeightTrackBar As New TrackBar()
+    Private ReadOnly _rulerHeightValueLabel As New Label()
     Private _selectedRulerColour As Color
     Private ReadOnly _verticalTabToggle As New ToggleSwitch()
     Private ReadOnly _skipSurnameToggle As New ToggleSwitch()
@@ -41,8 +46,11 @@ Public Class OptionsForm
     Private ReadOnly _showForenamePickListToggle As New ToggleSwitch()
     Private ReadOnly _showDistrictPickListToggle As New ToggleSwitch()
     Private ReadOnly _match3VolCharsToggle As New ToggleSwitch()
+    Private ReadOnly _latestVersionButton As New Button()
+
     Public ReadOnly Property CapitalisationChanges As New List(Of CapitalisationChange)
-    Public Sub New(Optional allowCapitalisation As Boolean = False)
+    Public Event DistrictEdited(oldDistrict As String, oldVolume As String, newDistrict As String, newVolume As String)
+    Public Sub New(Optional allowCapitalisation As Boolean = False, Optional maximumRulerHeight As Integer = 30)
 
         InitializeComponent()
 
@@ -57,6 +65,7 @@ Public Class OptionsForm
         BuildEntryPage()
         BuildPicklistsPage()
         BuildCapitalisationPage()
+        _rulerHeightTrackBar.Maximum = Math.Max(4, maximumRulerHeight)
         LoadOptionValues()
 
         ThemeManager.Apply(Me)
@@ -77,11 +86,13 @@ Public Class OptionsForm
         BuildAppearanceTab()
         BuildScanningTab()
         BuildUploadTab()
+        BuildEditTab()
         BuildDiagnosticsTab()
 
         _generalTabs.TabPages.Add(_appearanceTab)
         _generalTabs.TabPages.Add(_scanningTab)
         _generalTabs.TabPages.Add(_uploadTab)
+        _generalTabs.TabPages.Add(_editTab)
         _generalTabs.TabPages.Add(_diagnosticsTab)
 
         _generalPanel.Controls.Add(_generalTabs)
@@ -515,27 +526,18 @@ Public Class OptionsForm
 
         Dim verifyFontSizeLabel As New Label With {
         .Name = "verifyFontSizeLabel",
-        .Text = "Verification font size",
+        .Text = "Verification font",
         .AutoSize = True,
         .ForeColor = UiColors.TextPrimary,
         .Location = New Point(22, 222)
     }
 
-        _verifyFontSizeNumeric.Name = "verifyFontSizeNumeric"
-        _verifyFontSizeNumeric.Location = New Point(22, 244)
-        _verifyFontSizeNumeric.Size = New Size(72, 23)
-        _verifyFontSizeNumeric.Minimum = 8D
-        _verifyFontSizeNumeric.Maximum = 24D
-        _verifyFontSizeNumeric.DecimalPlaces = 1
-        _verifyFontSizeNumeric.Increment = 0.5D
+        _verifyFontButton.Name = "verifyFontButton"
+        _verifyFontButton.Text = "Choose Verify Font..."
+        _verifyFontButton.Location = New Point(22, 244)
+        _verifyFontButton.Size = New Size(170, 28)
 
-        Dim verifyHelpLabel As New Label With {
-        .Name = "verifyFontHelpLabel",
-        .Text = "Controls the text size used in the verification bar.",
-        .AutoSize = True,
-        .ForeColor = UiColors.TextSecondary,
-        .Location = New Point(108, 248)
-    }
+        AddHandler _verifyFontButton.Click, AddressOf VerifyFontButton_Click
 
         _appearanceTab.Controls.Add(titleLabel)
         _appearanceTab.Controls.Add(descriptionLabel)
@@ -544,9 +546,8 @@ Public Class OptionsForm
         _appearanceTab.Controls.Add(uiFontLabel)
         _appearanceTab.Controls.Add(_uiFontButton)
         _appearanceTab.Controls.Add(verifyFontSizeLabel)
-        _appearanceTab.Controls.Add(_verifyFontSizeNumeric)
+        _appearanceTab.Controls.Add(_verifyFontButton)
         _appearanceTab.Controls.Add(_uiFontPreviewLabel)
-        _appearanceTab.Controls.Add(verifyHelpLabel)
 
     End Sub
     Private Sub BuildScanningTab()
@@ -618,6 +619,33 @@ Public Class OptionsForm
 
         _rulerTranslucentToggle.Name = "rulerTranslucentToggle"
         _rulerTranslucentToggle.Location = New Point(370, 225)
+
+        Dim rulerHeightLabel As New Label With {
+    .Name = "rulerHeightLabel",
+    .Text = "Ruler height",
+    .AutoSize = True,
+    .ForeColor = UiColors.TextPrimary,
+    .Location = New Point(22, 278)
+}
+
+        _rulerHeightTrackBar.Name = "rulerHeightTrackBar"
+        _rulerHeightTrackBar.Location = New Point(355, 267)
+        _rulerHeightTrackBar.Size = New Size(160, 45)
+        _rulerHeightTrackBar.Minimum = 4
+        _rulerHeightTrackBar.Maximum = 30
+        _rulerHeightTrackBar.TickFrequency = 2
+
+        AddHandler _rulerHeightTrackBar.ValueChanged, AddressOf RulerHeightTrackBar_ValueChanged
+
+        _rulerHeightValueLabel.Name = "rulerHeightValueLabel"
+        _rulerHeightValueLabel.AutoSize = True
+        _rulerHeightValueLabel.ForeColor = UiColors.TextPrimary
+        _rulerHeightValueLabel.Location = New Point(525, 278)
+        _rulerHeightValueLabel.Text = "4 px"
+
+        _scanningTab.Controls.Add(rulerHeightLabel)
+        _scanningTab.Controls.Add(_rulerHeightTrackBar)
+        _scanningTab.Controls.Add(_rulerHeightValueLabel)
 
         _scanningTab.Controls.Add(titleLabel)
         _scanningTab.Controls.Add(descriptionLabel)
@@ -834,7 +862,70 @@ End Sub
         _uploadTab.Controls.Add(_outputCharacterSetComboBox)
 
     End Sub
+    Private Sub RulerHeightTrackBar_ValueChanged(sender As Object, e As EventArgs)
 
+        _rulerHeightValueLabel.Text = _rulerHeightTrackBar.Value.ToString() & " px"
+
+    End Sub
+    Private Sub BuildEditTab()
+
+        _editTab.Name = "editTab"
+        _editTab.Text = "Edit"
+        _editTab.Padding = New Padding(20)
+
+        Dim titleLabel As New Label With {
+        .Name = "editTitleLabel",
+        .Text = "Edit supplementary data",
+        .AutoSize = True,
+        .Font = UiFonts.SectionHeading,
+        .ForeColor = UiColors.TextPrimary,
+        .Location = New Point(20, 20)
+    }
+
+        Dim descriptionLabel As New Label With {
+        .Name = "editDescriptionLabel",
+        .Text = "Add, edit or delete supplementary districts and forenames.",
+        .AutoSize = True,
+        .ForeColor = UiColors.TextSecondary,
+        .Location = New Point(22, 54)
+    }
+
+        Dim editDistrictsButton As New Button With {
+        .Name = "editDistrictsButton",
+        .Text = "Edit Districts...",
+        .Location = New Point(22, 104),
+        .Size = New Size(160, 32)
+    }
+
+        Dim editForenamesButton As New Button With {
+        .Name = "editForenamesButton",
+        .Text = "Edit Forenames...",
+        .Location = New Point(22, 152),
+        .Size = New Size(160, 32),
+        .Enabled = True
+    }
+
+        ThemeManager.ApplySecondaryButton(editDistrictsButton)
+        AddHandler editDistrictsButton.Click, Sub()
+                                                  Using editor As New DistrictEditorForm()
+                                                      AddHandler editor.DistrictEdited, Sub(oldDistrict, oldVolume, newDistrict, newVolume)
+                                                                                            RaiseEvent DistrictEdited(oldDistrict, oldVolume, newDistrict, newVolume)
+                                                                                        End Sub
+                                                      editor.ShowDialog(Me)
+                                                  End Using
+                                              End Sub
+        ThemeManager.ApplySecondaryButton(editForenamesButton)
+        AddHandler editForenamesButton.Click, Sub()
+                                                  Using editor As New ForenameEditorForm()
+                                                      editor.ShowDialog(Me)
+                                                  End Using
+                                              End Sub
+
+        _editTab.Controls.Add(titleLabel)
+        _editTab.Controls.Add(descriptionLabel)
+        _editTab.Controls.Add(editDistrictsButton)
+        _editTab.Controls.Add(editForenamesButton)
+    End Sub
     Private Sub BuildDiagnosticsTab()
 
         _diagnosticsTab.Name = "diagnosticsTab"
@@ -894,6 +985,16 @@ End Sub
 
         _diagnosticsTab.Controls.Add(helpLabel)
 
+        _latestVersionButton.Name = "latestVersionButton"
+        _latestVersionButton.Text = "Check latest version"
+        _latestVersionButton.Location = New Point(22, 196)
+        _latestVersionButton.AutoSize = True
+        _latestVersionButton.MinimumSize = New Size(180, 34)
+        _latestVersionButton.DialogResult = DialogResult.None
+
+        AddHandler _latestVersionButton.Click, AddressOf LatestVersionButton_Click
+
+        _diagnosticsTab.Controls.Add(_latestVersionButton)
     End Sub
 
 #End Region
@@ -909,12 +1010,21 @@ End Sub
             _ignoreAutoCompleteComboBox.SelectedItem = ProjectValues.IgnoreAutoComplete
             _selectedUiFont = New Font(ProjectValues.UiFontName, ProjectValues.UiFontSize, ProjectValues.UiFontStyle)
             _selectedUiFontColour = Color.FromArgb(ProjectValues.UiFontColourArgb)
+            If String.IsNullOrWhiteSpace(ProjectValues.VerifyFontName) Then
+                _selectedVerifyFont = Nothing
+                _selectedVerifyFontColour = Color.FromArgb(ProjectValues.UiFontColourArgb)
+            Else
+                _selectedVerifyFont = New Font(ProjectValues.VerifyFontName, ProjectValues.VerifyFontSize, ProjectValues.VerifyFontStyle)
+                _selectedVerifyFontColour = Color.FromArgb(ProjectValues.VerifyFontColor)
+            End If
             UpdateUiFontPreview()
             _verticalTabToggle.Checked = ProjectValues.EntryMode = EntryMode.Vertical
             _autoShowScanToggle.Checked = ProjectValues.AutoShowScan
             _autoShowRulerToggle.Checked = ProjectValues.AutoShowRuler
             _selectedRulerColour = Color.FromArgb(ProjectValues.RulerColourArgb)
             _rulerTranslucentToggle.Checked = ProjectValues.RulerTranslucent
+            _rulerHeightTrackBar.Value = Math.Max(_rulerHeightTrackBar.Minimum, Math.Min(_rulerHeightTrackBar.Maximum, ProjectValues.RulerHeight))
+            _rulerHeightValueLabel.Text = _rulerHeightTrackBar.Value.ToString() & " px"
             UpdateRulerColourButton()
             _skipSurnameToggle.Checked = ProjectValues.SkipSurname
             _formatPicklistSelectionsToggle.Checked = ProjectValues.FormatPicklistSelections
@@ -923,13 +1033,6 @@ End Sub
             _showForenamePickListToggle.Checked = ProjectValues.ShowForenamePickList
             _showDistrictPickListToggle.Checked = ProjectValues.ShowDistrictPickList
             _floatingPickListToggle.Checked = ProjectValues.FloatingPickList
-
-            _verifyFontSizeNumeric.Value =
-                Math.Min(
-                    _verifyFontSizeNumeric.Maximum,
-                    Math.Max(
-                        _verifyFontSizeNumeric.Minimum,
-                        CDec(ProjectValues.VerifyFontSize)))
 
             _diagnosticLoggingCheckBox.Checked = ProjectValues.EnableDiagnosticLogging
 
@@ -1011,6 +1114,7 @@ End Sub
         ProjectValues.AutoShowRuler = _autoShowRulerToggle.Checked
         ProjectValues.RulerColourArgb = _selectedRulerColour.ToArgb()
         ProjectValues.RulerTranslucent = _rulerTranslucentToggle.Checked
+        ProjectValues.RulerHeight = _rulerHeightTrackBar.Value
         ProjectValues.SkipSurname = _skipSurnameToggle.Checked
         ProjectValues.FormatPicklistSelections = _formatPicklistSelectionsToggle.Checked
         ProjectValues.PickListCompletion = _pickListCompletionToggle.Checked
@@ -1026,7 +1130,15 @@ End Sub
             ProjectValues.UiFontColourArgb = _selectedUiFontColour.ToArgb()
         End If
 
-        ProjectValues.VerifyFontSize = CSng(_verifyFontSizeNumeric.Value)
+        If _selectedVerifyFont IsNot Nothing Then
+
+            ProjectValues.VerifyFontName = _selectedVerifyFont.FontFamily.Name
+            ProjectValues.VerifyFontSize = _selectedVerifyFont.SizeInPoints
+            ProjectValues.VerifyFontStyle = _selectedVerifyFont.Style
+            ProjectValues.VerifyFontColor = _selectedVerifyFontColour.ToArgb()
+
+        End If
+
         Dim diagnosticLoggingWasEnabled As Boolean = ProjectValues.EnableDiagnosticLogging
 
         ProjectValues.EnableDiagnosticLogging = _diagnosticLoggingCheckBox.Checked
@@ -1113,7 +1225,31 @@ End Sub
         _uiFontPreviewLabel.Text = _selectedUiFont.Name & "  " & _selectedUiFont.SizeInPoints.ToString("0.#") & " pt"
 
     End Sub
+    Private Sub VerifyFontButton_Click(sender As Object, e As EventArgs)
 
+        Using dialog As New FontDialog()
+
+            dialog.Font = If(_selectedVerifyFont, New Font(ProjectValues.UiFontName, ProjectValues.UiFontSize, ProjectValues.UiFontStyle))
+            dialog.Color = If(_selectedVerifyFont IsNot Nothing, _selectedVerifyFontColour, Color.FromArgb(ProjectValues.UiFontColourArgb))
+            dialog.ShowColor = True
+            dialog.ShowEffects = True
+
+            If dialog.ShowDialog(Me) <> DialogResult.OK Then Return
+
+            _selectedVerifyFont = dialog.Font
+            _selectedVerifyFontColour = dialog.Color
+
+        End Using
+
+    End Sub
+    Private Sub LatestVersionButton_Click(sender As Object, e As EventArgs)
+
+        Using versionForm As New LatestVersionForm()
+            versionForm.Font = Me.Font
+            versionForm.ShowDialog(Me)
+        End Using
+
+    End Sub
     Private Sub ApplyOptionsAppearance()
 
         _capitalisationPanel.BackColor = UiColors.PanelBackground
@@ -1156,6 +1292,8 @@ End Sub
 
         _uploadTab.BackColor = UiColors.PanelBackground
 
+        _editTab.BackColor = UiColors.PanelBackground
+
         _diagnosticsTab.BackColor = UiColors.PanelBackground
 
         ThemeManager.ApplyNavigationButton(btnGeneral)
@@ -1169,6 +1307,8 @@ End Sub
         ThemeManager.ApplyPrimaryButton(btnOk)
 
         ThemeManager.ApplySecondaryButton(btnCancel)
+
+        ThemeManager.ApplyPrimaryButton(_latestVersionButton)
 
         UpdateRulerColourButton()
 
@@ -1216,11 +1356,9 @@ End Sub
         HideOptionPages()
         SelectNavigationButton(btnGeneral)
 
-        lblPageTitle.Text =
-            "General"
+        lblPageTitle.Text = "General"
 
-        lblPageDescription.Text =
-            "Appearance, scan display, upload and diagnostic settings."
+        lblPageDescription.Text = "Appearance, scan display, upload, editing and diagnostic settings."
 
         _generalPanel.Visible = True
         _generalPanel.BringToFront()
@@ -1232,11 +1370,9 @@ End Sub
         HideOptionPages()
         SelectNavigationButton(btnEntry)
 
-        lblPageTitle.Text =
-        "Entry"
+        lblPageTitle.Text = "Entry"
 
-        lblPageDescription.Text =
-        "Grid navigation, picklist, autocomplete and entry settings."
+        lblPageDescription.Text = "Grid navigation, picklist, autocomplete and entry settings."
 
         _entryPanel.Visible = True
         _entryPanel.BringToFront()

@@ -9,17 +9,22 @@ Public Class ScanView
     Public Event RulerSetupStarted As EventHandler
     Public Event RulerSetupFinished As EventHandler
     Public Event VerifyFieldFocused(field As GridField)
+    Public Event VerifyArrangeModeChanged(active As Boolean)
     Private _rulerInstructionForm As RulerInstructionForm
     Private ReadOnly _verifyBar As New VerifyBar()
     Private _rulerWasVisibleBeforeVerify As Boolean
     Private _rulerPanYBeforeVerify As Single
 
-    Public Sub LoadVerifyValues(values As Dictionary(Of GridField, String))
+    Public Sub LoadVerifyValues(values As Dictionary(Of GridField, String), previousSurname As String)
 
-        _verifyBar.LoadValues(values)
+        _verifyBar.LoadValues(values, previousSurname)
 
     End Sub
+    Public Sub RefreshVerifyFont()
 
+        _verifyBar.RefreshFont()
+
+    End Sub
     Public Function GetVerifyValues() As Dictionary(Of GridField, String)
 
         Return _verifyBar.GetValues()
@@ -42,6 +47,8 @@ Public Class ScanView
         Controls.Add(_viewer)
         AddHandler _viewer.PanChanged, AddressOf Viewer_PanChanged
         AddHandler _viewer.DragFinished, AddressOf Viewer_DragFinished
+        AddHandler _viewer.Resize, AddressOf Viewer_Resize
+        AddHandler _verifyBar.ArrangeModeChanged, AddressOf VerifyBar_ArrangeModeChanged
         _viewer.BringToFront()
         scanTopPanel.BringToFront()
         RestoreFormBounds()
@@ -55,7 +62,6 @@ Public Class ScanView
         AddHandler _verifyBar.FieldFocused, AddressOf VerifyBar_FieldFocused
 
     End Sub
-
     Private Sub RestoreFormBounds()
 
         FormBoundsHelper.RestoreForm(Me, ProjectValues.ScanViewLeft, ProjectValues.ScanViewTop, ProjectValues.ScanViewWidth, ProjectValues.ScanViewHeight, ProjectValues.ScanViewMaximized)
@@ -87,6 +93,16 @@ Public Class ScanView
         If _rulerController.Stage = RulerSetupStage.AwaitingRow1 OrElse _rulerController.Stage = RulerSetupStage.AwaitingRow10 Then Return
 
         _commandExecutor.RestoreGridFocus()
+
+    End Sub
+    Private Sub Viewer_Resize(sender As Object, e As EventArgs)
+
+        PositionVerifyBar()
+
+    End Sub
+    Private Sub VerifyBar_ArrangeModeChanged(active As Boolean)
+
+        RaiseEvent VerifyArrangeModeChanged(active)
 
     End Sub
     Private Sub btnOpenScan_Click(sender As Object, e As EventArgs) Handles btnOpenScan.Click
@@ -131,12 +147,21 @@ Public Class ScanView
         If Not _viewer.HasImage Then Return
 
         Dim key As String = GetScanViewKey()
+        Dim zoom As Single = _viewer.Zoom
+        Dim rotation As Single = _viewer.Rotation
+        Dim panX As Single = _viewer.GetImagePanX()
+        Dim settings As ScanViewData = Nothing
+
+        ' Only save if a scan setting has changed
+        If ProjectValues.ScanViewSettings.TryGetValue(key, settings) AndAlso settings IsNot Nothing Then
+            If settings.Zoom = zoom AndAlso settings.Rotation = rotation AndAlso settings.PanX = panX Then Return
+        End If
 
         ProjectValues.ScanViewSettings(key) = New ScanViewData With {
-            .Zoom = _viewer.Zoom,
-            .Rotation = _viewer.Rotation,
-            .PanX = _viewer.GetImagePanX()
-        }
+        .Zoom = zoom,
+        .Rotation = rotation,
+        .PanX = panX
+    }
 
         ProjectValuesStore.Save()
 
@@ -170,7 +195,7 @@ Public Class ScanView
         Dim settings As RulerData = Nothing
 
         If ProjectValues.RulerSettings.TryGetValue(key, settings) Then
-            _viewer.PositionImageYAtScreenY(settings.Row1ImageY, _viewer.RulerScreenY)
+            _viewer.PositionImageYAtScreenY(settings.Row1ImageY, _viewer.RulerTop)
         End If
 
         RaiseEvent RulerSetupStarted(Me, EventArgs.Empty)
@@ -178,7 +203,7 @@ Public Class ScanView
         _viewer.Focus()
 
         ShowRulerInstruction("Ruler Setup — Row 1",
-                             "Position the scan so the ruler is centred on transcription row 1.",
+                             "Position the scan so the ruler is on or below transcription row 1.",
                              "Drag the scan or use the arrow keys for fine adjustment. Press Enter when ready.",
                              My.Resources.WinBMDResources.Row1)
 
@@ -200,6 +225,8 @@ Public Class ScanView
     End Function
 
     Private Sub ScanView_FormClosing(sender As Object, e As FormClosingEventArgs) Handles Me.FormClosing
+
+        _verifyBar.CancelArrangeMode()
 
         SaveFormBounds()
 
@@ -437,11 +464,11 @@ Public Class ScanView
                     Dim imageY As Single = GetSavedRulerImageY(10)
 
                     If Not Single.IsNaN(imageY) Then
-                        _viewer.PositionImageYAtScreenY(imageY, _viewer.RulerScreenY)
+                        _viewer.PositionImageYAtScreenY(imageY, _viewer.RulerTop)
                     End If
 
                     ShowRulerInstruction("Ruler Setup — Row 10",
-                                         "Now position the scan so the ruler is centred on transcription row 10.",
+                                         "Position the scan so the ruler is on or below transcription row 10.",
                                          "Use the mouse or arrow keys to adjust the scan. Press Enter when ready.",
                                          My.Resources.WinBMDResources.Row10)
 
@@ -491,7 +518,7 @@ Public Class ScanView
         End If
 
         _rulerController.LoadCalibration(settings.Row1ImageY, settings.RowStepImageY)
-        _viewer.PositionImageYAtScreenY(settings.Row1ImageY, _viewer.RulerScreenY)
+        _viewer.PositionImageYAtScreenY(settings.Row1ImageY, _viewer.RulerTop)
         _viewer.ShowRuler = True
 
         DebugLog.Write($"[RULER] Auto-show. Key={key}, Row1ImageY={settings.Row1ImageY:0.###}, RowStepImageY={settings.RowStepImageY:0.###}")
@@ -503,29 +530,40 @@ Public Class ScanView
         SetVerifyVisible(Not _verifyBar.Visible)
 
     End Sub
+    Private Sub PositionVerifyBar()
 
-    Public Sub SetVerifyVisible(visible As Boolean)
+        If Not _verifyBar.Visible Then Return
 
-        DebugLog.WriteAlways($"[VERIFY] SetVerifyVisible called. Visible={visible}")
+        If _viewer.ShowRuler Then
 
-        If visible Then
-
-            Dim fields() As GridField = GridLayout.GetVisibleFields().Where(Function(field) FieldMetaData.Meta(field).IsDataColumn).ToArray()
-
-            _verifyBar.ConfigureFields(fields)
-
-            _rulerWasVisibleBeforeVerify = _viewer.ShowRuler
-            _rulerPanYBeforeVerify = _viewer.GetImagePanY()
-            _viewer.ShowRuler = False
-
+            _verifyBar.Dock = DockStyle.None
+            _verifyBar.Width = _viewer.ClientSize.Width
+            _verifyBar.Left = _viewer.Left
+            _verifyBar.Top = _viewer.Top + CInt(_viewer.RulerTop)
+            DebugLog.WriteAlways($"[VERIFY BAR] RulerTop={_viewer.RulerTop:0.###}, ViewerTop={_viewer.Top}, BarTop={_verifyBar.Top}, BarHeight={_verifyBar.Height}, RulerScreenY={_viewer.RulerScreenY:0.###}")
         Else
 
-            _viewer.SetImagePanY(_rulerPanYBeforeVerify)
-            _viewer.ShowRuler = _rulerWasVisibleBeforeVerify
+            _verifyBar.Dock = DockStyle.Bottom
 
         End If
 
+    End Sub
+    Public Sub SetVerifyVisible(visible As Boolean)
+
+        'DebugLog.WriteAlways($"[VERIFY] SetVerifyVisible called. Visible={visible}")
+
+        If Not visible Then
+            _verifyBar.CancelArrangeMode()
+        End If
+
+        If visible Then
+            Dim fields() As GridField = GridLayout.GetVisibleFields().Where(Function(field) FieldMetaData.Meta(field).IsDataColumn).ToArray()
+            _verifyBar.ConfigureFields(fields)
+        End If
+
         _verifyBar.Visible = visible
+
+        If visible Then PositionVerifyBar()
 
     End Sub
 
@@ -537,41 +575,6 @@ Public Class ScanView
     Private Sub VerifyBar_FieldFocused(field As GridField)
 
         RaiseEvent VerifyFieldFocused(field)
-
-    End Sub
-    Public Sub MoveScanToVerifyRow(rowNumber As Integer)
-
-        If Not _verifyBar.Visible Then Return
-
-        Dim key As String = GetScanViewKey()
-        Dim settings As RulerData = Nothing
-
-        If Not ProjectValues.RulerSettings.TryGetValue(key, settings) Then Return
-
-        _viewer.ShowRuler = False
-
-        Dim rowImageY As Single = settings.Row1ImageY + ((rowNumber - 1) * settings.RowStepImageY)
-        Dim rowHeightScreen As Single = GetScanRowDistance()
-        Dim targetScreenY As Single = _viewer.ClientSize.Height - rowHeightScreen
-
-        _viewer.PositionImageYAtScreenY(rowImageY, targetScreenY)
-
-    End Sub
-
-    Public Sub MoveRulerToRow(rowNumber As Integer)
-
-        If Not _viewer.ShowRuler Then
-            _rulerController.SetCurrentRow(rowNumber)
-            Return
-        End If
-
-        _rulerController.MoveToRow(rowNumber)
-
-    End Sub
-    ' Updates the ruler controller's current grid row without moving the ruler.
-    Public Sub SetCurrentRulerRow(rowNumber As Integer)
-
-        _rulerController.SetCurrentRow(rowNumber)
 
     End Sub
     ' Moves the scan to the saved row 1 position without changing the current grid row.
@@ -593,7 +596,11 @@ Public Class ScanView
             Return _verifyBar.Visible
         End Get
     End Property
-
+    Public ReadOnly Property RulerVisible As Boolean
+        Get
+            Return _viewer.ShowRuler
+        End Get
+    End Property
     Private Sub SaveRulerSettings()
 
         If _rulerController.Stage <> RulerSetupStage.Complete Then Return
@@ -618,13 +625,21 @@ Public Class ScanView
         _viewer.NudgeImage(deltaX, deltaY)
 
     End Sub
+    Public Sub UpdateRulerHeight()
 
+        _rulerController.UpdateRulerHeight()
+
+    End Sub
     Friend Function GetScanRowDistance() As Single
 
-        If _rulerController.RowStepImageY = 0.0F Then Return 0.0F
+        If Math.Abs(_rulerController.RowStepImageY) < 0.001F Then Return 0.0F
 
         Return Math.Abs(_rulerController.RowStepImageY * _viewer.Zoom)
 
     End Function
-
+    Public ReadOnly Property MaximumRulerHeight As Integer
+        Get
+            Return _rulerController.MaximumRulerHeight
+        End Get
+    End Property
 End Class

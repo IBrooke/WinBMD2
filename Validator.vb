@@ -215,13 +215,27 @@ Public NotInheritable Class Validator
     End Function
     ' Checks characters and bracket pairing that are common to
     ' transcription fields before the field-specific validator runs.
-    Private Shared Function ValidateGeneralCellCharacters(
-    field As GridField,
-    value As String) As ValidationResult
+    Private Shared Function ValidateGeneralCellCharacters(field As GridField, value As String) As ValidationResult
 
         If String.IsNullOrEmpty(value) Then
             Return ValidationResult.Ok()
         End If
+
+        If value.Contains("  ") Then
+            Return ValidationResult.Warning("Contains multiple consecutive spaces.")
+        End If
+
+        For i As Integer = 2 To value.Length - 1
+
+            If Char.IsLetter(value(i)) AndAlso
+       Char.ToUpperInvariant(value(i)) = Char.ToUpperInvariant(value(i - 1)) AndAlso
+       Char.ToUpperInvariant(value(i)) = Char.ToUpperInvariant(value(i - 2)) Then
+
+                Return ValidationResult.Warning("Contains three consecutive identical letters.")
+
+            End If
+
+        Next
 
         For Each ch As Char In value
 
@@ -290,13 +304,7 @@ Public NotInheritable Class Validator
             Return True
         End If
 
-        If ch = "-"c OrElse
-       ch = "."c OrElse
-       ch = ","c OrElse
-       ch = " "c Then
-
-            Return True
-        End If
+        If "-.,' ".Contains(ch) Then Return True
 
         If "[]*?_{}".Contains(ch) Then
             Return True
@@ -307,20 +315,12 @@ Public NotInheritable Class Validator
         End If
 
         If field = GridField.District Then
+                Return "&:()/\".Contains(ch)
+            End If
 
-            Return ch = "'"c OrElse
-               ch = "&"c OrElse
-               ch = ":"c OrElse
-               ch = "("c OrElse
-               ch = ")"c OrElse
-               ch = "/"c OrElse
-               ch = "\"c
-
-        End If
-
-        If field = GridField.AaD Then
-            Return ch = "("c OrElse ch = ")"c
-        End If
+            If field = GridField.AaD Then
+                Return "()".Contains(ch)
+            End If
 
         Return False
 
@@ -692,7 +692,6 @@ Public NotInheritable Class Validator
 
     End Function
 
-
     Public Shared Function ValidateDistrict(value As String) As ValidationResult
 
         If String.IsNullOrWhiteSpace(value) Then
@@ -877,7 +876,6 @@ Public NotInheritable Class Validator
 
     End Function
 
-
     Public Shared Function ValidateDoR(value As String) As ValidationResult
 
         If String.IsNullOrWhiteSpace(value) Then
@@ -930,7 +928,6 @@ Public NotInheritable Class Validator
         Return ValidationResult.Ok()
 
     End Function
-
 
     Public Shared Function ValidateReg(value As String) As ValidationResult
 
@@ -998,8 +995,6 @@ Public NotInheritable Class Validator
         Return ValidationResult.Ok()
 
     End Function
-
-
     Public Shared Function ValidateRegNum(value As String) As ValidationResult
 
         If String.IsNullOrWhiteSpace(value) Then
@@ -1034,7 +1029,6 @@ Public NotInheritable Class Validator
         Return ValidationResult.Ok()
 
     End Function
-
 
     Public Shared Function ValidateEntry(value As String) As ValidationResult
 

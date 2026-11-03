@@ -1,10 +1,16 @@
 ﻿Imports System.ComponentModel
+Imports System.Runtime.InteropServices
 Public Class VerifyFieldBox
     Inherits UserControl
 
     Private ReadOnly _textBox As New TextBox()
+    Private ReadOnly _alignmentMenu As New ContextMenuStrip()
+    Private ReadOnly _alignLeftItem As New ToolStripMenuItem("Left aligned")
+    Private ReadOnly _alignRightItem As New ToolStripMenuItem("Right aligned")
     Private _field As GridField
     Private _arrangeMode As Boolean
+    Private _actualValue As String = ""
+    Private _previousSurname As String = ""
 
     Public Event LayoutChanged As EventHandler
     Public Event LayoutFinished As EventHandler
@@ -17,21 +23,18 @@ Public Class VerifyFieldBox
     Private _resizeStartWidth As Integer
 
     Private Const ResizeGripWidth As Integer = 6
+    Private Const EM_SETMARGINS As Integer = &HD3
+    Private Const EC_LEFTMARGIN As Integer = &H1
+    Private Const EC_RIGHTMARGIN As Integer = &H2
 
+    <DllImport("user32.dll")>
+    Private Shared Function SendMessage(hWnd As IntPtr, msg As Integer, wParam As IntPtr, lParam As IntPtr) As IntPtr
+    End Function
     Private Function GetMinimumBoxWidth() As Integer
 
-        Select Case _field
+        Dim characterWidth As Integer = TextRenderer.MeasureText("W", _textBox.Font, Size.Empty, TextFormatFlags.NoPadding).Width
 
-            Case GridField.Volume,
-             GridField.DistNum
-
-                Return 35
-
-            Case Else
-
-                Return 50
-
-        End Select
+        Return characterWidth + 4
 
     End Function
     <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
@@ -70,13 +73,57 @@ Public Class VerifyFieldBox
     <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
     Public Property Value As String
         Get
-            Return _textBox.Text
+            If _textBox.Focused Then Return _textBox.Text
+            Return _actualValue
         End Get
         Set(value As String)
-            _textBox.Text = If(value, "")
+            _actualValue = If(value, "")
+            UpdateDisplayedValue()
         End Set
     End Property
+    <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
+    Public Property PreviousSurname As String
+        Get
+            Return _previousSurname
+        End Get
+        Set(value As String)
+            _previousSurname = If(value, "")
+            UpdateDisplayedValue()
+        End Set
+    End Property
+    Private Sub RemoveTextMargins()
 
+        If Not _textBox.IsHandleCreated Then Return
+
+        SendMessage(_textBox.Handle, EM_SETMARGINS, New IntPtr(EC_LEFTMARGIN Or EC_RIGHTMARGIN), IntPtr.Zero)
+
+    End Sub
+    Private Sub UpdateDisplayedValue()
+
+        If _textBox.Focused Then Return
+
+        If _field = GridField.Surname AndAlso
+       Not String.IsNullOrWhiteSpace(_previousSurname) AndAlso
+       String.Equals(_actualValue.Trim(), _previousSurname.Trim(), StringComparison.OrdinalIgnoreCase) Then
+
+            _textBox.Text = "------"
+
+        Else
+
+            _textBox.Text = _actualValue
+
+        End If
+
+    End Sub
+    <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
+    Public Property TextAlignment As HorizontalAlignment
+        Get
+            Return _textBox.TextAlign
+        End Get
+        Set(value As HorizontalAlignment)
+            _textBox.TextAlign = value
+        End Set
+    End Property
     Public Sub New()
 
         Height = 30
@@ -88,19 +135,40 @@ Public Class VerifyFieldBox
 
         Controls.Add(_textBox)
 
+        _alignmentMenu.Items.Add(_alignLeftItem)
+        _alignmentMenu.Items.Add(_alignRightItem)
+
+        _textBox.ContextMenuStrip = _alignmentMenu
+        Me.ContextMenuStrip = _alignmentMenu
+
+        AddHandler _alignmentMenu.Opening, AddressOf AlignmentMenu_Opening
+        AddHandler _alignLeftItem.Click, AddressOf AlignLeft_Click
+        AddHandler _alignRightItem.Click, AddressOf AlignRight_Click
         AddHandler _textBox.MouseDown, AddressOf TextBox_MouseDown
         AddHandler _textBox.MouseMove, AddressOf TextBox_MouseMove
         AddHandler _textBox.MouseUp, AddressOf TextBox_MouseUp
         AddHandler _textBox.Enter, AddressOf TextBox_Enter
-
+        AddHandler _textBox.Leave, AddressOf TextBox_Leave
+        AddHandler _textBox.HandleCreated,
+            Sub()
+                RemoveTextMargins()
+            End Sub
     End Sub
     Private Sub TextBox_Enter(sender As Object, e As EventArgs)
 
-        If _arrangeMode Then
-            Return
-        End If
+        If _arrangeMode Then Return
+
+        _textBox.Text = _actualValue
 
         RaiseEvent FieldFocused(Me, EventArgs.Empty)
+
+    End Sub
+    Private Sub TextBox_Leave(sender As Object, e As EventArgs)
+
+        If _arrangeMode Then Return
+
+        _actualValue = _textBox.Text
+        UpdateDisplayedValue()
 
     End Sub
     Protected Overrides Function ProcessCmdKey(ByRef msg As Message, keyData As Keys) As Boolean
@@ -113,6 +181,21 @@ Public Class VerifyFieldBox
         Return MyBase.ProcessCmdKey(msg, keyData)
 
     End Function
+    Protected Overrides Sub OnFontChanged(e As EventArgs)
+
+        MyBase.OnFontChanged(e)
+
+        If _textBox IsNot Nothing Then _textBox.Font = Font
+
+    End Sub
+
+    Protected Overrides Sub OnForeColorChanged(e As EventArgs)
+
+        MyBase.OnForeColorChanged(e)
+
+        If _textBox IsNot Nothing Then _textBox.ForeColor = ForeColor
+
+    End Sub
     Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
 
         MyBase.OnMouseDown(e)
@@ -132,7 +215,26 @@ Public Class VerifyFieldBox
         Capture = True
 
     End Sub
+    Private Sub AlignmentMenu_Opening(sender As Object, e As CancelEventArgs)
 
+        _alignLeftItem.Checked = _textBox.TextAlign = HorizontalAlignment.Left
+        _alignRightItem.Checked = _textBox.TextAlign = HorizontalAlignment.Right
+
+    End Sub
+
+    Private Sub AlignLeft_Click(sender As Object, e As EventArgs)
+
+        TextAlignment = HorizontalAlignment.Left
+        RaiseEvent LayoutFinished(Me, EventArgs.Empty)
+
+    End Sub
+
+    Private Sub AlignRight_Click(sender As Object, e As EventArgs)
+
+        TextAlignment = HorizontalAlignment.Right
+        RaiseEvent LayoutFinished(Me, EventArgs.Empty)
+
+    End Sub
     Private Sub TextBox_MouseDown(sender As Object, e As MouseEventArgs)
 
         If Not _arrangeMode Then Return
@@ -197,9 +299,7 @@ Public Class VerifyFieldBox
 
         End If
 
-        Cursor =
-        If(
-            e.X >= Width - ResizeGripWidth,
+        Cursor = If(e.X >= Width - ResizeGripWidth,
             Cursors.SizeWE,
             Cursors.SizeAll)
 

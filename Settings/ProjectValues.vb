@@ -46,6 +46,7 @@ Public Module ProjectValues
     Public Property ScanViewMaximized As Boolean
     Public Property AutoShowScan As Boolean = True
     Public Property AutoShowRuler As Boolean = True
+    Public Property RulerHeight As Integer = 4
     Public Property ScanViewSettings As New Dictionary(Of String, ScanViewData)
     Public Property RulerSettings As New Dictionary(Of String, RulerData)
     Public Property VerifyFieldLayouts As New Dictionary(Of String, Dictionary(Of String, VerifyFieldLayoutData))
@@ -148,7 +149,10 @@ Public Module ProjectValues
     Public Property UiFontSize As Single = SystemFonts.MessageBoxFont.Size
     Public Property UiFontStyle As FontStyle = SystemFonts.MessageBoxFont.Style
     Public Property UiFontColourArgb As Integer = SystemColors.ControlText.ToArgb()
-    Public Property VerifyFontSize As Single = 12.0F
+    Public Property VerifyFontName As String = ""
+    Public Property VerifyFontSize As Single = 0
+    Public Property VerifyFontStyle As FontStyle = FontStyle.Regular
+    Public Property VerifyFontColor As Integer = Color.Empty.ToArgb()
     Public Property ValidationMode As ValidationMode = ValidationMode.Entry
     Public Property RecentFiles As New List(Of String)
     Public Property RulerColourArgb As Integer = Color.Red.ToArgb()
