@@ -5,6 +5,7 @@
     Private ReadOnly _fieldBoxes As New List(Of VerifyFieldBox)
     Private ReadOnly _arrangeButton As New Button()
     Private _arrangeMode As Boolean
+    Private _combineNameFields As Boolean
     Public Event VerifiedClicked As EventHandler
     Public Event FieldFocused(field As GridField)
     Public Event ArrangeModeChanged(active As Boolean)
@@ -120,51 +121,101 @@
 
         _fieldBoxes.Clear()
 
-        Dim left As Integer = 20
-        Dim layoutKey As String = GetLayoutKey()
+        Dim fieldList As New List(Of GridField)(fields)
+        Dim nameLayout As VerifyNameLayout = VerifyNameLayout.GetCurrent()
 
+        _combineNameFields = nameLayout.GetForenamePosition() = 0 AndAlso
+                             fieldList.Contains(GridField.Surname) AndAlso
+                             fieldList.Contains(GridField.Forename)
+
+        Dim left As Integer = 20
         Dim savedLayout As Dictionary(Of String, VerifyFieldLayoutData) = Nothing
 
-        ProjectValues.VerifyFieldLayouts.TryGetValue(layoutKey, savedLayout)
+        ProjectValues.VerifyFieldLayouts.TryGetValue(GetLayoutKey(), savedLayout)
 
+        ' Use the chosen display font when calculating the initial field positions.
         Dim verifyFont As Font
 
         If String.IsNullOrWhiteSpace(ProjectValues.VerifyFontName) Then
-
-            verifyFont = UiFonts.Normal
-
+            verifyFont = New Font(ProjectValues.UiFontName, ProjectValues.UiFontSize, ProjectValues.UiFontStyle)
         Else
-
-            verifyFont = New Font(
-                ProjectValues.VerifyFontName,
-                ProjectValues.VerifyFontSize,
-                ProjectValues.VerifyFontStyle)
-
+            verifyFont = New Font(ProjectValues.VerifyFontName, ProjectValues.VerifyFontSize, ProjectValues.VerifyFontStyle)
         End If
+
         Dim verifyBoxHeight As Integer = Math.Max(30, verifyFont.Height + 10)
+        Dim forenameOffset As Integer = nameLayout.GetForenameOffset(verifyFont)
+
         Height = verifyBoxHeight + 20
 
-        For Each field As GridField In fields
+        For Each field As GridField In fieldList
+
+            ' The surname box also displays the forenames in the comma layout.
+            If _combineNameFields AndAlso field = GridField.Forename Then Continue For
+
+            Dim defaultWidth As Integer = 120
+
+            If field = GridField.Surname Then
+
+                If _combineNameFields Then
+                    defaultWidth = 250
+                ElseIf forenameOffset > 0 Then
+                    defaultWidth = Math.Max(30, forenameOffset - 10)
+                End If
+
+            ElseIf field = GridField.Forename AndAlso forenameOffset > 0 Then
+
+                Dim surnameBox As VerifyFieldBox = _fieldBoxes.Find(Function(item) item.Field = GridField.Surname)
+
+                If surnameBox IsNot Nothing Then
+                    left = surnameBox.Left + forenameOffset
+                End If
+
+            End If
 
             Dim box As New VerifyFieldBox With {
                 .Field = field,
                 .Left = left,
                 .Top = 10,
-                .Width = 120,
+                .Width = defaultWidth,
                 .Height = verifyBoxHeight,
                 .ArrangeMode = _arrangeMode,
                 .Font = verifyFont
             }
 
+            If _combineNameFields AndAlso field = GridField.Surname Then
+                box.SetNameValues("", "", "")
+            End If
+
             If savedLayout IsNot Nothing Then
 
                 Dim savedField As VerifyFieldLayoutData = Nothing
+                Dim fieldKey As String = GetFieldLayoutKey(field)
 
-                If savedLayout.TryGetValue(field.ToString(), savedField) Then
+                If savedLayout.TryGetValue(fieldKey, savedField) Then
 
                     box.Left = savedField.Left
                     box.Width = savedField.Width
                     box.TextAlignment = savedField.TextAlignment
+
+                ElseIf _combineNameFields AndAlso field = GridField.Surname Then
+
+                    ' Reuse the area occupied by the old surname and forename boxes.
+                    Dim oldSurname As VerifyFieldLayoutData = Nothing
+                    Dim oldForename As VerifyFieldLayoutData = Nothing
+
+                    If savedLayout.TryGetValue(GridField.Surname.ToString(), oldSurname) Then
+
+                        box.Left = oldSurname.Left
+                        box.Width = oldSurname.Width
+                        box.TextAlignment = oldSurname.TextAlignment
+
+                        If savedLayout.TryGetValue(GridField.Forename.ToString(), oldForename) Then
+                            Dim rightEdge As Integer = Math.Max(oldSurname.Left + oldSurname.Width, oldForename.Left + oldForename.Width)
+                            box.Left = Math.Min(oldSurname.Left, oldForename.Left)
+                            box.Width = rightEdge - box.Left
+                        End If
+
+                    End If
 
                 End If
 
@@ -194,6 +245,14 @@
         RefreshFont()
 
     End Sub
+    Private Function GetFieldLayoutKey(field As GridField) As String
+
+        ' Save the combined box separately from the original two field layouts.
+        If _combineNameFields AndAlso field = GridField.Surname Then Return "CombinedName"
+
+        Return field.ToString()
+
+    End Function
     Public Sub RefreshFont()
 
         Dim verifyFont As Font
@@ -277,7 +336,7 @@
 
         For Each box As VerifyFieldBox In _fieldBoxes
 
-            layout(box.Field.ToString()) =
+            layout(GetFieldLayoutKey(box.Field)) =
             New VerifyFieldLayoutData With {
                 .Left = box.Left,
                 .Width = box.Width,
@@ -303,36 +362,35 @@
     End Sub
     Public Sub LoadValues(values As Dictionary(Of GridField, String), previousSurname As String)
 
+        If values Is Nothing Then Return
+
         For Each box As VerifyFieldBox In _fieldBoxes
 
             Dim value As String = ""
+            values.TryGetValue(box.Field, value)
 
-            If values.TryGetValue(box.Field, value) Then
-                box.Value = value
+            If _combineNameFields AndAlso box.Field = GridField.Surname Then
+
+                Dim forenames As String = ""
+                values.TryGetValue(GridField.Forename, forenames)
+
+                box.SetNameValues(value, forenames, previousSurname)
+
             Else
-                box.Value = ""
+
+                box.Value = value
+
+                If box.Field = GridField.Surname Then
+                    box.PreviousSurname = previousSurname
+                End If
+
             End If
 
-            If box.Field = GridField.Surname Then
-                box.PreviousSurname = previousSurname
-            End If
-
-            box.ArrangeMode = False
+            box.ArrangeMode = _arrangeMode
 
         Next
 
     End Sub
-    Public Function GetValues() As Dictionary(Of GridField, String)
-
-        Dim values As New Dictionary(Of GridField, String)
-
-        For Each box As VerifyFieldBox In _fieldBoxes
-            values(box.Field) = box.Value
-        Next
-
-        Return values
-
-    End Function
     Public Sub FocusFirstBox()
 
         _verifiedButton.Focus()

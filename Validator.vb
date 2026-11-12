@@ -225,17 +225,22 @@ Public NotInheritable Class Validator
             Return ValidationResult.Warning("Contains multiple consecutive spaces.")
         End If
 
-        For i As Integer = 2 To value.Length - 1
+        ' Roman volumes such as XIII legitimately contain repeated letters.
+        If field <> GridField.Volume Then
 
-            If Char.IsLetter(value(i)) AndAlso
-       Char.ToUpperInvariant(value(i)) = Char.ToUpperInvariant(value(i - 1)) AndAlso
-       Char.ToUpperInvariant(value(i)) = Char.ToUpperInvariant(value(i - 2)) Then
+            For i As Integer = 2 To value.Length - 1
 
-                Return ValidationResult.Warning("Contains three consecutive identical letters.")
+                If Char.IsLetter(value(i)) AndAlso
+                   Char.ToUpperInvariant(value(i)) = Char.ToUpperInvariant(value(i - 1)) AndAlso
+                   Char.ToUpperInvariant(value(i)) = Char.ToUpperInvariant(value(i - 2)) Then
 
-            End If
+                    Return ValidationResult.Warning("Contains three consecutive identical letters.")
 
-        Next
+                End If
+
+            Next
+
+        End If
 
         For Each ch As Char In value
 
@@ -306,7 +311,7 @@ Public NotInheritable Class Validator
 
         If "-.,' ".Contains(ch) Then Return True
 
-        If "[]*?_{}".Contains(ch) Then
+        If coWildChars.Contains(ch) Then
             Return True
         End If
 
@@ -1222,8 +1227,7 @@ Public NotInheritable Class Validator
             Return False
         End If
 
-        Return value.IndexOfAny(
-            "[]*?_{}".ToCharArray()) >= 0
+        Return value.IndexOfAny(coWildChars.ToCharArray()) >= 0
 
     End Function
     Friend Shared Function CodeFormat(code As String) As String

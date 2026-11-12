@@ -263,7 +263,9 @@ Public Class HeaderForm
 
         _openBatchMenu.Items.Clear()
 
-        For Each filePath As String In ProjectValues.RecentFiles
+        For Each entry As RecentFileEntry In ProjectValues.RecentFiles
+
+            Dim filePath As String = entry.FilePath
 
             If String.IsNullOrWhiteSpace(filePath) Then
                 Continue For
@@ -307,7 +309,11 @@ Public Class HeaderForm
 
         If Not File.Exists(filePath) Then
 
-            ProjectValues.RecentFiles.Remove(filePath)
+            ProjectValues.RecentFiles.RemoveAll(
+    Function(entry) String.Equals(
+        entry.FilePath,
+        filePath,
+        StringComparison.OrdinalIgnoreCase))
             ProjectValuesStore.Save()
 
             MessageBox.Show(

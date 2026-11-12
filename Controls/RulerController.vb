@@ -163,11 +163,20 @@
         If deltaRows = 0 Then Return
         If Not _viewer.HasImage Then Return
 
+        Dim beforeImageY As Single = _viewer.GetImageYAtScreenY(_viewer.RulerTop)
+        Dim beforeRow As Single = 1.0F + (beforeImageY - _row1ImageY) / _rowStepImageY
         Dim scanMovement As Single = -deltaRows * _rowStepImageY * _viewer.Zoom
 
         _viewer.NudgeImage(0.0F, scanMovement)
 
-        DebugLog.Write($"[RULER] Scan moved by {deltaRows:0.###} row(s). Movement={scanMovement:0.###}, PanY={_viewer.GetImagePanY():0.###}")
+        ' Dim afterImageY As Single = _viewer.GetImageYAtScreenY(_viewer.RulerTop)
+        ' Dim afterRow As Single = 1.0F + (afterImageY - _row1ImageY) / _rowStepImageY
+
+        ' DebugLog.WriteAlways(
+        ' $"[RULER CHECK] BeforeRow={beforeRow:0.###}, " &
+        ' $"DeltaRows={deltaRows:0.###}, AfterRow={afterRow:0.###}, " &
+        ' $"RowStep={_rowStepImageY:0.###}, Zoom={_viewer.Zoom:0.###}, " &
+        ' $"Movement={scanMovement:0.###}")
 
     End Sub
     Public Sub UpdateRulerHeight()

@@ -1,4 +1,4 @@
-﻿Imports System.Drawing
+Imports System.Drawing
 Imports System.Windows.Forms
 Imports System.ComponentModel
 Imports System.Drawing.Imaging
@@ -18,6 +18,23 @@ Public Class ScanViewerControl
     Private _imageOffsetY As Integer
     Private _panX As Single
     Private _panY As Single
+
+    ' The vertical scrollbar represents the same pan used by dragging and the ruler.
+    ' Both scrollbars reflect the image pan; native AutoScroll is disabled.
+    Private ReadOnly _imageVerticalScrollBar As New VScrollBar With {
+        .Dock = DockStyle.Right,
+        .TabStop = False,
+        .Enabled = False
+    }
+    Private ReadOnly _imageHorizontalScrollBar As New HScrollBar With {
+        .Dock = DockStyle.Bottom,
+        .TabStop = False,
+        .Enabled = False
+    }
+    Private _syncingHorizontalScrollBar As Boolean
+    Private _horizontalScrollOrigin As Single
+    Private _syncingVerticalScrollBar As Boolean
+    Private _verticalScrollOrigin As Single
     Private _isDragging As Boolean
     Private _dragStartMouse As Point
     Private _dragStartPan As PointF
@@ -65,6 +82,7 @@ Public Class ScanViewerControl
         Set(value As Single)
 
             _rulerScreenY = value
+            SyncVerticalScrollBar()
             Invalidate()
 
         End Set
@@ -77,13 +95,19 @@ Public Class ScanViewerControl
     Public Sub SetRulerHeight(height As Single)
 
         _rulerHeight = Math.Max(4.0F, height)
+        SyncVerticalScrollBar()
+        SyncHorizontalScrollBar()
         Invalidate()
 
     End Sub
     Public Sub New()
 
         DoubleBuffered = True
-        AutoScroll = True
+        AutoScroll = False
+        Controls.Add(_imageVerticalScrollBar)
+        Controls.Add(_imageHorizontalScrollBar)
+        AddHandler _imageHorizontalScrollBar.ValueChanged, AddressOf ImageHorizontalScrollBar_ValueChanged
+        AddHandler _imageVerticalScrollBar.ValueChanged, AddressOf ImageVerticalScrollBar_ValueChanged
         BackColor = Color.DimGray
 
     End Sub
@@ -167,16 +191,28 @@ Public Class ScanViewerControl
 
     End Sub
     Public Function GetImagePanY() As Single
-
         Return _panY
-
     End Function
 
     Public Sub SetImagePanY(value As Single)
-
         _panY = value
         InvalidateDisplayImage()
+    End Sub
+    ' Returns the displayed vertical position of the scan, including mouse-wheel scrolling.
+    Public Function GetScanPositionY() As Double
+        Return CDbl(_imageOffsetY) + CDbl(_panY)
+    End Function
 
+    ' Restores the displayed vertical position without moving the ruler or changing X.
+    Public Sub SetScanPositionY(value As Double)
+        If _image Is Nothing Then Return
+        If Double.IsNaN(value) OrElse Double.IsInfinity(value) Then Return
+
+        Dim panY As Double = value - CDbl(_imageOffsetY)
+        If panY < Single.MinValue OrElse panY > Single.MaxValue Then Return
+
+        _panY = CSng(panY)
+        InvalidateDisplayImage()
     End Sub
     Public Sub LoadImage(fileName As String)
 
@@ -206,10 +242,10 @@ Public Class ScanViewerControl
 
         MyBase.OnResize(e)
 
-        _imageOffsetX = ClientSize.Width \ 2
-        _imageOffsetY = ClientSize.Height \ 2
+        _imageOffsetX = ImageViewportSize.Width \ 2
+        _imageOffsetY = ImageViewportSize.Height \ 2
 
-        RulerScreenY = ClientSize.Height / 2.0F
+        RulerScreenY = ImageViewportSize.Height / 2.0F
 
         UpdateScrollArea()
         InvalidateDisplayImage()
@@ -341,27 +377,11 @@ Public Class ScanViewerControl
         Dim scaledWidth As Single = _image.Width * _zoom
         Dim scaledHeight As Single = _image.Height * _zoom
 
-        ' Include the ScrollableControl position so mouse-wheel scrolling and repainting
-        ' use exactly the same image position.
-        Dim x As Single = _imageOffsetX + _panX + AutoScrollPosition.X
-        Dim y As Single = _imageOffsetY + _panY + AutoScrollPosition.Y
+        ' Drawing and the scrollbars use the same pan position.
+        Dim x As Single = _imageOffsetX + _panX
+        Dim y As Single = _imageOffsetY + _panY
 
-        ' DebugLog.Write($"[SCAN DRAW] OffsetY={_imageOffsetY:0.###}, PanY={_panY:0.###}, ScrollY={AutoScrollPosition.Y}, ActualY={y:0.###}")
-
-        ' Make sure that at least part of the image remains visible.
-        If x >= ClientSize.Width OrElse x + scaledWidth <= 0 Then
-            _panX = 0.0F
-            x = _imageOffsetX + AutoScrollPosition.X
-            DebugLog.WriteAlways("[SCAN] Horizontal image position was outside the viewer and has been reset.")
-            RaiseEvent PanChanged(Me, EventArgs.Empty)
-        End If
-
-        If y >= ClientSize.Height OrElse y + scaledHeight <= 0 Then
-            _panY = 0.0F
-            y = _imageOffsetY + AutoScrollPosition.Y
-            DebugLog.WriteAlways("[SCAN] Vertical image position was outside the viewer and has been reset.")
-            RaiseEvent PanChanged(Me, EventArgs.Empty)
-        End If
+        ' DebugLog.Write($"[SCAN DRAW] OffsetY={_imageOffsetY:0.###}, PanY={_panY:0.###}, ActualY={y:0.###}")
 
         graphics.TranslateTransform(x + scaledWidth / 2.0F, y + scaledHeight / 2.0F)
         graphics.RotateTransform(_rotation)
@@ -410,13 +430,24 @@ Public Class ScanViewerControl
 
     End Sub
     Protected Overrides Sub OnMouseWheel(e As MouseEventArgs)
-        ' Mouse-wheel scrolling bypasses OnScroll, so refresh the cached scan
-        ' and repaint the whole viewer to prevent image strips and a missing ruler.
 
-        MyBase.OnMouseWheel(e)
-        InvalidateDisplayImage()
+        ' Do not invoke native vertical scrolling: wheel and ruler share _panY.
+        Dim handledArgs As HandledMouseEventArgs = TryCast(e, HandledMouseEventArgs)
+        If handledArgs IsNot Nothing Then handledArgs.Handled = True
+        If _image Is Nothing OrElse e.Delta = 0 Then Return
+
+        Dim lines As Integer = SystemInformation.MouseWheelScrollLines
+        If lines = 0 Then Return
+
+        Dim distance As Single = If(lines < 0,
+            CSng(ImageViewportSize.Height),
+            CSng(lines * ScaleForCurrentDpi(16)))
+
+        NudgeImage(0.0F, CSng(e.Delta) / 120.0F * distance)
+        RaiseEvent PanChanged(Me, EventArgs.Empty)
 
     End Sub
+
     Protected Overrides Sub Dispose(disposing As Boolean)
 
         If disposing Then
@@ -466,38 +497,145 @@ Public Class ScanViewerControl
     Private Sub InvalidateDisplayImage()
 
         _displayImageDirty = True
+        SyncVerticalScrollBar()
+        SyncHorizontalScrollBar()
         Invalidate()
 
     End Sub
+    ' The visible image area excludes the two fixed scrollbar controls.
+    Private ReadOnly Property ImageViewportSize As Size
+        Get
+            Dim barWidth As Integer = If(_imageVerticalScrollBar Is Nothing, 0, _imageVerticalScrollBar.Width)
+            Dim barHeight As Integer = If(_imageHorizontalScrollBar Is Nothing, 0, _imageHorizontalScrollBar.Height)
+            Return New Size(Math.Max(1, ClientSize.Width - barWidth), Math.Max(1, ClientSize.Height - barHeight))
+        End Get
+    End Property
+
     Private Sub UpdateScrollArea()
 
-        If _image Is Nothing Then
-            AutoScrollMinSize = Size.Empty
-            Return
-        End If
-
-        _imageOffsetX = ClientSize.Width \ 2
-        _imageOffsetY = ClientSize.Height \ 2
-
-        Dim radians As Single = Math.Abs(_rotation) * CSng(Math.PI) / 180.0F
-
-        Dim cosValue As Single = Math.Abs(CSng(Math.Cos(radians)))
-
-        Dim sinValue As Single = Math.Abs(CSng(Math.Sin(radians)))
-
-        Dim width As Integer =
-        CInt(Math.Ceiling(
-            (_image.Width * cosValue +
-             _image.Height * sinValue) * _zoom))
-
-        Dim height As Integer =
-        CInt(Math.Ceiling(
-            (_image.Width * sinValue +
-             _image.Height * cosValue) * _zoom))
-
-        AutoScrollMinSize = New Size(width + (_imageOffsetX * 2), height + (_imageOffsetY * 2))
+        _imageOffsetX = ImageViewportSize.Width \ 2
+        _imageOffsetY = ImageViewportSize.Height \ 2
+        SyncVerticalScrollBar()
+        SyncHorizontalScrollBar()
 
     End Sub
+
+    ' Synchronises the thumb without rounding or changing the actual image position.
+    Private Sub SyncVerticalScrollBar()
+
+        If _imageVerticalScrollBar Is Nothing OrElse _syncingVerticalScrollBar Then Return
+        _syncingVerticalScrollBar = True
+
+        Try
+            If _image Is Nothing Then
+                _imageVerticalScrollBar.Enabled = False
+                _imageVerticalScrollBar.Value = 0
+                Return
+            End If
+
+            ' Allow the top and bottom of the rotated scan to reach the ruler.
+            Dim radians As Double = CDbl(_rotation) * Math.PI / 180.0
+            Dim rotatedHeight As Single = CSng(
+                (Math.Abs(Math.Sin(radians)) * _image.Width +
+                 Math.Abs(Math.Cos(radians)) * _image.Height) * _zoom)
+            Dim rotatedTop As Single = (_image.Height * _zoom - rotatedHeight) / 2.0F
+            Dim currentY As Single = _imageOffsetY + _panY
+            Dim upperY As Single = RulerTop - rotatedTop
+            Dim lowerY As Single = upperY - rotatedHeight
+
+            ' Manual positioning must never be clamped or undone by synchronisation.
+            upperY = CSng(Math.Ceiling(Math.Max(upperY, currentY)))
+            lowerY = CSng(Math.Floor(Math.Min(lowerY, currentY)))
+            _verticalScrollOrigin = upperY
+
+            Dim travel As Integer = Math.Max(0, CInt(Math.Ceiling(CDbl(upperY) - lowerY)))
+            Dim pageSize As Integer = ImageViewportSize.Height
+            Dim position As Integer = Math.Max(0, Math.Min(travel, CInt(Math.Round(CDbl(upperY) - currentY))))
+
+            With _imageVerticalScrollBar
+                .Minimum = 0
+                .Maximum = travel + pageSize - 1
+                .LargeChange = pageSize
+                .SmallChange = 1
+                .Value = position
+                .Enabled = travel > 0
+            End With
+        Finally
+            _syncingVerticalScrollBar = False
+        End Try
+
+    End Sub
+
+    Private Sub ImageVerticalScrollBar_ValueChanged(sender As Object, e As EventArgs)
+
+        If _syncingVerticalScrollBar OrElse _image Is Nothing Then Return
+
+        ' Keep the range fixed while dragging the thumb; update the shared pan directly.
+        _panY = _verticalScrollOrigin - _imageVerticalScrollBar.Value - _imageOffsetY
+        _displayImageDirty = True
+        Invalidate()
+        RaiseEvent PanChanged(Me, EventArgs.Empty)
+
+    End Sub
+
+    ' Synchronises the thumb without rounding or changing the actual image position.
+    Private Sub SyncHorizontalScrollBar()
+
+        If _imageHorizontalScrollBar Is Nothing OrElse _syncingHorizontalScrollBar Then Return
+        _syncingHorizontalScrollBar = True
+
+        Try
+            If _image Is Nothing Then
+                _imageHorizontalScrollBar.Enabled = False
+                _imageHorizontalScrollBar.Value = 0
+                Return
+            End If
+
+            ' Allow the left and right of the rotated scan to reach the viewport centre.
+            Dim radians As Double = CDbl(_rotation) * Math.PI / 180.0
+            Dim rotatedWidth As Single = CSng(
+                (Math.Abs(Math.Sin(radians)) * _image.Height +
+                 Math.Abs(Math.Cos(radians)) * _image.Width) * _zoom)
+            Dim rotatedLeft As Single = (_image.Width * _zoom - rotatedWidth) / 2.0F
+            Dim currentX As Single = _imageOffsetX + _panX
+            Dim upperX As Single = CSng(ImageViewportSize.Width) / 2.0F - rotatedLeft
+            Dim lowerX As Single = upperX - rotatedWidth
+
+            ' Manual positioning must never be clamped or undone by synchronisation.
+            upperX = CSng(Math.Ceiling(Math.Max(upperX, currentX)))
+            lowerX = CSng(Math.Floor(Math.Min(lowerX, currentX)))
+            _horizontalScrollOrigin = upperX
+
+            Dim travel As Integer = Math.Max(0, CInt(Math.Ceiling(CDbl(upperX) - lowerX)))
+            Dim pageSize As Integer = ImageViewportSize.Width
+            Dim position As Integer = Math.Max(0, Math.Min(travel, CInt(Math.Round(CDbl(upperX) - currentX))))
+
+            With _imageHorizontalScrollBar
+                .Minimum = 0
+                .Maximum = travel + pageSize - 1
+                .LargeChange = pageSize
+                .SmallChange = 1
+                .Value = position
+                .Enabled = travel > 0
+            End With
+        Finally
+            _syncingHorizontalScrollBar = False
+        End Try
+
+    End Sub
+
+    Private Sub ImageHorizontalScrollBar_ValueChanged(sender As Object, e As EventArgs)
+
+        If _syncingHorizontalScrollBar OrElse _image Is Nothing Then Return
+
+        ' Keep the range fixed while dragging the thumb; update the shared pan directly.
+        _panX = _horizontalScrollOrigin - _imageHorizontalScrollBar.Value - _imageOffsetX
+        _displayImageDirty = True
+        Invalidate()
+        RaiseEvent PanChanged(Me, EventArgs.Empty)
+
+    End Sub
+
     Protected Overrides Sub OnMouseDown(e As MouseEventArgs)
 
         MyBase.OnMouseDown(e)
@@ -590,7 +728,7 @@ Public Class ScanViewerControl
 
         If _image Is Nothing Then Return 0.0F
 
-        Return (screenY - _imageOffsetY - _panY - AutoScrollPosition.Y) / _zoom
+        Return (screenY - _imageOffsetY - _panY) / _zoom
 
     End Function
 
@@ -598,7 +736,7 @@ Public Class ScanViewerControl
 
         If _image Is Nothing Then Return
 
-        _panY = screenY - _imageOffsetY - AutoScrollPosition.Y - (imageY * _zoom)
+        _panY = screenY - _imageOffsetY - (imageY * _zoom)
 
         InvalidateDisplayImage()
 
@@ -663,8 +801,8 @@ Public Class ScanViewerControl
         Dim scaledWidth As Single = _image.Width * _zoom
         Dim scaledHeight As Single = _image.Height * _zoom
 
-        Dim x As Single = _imageOffsetX + _panX + AutoScrollPosition.X
-        Dim y As Single = _imageOffsetY + _panY + AutoScrollPosition.Y
+        Dim x As Single = _imageOffsetX + _panX
+        Dim y As Single = _imageOffsetY + _panY
 
         Using matrix As New Drawing2D.Matrix()
 

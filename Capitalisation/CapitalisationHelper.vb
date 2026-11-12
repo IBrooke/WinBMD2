@@ -74,25 +74,27 @@ Friend NotInheritable Class CapitalisationHelper
     Private Shared Function ShouldUppercaseNameCharacter(currentText As String, caretPosition As Integer) As Boolean
 
         ' The first letter of the value is uppercase.
-        If caretPosition <= 0 OrElse String.IsNullOrEmpty(currentText) Then
-            Return True
-        End If
+        If caretPosition <= 0 OrElse String.IsNullOrEmpty(currentText) Then Return True
 
-        ' A letter following a space, apostrophe or hyphen starts a new name part.
+        ' A space, apostrophe or hyphen starts a new name part.
         Dim previousCharacter As Char = currentText(caretPosition - 1)
 
-        If Char.IsWhiteSpace(previousCharacter) OrElse previousCharacter = "'"c OrElse previousCharacter = "-"c Then
-            Return True
-        End If
+        If Char.IsWhiteSpace(previousCharacter) OrElse previousCharacter = "'"c OrElse previousCharacter = "-"c Then Return True
 
-        ' Capitalise the third letter of a name beginning with Mc.
+        ' Capitalise after Mc only when Mc starts a name part.
         If caretPosition >= 2 Then
 
-            Dim firstCharacter As Char = currentText(caretPosition - 2)
-            Dim secondCharacter As Char = currentText(caretPosition - 1)
+            Dim prefixStart As Integer = caretPosition - 2
+            Dim firstCharacter As Char = currentText(prefixStart)
+            Dim secondCharacter As Char = currentText(prefixStart + 1)
 
             If Char.ToUpper(firstCharacter) = "M"c AndAlso Char.ToUpper(secondCharacter) = "C"c Then
-                Return True
+
+                If prefixStart = 0 Then Return True
+
+                Dim beforePrefix As Char = currentText(prefixStart - 1)
+                Return Char.IsWhiteSpace(beforePrefix) OrElse beforePrefix = "'"c OrElse beforePrefix = "-"c
+
             End If
 
         End If

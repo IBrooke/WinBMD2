@@ -8,6 +8,7 @@ Public Class ScanView
     Private ReadOnly _rulerController As RulerController
     Public Event RulerSetupStarted As EventHandler
     Public Event RulerSetupFinished As EventHandler
+    Public Event ScanPositionReady As EventHandler      ' Raised after a scan and its saved display settings have been loaded.
     Public Event VerifyFieldFocused(field As GridField)
     Public Event VerifyArrangeModeChanged(active As Boolean)
     Private _rulerInstructionForm As RulerInstructionForm
@@ -25,11 +26,6 @@ Public Class ScanView
         _verifyBar.RefreshFont()
 
     End Sub
-    Public Function GetVerifyValues() As Dictionary(Of GridField, String)
-
-        Return _verifyBar.GetValues()
-
-    End Function
 
     Public Sub FocusFirstVerifyBox()
 
@@ -337,6 +333,8 @@ Public Class ScanView
 
         UpdateZoomDisplay()
 
+        RaiseEvent ScanPositionReady(Me, EventArgs.Empty)
+
     End Sub
 
     Public Sub ApplyColourScheme()
@@ -448,11 +446,11 @@ Public Class ScanView
                 Return True
 
             Case Keys.Up
-                _commandExecutor.NudgeScan(0, -nudge)
+                _commandExecutor.NudgeScan(0, nudge)
                 Return True
 
             Case Keys.Down
-                _commandExecutor.NudgeScan(0, nudge)
+                _commandExecutor.NudgeScan(0, -nudge)
                 Return True
 
             Case Keys.Enter
@@ -630,13 +628,17 @@ Public Class ScanView
         _rulerController.UpdateRulerHeight()
 
     End Sub
-    Friend Function GetScanRowDistance() As Single
-
-        If Math.Abs(_rulerController.RowStepImageY) < 0.001F Then Return 0.0F
-
-        Return Math.Abs(_rulerController.RowStepImageY * _viewer.Zoom)
-
+    ' Nothing means that no scan is loaded, so an existing saved position should be retained.
+    Friend Function GetScanPositionY() As Double?
+        If Not _viewer.HasImage Then Return Nothing
+        Return _viewer.GetScanPositionY()
     End Function
+
+    ' Call after the scan and its saved zoom and rotation have been loaded.
+    Friend Sub RestoreScanPositionY(value As Double)
+        If Not _viewer.HasImage Then Return
+        _viewer.SetScanPositionY(value)
+    End Sub
     Public ReadOnly Property MaximumRulerHeight As Integer
         Get
             Return _rulerController.MaximumRulerHeight

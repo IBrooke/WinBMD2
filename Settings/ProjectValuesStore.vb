@@ -3,56 +3,93 @@ Imports System.Text.Json
 Imports System.Text.Json.Nodes
 Imports System.Drawing
 Public Module ProjectValuesStore
-    Private ReadOnly _saveTimer As New System.Windows.Forms.Timer With {.Interval = 2000}
+    Private ReadOnly _saveTimer As New System.Windows.Forms.Timer With {.Interval = 10000}
     Private _savePending As Boolean = False
-    Public Sub Initialise()
+    Public Event SavingSettings()       ' Allows the open batch to update its MRU position before settings are written.
+    Private _settingsReady As Boolean = False   ' Saving is allowed only after settings have been loaded or defaults accepted.
+
+    Public Function Initialise() As Boolean
+
         DebugLog.WriteAlways("[SETTINGS] ProjectValuesStore.Initialise called.")
 
+        _settingsReady = False
+        _savePending = False
+        _saveTimer.Stop()
+
+        If Not Load() Then Return False
+
+        _settingsReady = True
+
+        ' Register these only after the user has agreed to continue.
+        RemoveHandler _saveTimer.Tick, AddressOf SaveTimer_Tick
+        RemoveHandler Application.ApplicationExit, AddressOf SaveTimer_Tick
         AddHandler _saveTimer.Tick, AddressOf SaveTimer_Tick
-        AddHandler System.Windows.Forms.Application.ApplicationExit, AddressOf SaveTimer_Tick
+        AddHandler Application.ApplicationExit, AddressOf SaveTimer_Tick
 
-        AppPaths.EnsureFoldersExist()
-        Load()
         ProjectValues.WriteToDebugLog()
-    End Sub
+        Return True
 
-    Public Sub Load()
+    End Function
+    Public Function Load() As Boolean
 
         ProjectValues.LoadingPersistedValues = True
 
         Try
 
-            Dim values As New ProjectValuesData()
+
+            Dim values As ProjectValuesData = Nothing
+            Dim recoveredFromBackup As Boolean = False
+
+            DebugLog.WriteAlways($"[SETTINGS] General settings path: {AppPaths.SettingsFilePath}")
 
             For Each filePath As String In {AppPaths.SettingsFilePath, AppPaths.SettingsFilePath & ".bak"}
 
-                Try
+                Dim isBackup As Boolean = filePath <> AppPaths.SettingsFilePath
+                values = TryReadGeneralSettings(filePath, isBackup)
 
-                    If Not File.Exists(filePath) Then Continue For
-
-                    Dim json As String = File.ReadAllText(filePath)
-                    Dim loadedValues As ProjectValuesData = JsonSerializer.Deserialize(Of ProjectValuesData)(json)
-
-                    If loadedValues IsNot Nothing Then
-
-                        values = loadedValues
-
-                        If filePath <> AppPaths.SettingsFilePath Then
-                            DebugLog.WriteAlways("[SETTINGS] General settings recovered from backup.")
-                        End If
-
-                        Exit For
-
-                    End If
-
-                Catch ex As Exception
-
-                    DebugLog.WriteAlways($"[SETTINGS] Could not load '{Path.GetFileName(filePath)}': {ex.Message}")
-
-                End Try
+                If values IsNot Nothing Then
+                    recoveredFromBackup = isBackup
+                    Exit For
+                End If
 
             Next
 
+            If values Is Nothing Then
+
+                If Not AskToContinueWithDefaultSettings() Then
+                    DebugLog.WriteAlways("[SETTINGS] User declined standard settings. No settings will be saved.")
+                    Return False
+                End If
+
+                DebugLog.WriteAlways("[SETTINGS] User accepted standard settings.")
+                PreserveSettingsForRecovery()
+                values = New ProjectValuesData()
+
+            ElseIf recoveredFromBackup Then
+
+                DebugLog.WriteAlways("[SETTINGS] General settings recovered from backup.")
+
+                Dim choice As DialogResult = MessageBox.Show(
+                    "WinBMD2 could not load your main settings file, but has recovered settings from its automatic backup." &
+                    Environment.NewLine & Environment.NewLine &
+                    "Some recent changes to your preferences or recent-file list may be missing." &
+                    Environment.NewLine & Environment.NewLine &
+                    "Click OK to continue using these recovered settings." &
+                    Environment.NewLine &
+                    "Click Cancel to close WinBMD2 without saving settings, so you can restore another backup.",
+                    "WinBMD2 — Settings recovered",
+                    MessageBoxButtons.OKCancel,
+                    MessageBoxIcon.Warning,
+                    MessageBoxDefaultButton.Button2)
+
+                If choice <> DialogResult.OK Then
+                    DebugLog.WriteAlways("[SETTINGS] User declined recovered settings. Closing without saving.")
+                    Return False
+                End If
+
+                PreserveSettingsForRecovery()
+
+            End If
 
             ProjectValues.FilePanelExpanded = values.FilePanelExpanded
             ProjectValues.TranscriptionFormBounds =
@@ -180,11 +217,34 @@ Public Module ProjectValuesStore
 
             Next
 
-            ProjectValues.RecentFiles = If(values.RecentFiles, New List(Of String))
+            ProjectValues.RecentFiles =
+    If(values.RecentFiles, New List(Of RecentFileEntry))
+
+            ProjectValues.RecentFiles.RemoveAll(
+    Function(entry) entry Is Nothing OrElse
+                    String.IsNullOrWhiteSpace(entry.FilePath))
+
+            While ProjectValues.RecentFiles.Count > 10
+                ProjectValues.RecentFiles.RemoveAt(
+        ProjectValues.RecentFiles.Count - 1)
+            End While
             SanityCheckPersistedValues()
+            Return True
+
         Catch ex As Exception
 
-            DebugLog.WriteAlways($"[SETTINGS] Error restoring settings: {ex.Message}")
+            DebugLog.WriteAlways($"[SETTINGS] Error applying settings: {ex}")
+
+            ' File-loading failures are handled above. This is an unexpected
+            ' error applying values, so do not save a partially restored state.
+            MessageBox.Show(
+                "WinBMD2 encountered an unexpected error while applying your settings and must close." &
+                Environment.NewLine & Environment.NewLine &
+                "No settings will be saved. Details have been written to the debug log." &
+                Environment.NewLine & Environment.NewLine & ex.Message,
+                "WinBMD2 — Settings error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+
+            Return False
 
         Finally
 
@@ -192,7 +252,7 @@ Public Module ProjectValuesStore
 
         End Try
 
-    End Sub
+    End Function
 
     Private Sub WriteSettingsFile(filePath As String, json As String)
 
@@ -294,7 +354,10 @@ Public Module ProjectValuesStore
     End Sub
     Private Sub SaveImmediately()
 
+        If Not _settingsReady OrElse ProjectValues.LoadingPersistedValues Then Return
+
         Try
+            RaiseEvent SavingSettings()
             AppPaths.EnsureFoldersExist()
 
             Dim values As New ProjectValuesData With {
@@ -360,7 +423,8 @@ Public Module ProjectValuesStore
                 .SaveFolder = ProjectValues.SaveFolder,
                 .OutputCharacterSet = ProjectValues.OutputCharacterSet,
                 .UploadServerUrl = ProjectValues.UploadServerUrl,
-                .SkipSurname = ProjectValues.SkipSurname
+                .SkipSurname = ProjectValues.SkipSurname,
+                .FirstRun = False
             }
 
             Dim options As New JsonSerializerOptions With {
@@ -394,6 +458,12 @@ Public Module ProjectValuesStore
             DebugLog.WriteAlways($"[SETTINGS] Error saving settings: {ex.Message}")
         End Try
     End Sub
+    ' Writes the current settings immediately before switching batches or closing.
+    Public Sub Flush()
+        _saveTimer.Stop()
+        _savePending = False
+        SaveImmediately()
+    End Sub
     Private Sub SaveTimer_Tick(sender As Object, e As EventArgs)
 
         _saveTimer.Stop()
@@ -422,6 +492,180 @@ Public Module ProjectValuesStore
                 DebugLog.WriteAlways($"[SETTINGS] Invalid scan Rotation={setting.Rotation} for '{item.Key}'. Reset to 0.")
                 setting.Rotation = 0.0F
             End If
+
+        Next
+
+    End Sub
+    Private Function TryReadGeneralSettings(filePath As String, isBackup As Boolean) As ProjectValuesData
+
+        Try
+
+            DebugLog.WriteAlways($"[SETTINGS] Attempting to load: {filePath}")
+
+            ' Read directly so an access error is not mistaken for a missing file.
+            Dim json As String = File.ReadAllText(filePath)
+            Dim settings As JsonObject = TryCast(JsonNode.Parse(json), JsonObject)
+
+            If settings Is Nothing OrElse settings.Count = 0 Then
+                Throw New InvalidDataException("The file does not contain a settings object.")
+            End If
+
+            ' Retain support for the older filename-only recent-file list.
+            Dim recentFiles As JsonArray = TryCast(settings("RecentFiles"), JsonArray)
+
+            If recentFiles IsNot Nothing Then
+
+                For index As Integer = 0 To recentFiles.Count - 1
+
+                    Dim oldEntry As JsonValue = TryCast(recentFiles(index), JsonValue)
+                    Dim recentPath As String = Nothing
+
+                    If oldEntry IsNot Nothing AndAlso oldEntry.TryGetValue(Of String)(recentPath) Then
+                        recentFiles(index) = New JsonObject From {{"FilePath", JsonValue.Create(recentPath)}}
+                    End If
+
+                Next
+
+            End If
+
+            Dim values As ProjectValuesData = JsonSerializer.Deserialize(Of ProjectValuesData)(settings.ToJsonString())
+
+            If values Is Nothing Then
+                Throw New InvalidDataException("No settings could be read.")
+            End If
+
+            If values.FirstRun Then
+
+                ' A first-run template is not a recovery copy of user settings.
+                If isBackup Then
+                    Throw New InvalidDataException("The backup contains a first-run template.")
+                End If
+
+                DebugLog.WriteAlways("[SETTINGS] Installer first-run file recognised.")
+                Return New ProjectValuesData()
+
+            End If
+
+            DebugLog.WriteAlways($"[SETTINGS] Successfully loaded: {filePath}")
+            Return values
+
+        Catch ex As FileNotFoundException
+
+            DebugLog.WriteAlways($"[SETTINGS] File missing: {filePath}")
+
+        Catch ex As DirectoryNotFoundException
+
+            DebugLog.WriteAlways($"[SETTINGS] Folder missing: {filePath}")
+
+        Catch ex As Exception
+
+            DebugLog.WriteAlways($"[SETTINGS] Could not load '{filePath}': {ex}")
+
+        End Try
+
+        Return Nothing
+
+    End Function
+    Private Function AskToContinueWithDefaultSettings() As Boolean
+
+        Using dialog As New Form()
+
+            dialog.Text = "WinBMD2 — Your settings could not be loaded"
+            dialog.StartPosition = FormStartPosition.CenterScreen
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog
+            dialog.MinimizeBox = False
+            dialog.MaximizeBox = False
+            dialog.AutoScaleMode = AutoScaleMode.Font
+            dialog.AutoSize = True
+            dialog.AutoSizeMode = AutoSizeMode.GrowAndShrink
+            dialog.Font = SystemFonts.MessageBoxFont
+
+            Dim message As New Label With {
+                .AutoSize = True,
+                .MaximumSize = New Size(580, 0),
+                .Margin = New Padding(0, 0, 0, 20),
+                .Text = "WinBMD2 cannot find or read your settings or its automatic backup." &
+                    Environment.NewLine & Environment.NewLine &
+                    "If you have a backup of your settings, choose Close WinBMD2 so that you or someone helping you can restore it." &
+                    Environment.NewLine & Environment.NewLine &
+                    "Otherwise, choose Continue with standard settings. You may need to enter your contributor details again, choose your preferred appearance and locate your batch file." &
+                    Environment.NewLine & Environment.NewLine &
+                    "We have not checked whether your transcription files are still available."
+            }
+
+            Dim closeButton As New Button With {
+                .Text = "Close WinBMD2",
+                .AutoSize = True,
+                .Padding = New Padding(8, 5, 8, 5),
+                .DialogResult = DialogResult.Cancel,
+                .TabIndex = 0
+            }
+
+            Dim continueButton As New Button With {
+                .Text = "Continue with standard settings",
+                .AutoSize = True,
+                .Padding = New Padding(8, 5, 8, 5),
+                .DialogResult = DialogResult.OK,
+                .TabIndex = 1
+            }
+
+            Dim buttons As New FlowLayoutPanel With {
+                .AutoSize = True,
+                .FlowDirection = FlowDirection.LeftToRight,
+                .WrapContents = False,
+                .Margin = New Padding(0)
+            }
+
+            buttons.Controls.Add(closeButton)
+            buttons.Controls.Add(continueButton)
+
+            Dim layout As New TableLayoutPanel With {
+                .AutoSize = True,
+                .AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                .ColumnCount = 1,
+                .RowCount = 2,
+                .Padding = New Padding(20),
+                .Dock = DockStyle.Fill
+            }
+
+            layout.Controls.Add(message, 0, 0)
+            layout.Controls.Add(buttons, 0, 1)
+            dialog.Controls.Add(layout)
+
+            dialog.CancelButton = closeButton
+            dialog.AcceptButton = closeButton
+            dialog.ActiveControl = closeButton
+
+            Return dialog.ShowDialog() = DialogResult.OK
+
+        End Using
+
+    End Function
+    Private Sub PreserveSettingsForRecovery()
+
+        Dim suffix As String = ".recovery-" & DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") & "-" & Guid.NewGuid().ToString("N")
+
+        For Each filePath As String In {AppPaths.SettingsFilePath, AppPaths.SettingsFilePath & ".bak"}
+
+            Try
+
+                Dim recoveryPath As String = filePath & suffix
+                File.Copy(filePath, recoveryPath, False)
+                DebugLog.WriteAlways($"[SETTINGS] Preserved recovery copy: {recoveryPath}")
+
+            Catch ex As FileNotFoundException
+
+                ' There is no file to preserve.
+
+            Catch ex As DirectoryNotFoundException
+
+                ' There is no folder containing a file to preserve.
+
+            Catch ex As Exception
+
+                DebugLog.WriteAlways($"[SETTINGS] Could not preserve '{filePath}': {ex}")
+
+            End Try
 
         Next
 
@@ -499,11 +743,12 @@ Public Module ProjectValuesStore
         Public Property VerifyFontSize As Single = 0
         Public Property VerifyFontStyle As FontStyle = FontStyle.Regular
         Public Property VerifyFontColor As Integer = Color.Empty.ToArgb()
-        Public Property RecentFiles As New List(Of String)
+        Public Property RecentFiles As New List(Of RecentFileEntry)
         Public Property HelpFormBounds As New FormBoundsData()
         Public Property RulerColourArgb As Integer = Color.Red.ToArgb()
         Public Property RulerTranslucent As Boolean = False
         Public Property RulerHeight As Integer = 4
+        Public Property FirstRun As Boolean = False             ' True only in the installer-supplied template json.
     End Class
 
 End Module

@@ -139,6 +139,7 @@ Public Module ProjectValues
     Public Property SourceRef As String = ""
     Public Property Syndicate As String = ""
     Public Property Comments As String = ""
+    Public Const coWildChars As String = "[]*?_{}"
 
 #End Region
 
@@ -154,7 +155,7 @@ Public Module ProjectValues
     Public Property VerifyFontStyle As FontStyle = FontStyle.Regular
     Public Property VerifyFontColor As Integer = Color.Empty.ToArgb()
     Public Property ValidationMode As ValidationMode = ValidationMode.Entry
-    Public Property RecentFiles As New List(Of String)
+    Public Property RecentFiles As New List(Of RecentFileEntry)
     Public Property RulerColourArgb As Integer = Color.Red.ToArgb()
     Public Property RulerTranslucent As Boolean = False
 #End Region
@@ -287,4 +288,15 @@ Public Module ProjectValues
         DebugLog.WriteAlways("==============================")
 
     End Sub
+    ' Finds the most recently used path for this batch name.
+    ' Older settings without a matching MRU entry use the default save folder.
+    Public Function GetBatchFilePath(batchName As String) As String
+        If String.IsNullOrWhiteSpace(batchName) Then Return ""
+
+        Dim entry As RecentFileEntry = RecentFiles.Find(Function(item) String.Equals(System.IO.Path.GetFileName(item.FilePath), batchName, StringComparison.OrdinalIgnoreCase))
+
+        If entry IsNot Nothing Then Return entry.FilePath
+
+        Return System.IO.Path.Combine(AppPaths.SaveFolder, batchName)
+    End Function
 End Module

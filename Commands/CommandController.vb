@@ -1,4 +1,5 @@
 ﻿Imports System.IO
+Imports System.Runtime.InteropServices
 
 Public NotInheritable Class CommandController
     Inherits ApplicationContext
@@ -8,10 +9,92 @@ Public NotInheritable Class CommandController
     Private _scanView As ScanView
     Private _startingNewFile As Boolean
     Private _previousGridRow As Integer = 0
+    ' Prevents startup positions from overwriting the position being restored.
+    Private _restoringPosition As Boolean
+    Private _bringingFormsForward As Boolean
 
+    Private Const SWP_NOSIZE As UInteger = &H1UI
+    Private Const SWP_NOMOVE As UInteger = &H2UI
+    Private Const SWP_NOACTIVATE As UInteger = &H10UI
+    Private Const SWP_NOOWNERZORDER As UInteger = &H200UI
+
+    <DllImport("user32.dll", SetLastError:=True)>
+    Private Shared Function SetWindowPos(hWnd As IntPtr, hWndInsertAfter As IntPtr, x As Integer, y As Integer, cx As Integer, cy As Integer, flags As UInteger) As Boolean
+    End Function
+
+    ' Identifies the batch belonging to the image currently displayed.
+    Private _scanPositionEntry As RecentFileEntry
+
+    ' Retains a startup scan position if the scan is opened later.
+    Private _pendingScanEntry As RecentFileEntry
+    Private _pendingScanY As Double?
+
+    ' Copies the current position into the MRU immediately before JSON is written.
+    ' This routine does not request another save.
+    Private Sub CaptureCurrentPosition()
+        If _restoringPosition Then Return
+        If _transcriptionForm Is Nothing OrElse _transcriptionForm.IsDisposed Then Return
+
+        Dim entry As RecentFileEntry = _transcriptionForm.PositionEntry
+        Dim rowIndex As Integer? = _transcriptionForm.CurrentPositionRow
+
+        If entry Is Nothing OrElse Not rowIndex.HasValue Then Return
+
+        entry.GridRow = rowIndex.Value
+
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+        If Not Object.ReferenceEquals(entry, _scanPositionEntry) Then Return
+
+        Dim scanY As Double? = _scanView.GetScanPositionY()
+        If scanY.HasValue Then entry.ScanY = scanY.Value
+    End Sub
+
+    ' Associates the loaded image with the current batch.
+    ' A pending startup position is applied when a previously unavailable scan opens.
+    Private Sub ScanView_ScanPositionReady(sender As Object, e As EventArgs)
+        If Not Object.ReferenceEquals(sender, _scanView) Then Return
+        If _transcriptionForm Is Nothing OrElse _transcriptionForm.IsDisposed Then Return
+
+        _scanPositionEntry = _transcriptionForm.PositionEntry
+
+        If _pendingScanY.HasValue AndAlso Object.ReferenceEquals(_pendingScanEntry, _scanPositionEntry) Then
+            _scanView.RestoreScanPositionY(_pendingScanY.Value)
+            _pendingScanY = Nothing
+            _pendingScanEntry = Nothing
+        End If
+    End Sub
+
+    ' Shared by batch resume and workfile recovery.
+    ' Select the grid row first because that selection can move the scan.
+    Private Sub RestoreLastPosition()
+        Dim entry As RecentFileEntry = _transcriptionForm.PositionEntry
+
+        If entry Is Nothing Then
+            _transcriptionForm.FocusGridRow(0)
+            Return
+        End If
+
+        _transcriptionForm.RestorePositionRow(entry.GridRow.GetValueOrDefault(0))
+
+        If _transcriptionForm.CurrentGridCell IsNot Nothing Then
+            _previousGridRow = _transcriptionForm.CurrentGridCell.RowIndex + 1
+        End If
+
+        If Not entry.ScanY.HasValue Then Return
+
+        If _scanView IsNot Nothing AndAlso Not _scanView.IsDisposed AndAlso _scanView.HasScan Then
+            _scanView.RestoreScanPositionY(entry.ScanY.Value)
+        Else
+            _pendingScanEntry = entry
+            _pendingScanY = entry.ScanY.Value
+        End If
+    End Sub
     Public Sub Start(Optional startupFile As String = "")
 
         DebugLog.WriteAlways("[STARTUP] CommandController.Start entered. startupFile='" & startupFile & "'")
+
+        RemoveHandler ProjectValuesStore.SavingSettings, AddressOf CaptureCurrentPosition
+        AddHandler ProjectValuesStore.SavingSettings, AddressOf CaptureCurrentPosition
 
         If Not String.IsNullOrWhiteSpace(startupFile) Then
             DebugLog.WriteAlways($"[STARTUP] Opening command-line file: '{startupFile}'")
@@ -30,7 +113,7 @@ Public NotInheritable Class CommandController
         MessageBoxIcon.Question)
 
             If answer = DialogResult.Yes Then
-                ShowTranscriptionForms(recoveringWorkfile:=True)
+                ShowTranscriptionForms(recoveringWorkfile:=True, restorePosition:=True)
                 Return
             End If
 
@@ -39,7 +122,7 @@ Public NotInheritable Class CommandController
         ' If the previous batch still exists, offer to continue working on it.
         If Not String.IsNullOrWhiteSpace(ProjectValues.BatchName) Then
 
-            Dim filePath As String = Path.Combine(AppPaths.SaveFolder, ProjectValues.BatchName)
+            Dim filePath As String = ProjectValues.GetBatchFilePath(ProjectValues.BatchName)
 
             If File.Exists(filePath) Then
 
@@ -51,7 +134,7 @@ Public NotInheritable Class CommandController
                     MessageBoxIcon.Question)
 
                 If answer = DialogResult.Yes Then
-                    ShowTranscriptionForms(filePath)
+                    ShowTranscriptionForms(filePath, restorePosition:=True)
                     Return
                 End If
 
@@ -164,20 +247,28 @@ Public NotInheritable Class CommandController
 
     End Sub
 
-    Private Async Sub ShowTranscriptionForms(Optional filePath As String = "", Optional recoveringWorkfile As Boolean = False)
+    Private Async Sub ShowTranscriptionForms(Optional filePath As String = "", Optional recoveringWorkfile As Boolean = False, Optional restorePosition As Boolean = False)
 
+        _restoringPosition = True
+        _scanPositionEntry = Nothing
+        _pendingScanEntry = Nothing
+        _pendingScanY = Nothing
         _previousGridRow = 0
 
         _transcriptionForm = New TranscriptionForm(Me)
         _scanView = New ScanView(Me)
 
+        AddHandler _transcriptionForm.Activated, AddressOf WorkingForm_Activated
+        AddHandler _scanView.Activated, AddressOf WorkingForm_Activated
         AddHandler _transcriptionForm.FormClosed, AddressOf TranscriptionForm_FormClosed
         AddHandler _transcriptionForm.Resize, AddressOf TranscriptionForm_Resize
         AddHandler _transcriptionForm.CurrentGridRowChanged, AddressOf TranscriptionForm_CurrentGridRowChanged
+        AddHandler _transcriptionForm.VerifyValuesChanged, AddressOf TranscriptionForm_VerifyValuesChanged
         AddHandler _scanView.RulerSetupFinished, AddressOf ScanView_RulerSetupFinished
         AddHandler _scanView.VerifyArrangeModeChanged, AddressOf ScanView_VerifyArrangeModeChanged
         AddHandler _scanView.Resize, AddressOf ScanView_Resize
         AddHandler _scanView.VerifyFieldFocused, AddressOf ScanView_VerifyFieldFocused
+        AddHandler _scanView.ScanPositionReady, AddressOf ScanView_ScanPositionReady
 
         MainForm = _transcriptionForm
 
@@ -226,7 +317,61 @@ Public NotInheritable Class CommandController
             Await _scanView.FindScanAsync()
         End If
 
-        _transcriptionForm.FocusGridRow(0)
+        If _transcriptionForm.IsDisposed OrElse _scanView.IsDisposed Then Return
+
+        Try
+            If restorePosition Then
+                RestoreLastPosition()
+            Else
+                _transcriptionForm.FocusGridRow(0)
+            End If
+        Finally
+            _restoringPosition = False
+        End Try
+
+    End Sub
+    ' Brings the companion window directly behind the activated window.
+    ' The activated window retains keyboard focus.
+    Private Sub WorkingForm_Activated(sender As Object, e As EventArgs)
+
+        If _bringingFormsForward Then Return
+
+        Dim activeWindow As Form = TryCast(sender, Form)
+        Dim otherWindow As Form
+
+        If activeWindow Is Nothing Then Return
+
+        If activeWindow Is _transcriptionForm Then
+            otherWindow = _scanView
+        ElseIf activeWindow Is _scanView Then
+            otherWindow = _transcriptionForm
+        Else
+            Return
+        End If
+
+        If activeWindow.IsDisposed OrElse activeWindow.Disposing Then Return
+        If otherWindow Is Nothing OrElse otherWindow.IsDisposed OrElse otherWindow.Disposing Then Return
+
+        If Not activeWindow.Visible OrElse Not otherWindow.Visible Then Return
+        If Not activeWindow.Enabled OrElse Not otherWindow.Enabled Then Return
+        If activeWindow.WindowState = FormWindowState.Minimized OrElse otherWindow.WindowState = FormWindowState.Minimized Then Return
+        If Not activeWindow.IsHandleCreated OrElse Not otherWindow.IsHandleCreated Then Return
+
+        _bringingFormsForward = True
+
+        Try
+
+            Dim flags As UInteger = SWP_NOSIZE Or SWP_NOMOVE Or SWP_NOACTIVATE Or SWP_NOOWNERZORDER
+
+            If Not SetWindowPos(otherWindow.Handle, activeWindow.Handle, 0, 0, 0, 0, flags) Then
+                DebugLog.Write($"[WINDOWS] Could not bring companion window forward. Windows error={Marshal.GetLastWin32Error()}")
+            End If
+
+        Finally
+
+            _bringingFormsForward = False
+
+        End Try
 
     End Sub
     Public Sub ToggleVerify() Implements ICommandExecutor.ToggleVerify
@@ -255,6 +400,9 @@ Public NotInheritable Class CommandController
             _scanView.Hide()
             Return
         End If
+
+        CaptureCurrentPosition()
+        _scanPositionEntry = Nothing
 
         _scanView.ClearScan()
         _scanView.Show()
@@ -305,8 +453,10 @@ Public NotInheritable Class CommandController
             Return
         End If
 
-        Dim values As Dictionary(Of GridField, String) = _scanView.GetVerifyValues()
-        Dim nextRow As Integer = _transcriptionForm.CompleteCurrentVerify(values)
+        ' Commit any grid correction before verifying the current verification row.
+        _transcriptionForm.EndGridEdit()
+
+        Dim nextRow As Integer = _transcriptionForm.CompleteCurrentVerify()
 
         If nextRow = -2 Then
 
@@ -348,6 +498,21 @@ Public NotInheritable Class CommandController
         If Not _scanView.RulerVisible Then Return
 
         _scanView.MoveScanByRows(deltaRows)
+
+    End Sub
+    Private Sub TranscriptionForm_VerifyValuesChanged(sender As Object, e As EventArgs)
+
+        If _transcriptionForm Is Nothing OrElse _transcriptionForm.IsDisposed Then Return
+        If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+        If Not _scanView.VerifyVisible Then Return
+
+        ' Refresh the fixed verification row without moving the scan, grid or focus.
+        ' Reload the previous surname too, because a correction may change the hyphens.
+        Dim values As Dictionary(Of GridField, String) = _transcriptionForm.GetCurrentVerifyValues()
+
+        If values Is Nothing Then Return
+
+        _scanView.LoadVerifyValues(values, _transcriptionForm.GetPreviousVerifySurname())
 
     End Sub
     Private Sub ScanView_RulerSetupFinished(sender As Object, e As EventArgs)
@@ -615,12 +780,15 @@ Public NotInheritable Class CommandController
 
                 End If
 
-                Dim filePath As String =
-                    Path.Combine(
-                    AppPaths.SaveFolder,
-                    ProjectValues.BatchName)
+                Dim filePath As String = Path.Combine(AppPaths.SaveFolder, ProjectValues.BatchName)
+
+                If _transcriptionForm.PositionEntry IsNot Nothing AndAlso String.Equals(Path.GetFileName(_transcriptionForm.PositionEntry.FilePath), ProjectValues.BatchName, StringComparison.OrdinalIgnoreCase) Then
+                    filePath = _transcriptionForm.PositionEntry.FilePath
+                End If
 
                 If _transcriptionForm.SaveCurrentBatch(filePath) Then
+
+                    RememberSavedBatch(filePath)
 
                     DebugLog.WriteAlways($"[SAVE] File saved successfully: '{filePath}'")
 
@@ -643,9 +811,7 @@ Public NotInheritable Class CommandController
 
             Case AppCommand.SaveFileAs
 
-                If _transcriptionForm Is Nothing Then
-                    Return
-                End If
+                If _transcriptionForm Is Nothing Then Return
 
                 Using dialog As New SaveFileDialog()
 
@@ -655,30 +821,30 @@ Public NotInheritable Class CommandController
                     dialog.AddExtension = True
                     dialog.FileName = ProjectValues.BatchName
 
-                    If dialog.ShowDialog(_transcriptionForm) <> DialogResult.OK Then
-                        Return
-                    End If
+                    If dialog.ShowDialog(_transcriptionForm) <> DialogResult.OK Then Return
 
-                    If _transcriptionForm.SaveCurrentBatch(dialog.FileName) Then
+                    Dim originalBatchName As String = ProjectValues.BatchName
+                    Dim saved As Boolean = False
 
+                    Try
+                        ' The file header must contain the destination filename.
                         ProjectValues.BatchName = Path.GetFileName(dialog.FileName)
-                        ProjectValuesStore.Save()
+                        saved = _transcriptionForm.SaveCurrentBatch(dialog.FileName)
+                    Finally
+                        ' A failed save must not rename the current batch.
+                        If Not saved Then ProjectValues.BatchName = originalBatchName
+                    End Try
 
+                    If saved Then
+
+                        RememberSavedBatch(dialog.FileName)
                         _transcriptionForm.UpdateStatusPosition()
 
-                        MessageBox.Show(
-                            $"{ProjectValues.BatchName} has been saved.",
-                            "Save Batch As",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Information)
+                        MessageBox.Show($"{ProjectValues.BatchName} has been saved.", "Save Batch As", MessageBoxButtons.OK, MessageBoxIcon.Information)
 
                     Else
 
-                        MessageBox.Show(
-                            "The batch could not be saved.",
-                            "Save Batch As",
-                            MessageBoxButtons.OK,
-                            MessageBoxIcon.Error)
+                        MessageBox.Show("The batch could not be saved.", "Save Batch As", MessageBoxButtons.OK, MessageBoxIcon.Error)
 
                     End If
 
@@ -714,9 +880,59 @@ Public NotInheritable Class CommandController
         End Select
 
     End Sub
+    ' Associates a successfully saved batch with its MRU entry.
+    ' Save As keeps the original entry and gives the destination its own position.
+    Private Sub RememberSavedBatch(filePath As String)
+        CaptureCurrentPosition()
+
+        Dim previousEntry As RecentFileEntry = _transcriptionForm.PositionEntry
+        Dim scanY As Double? = Nothing
+
+        If previousEntry IsNot Nothing Then scanY = previousEntry.ScanY
+
+        ' Only read the displayed image if it belongs to the batch being saved.
+        Dim scanBelongsToBatch As Boolean = Object.ReferenceEquals(previousEntry, _scanPositionEntry)
+
+        If scanBelongsToBatch AndAlso _scanView IsNot Nothing AndAlso Not _scanView.IsDisposed Then
+            Dim displayedY As Double? = _scanView.GetScanPositionY()
+            If displayedY.HasValue Then scanY = displayedY.Value
+        End If
+
+        Dim entry As RecentFileEntry = ProjectValues.RecentFiles.Find(Function(item) String.Equals(item.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+
+        If entry Is Nothing Then
+            entry = New RecentFileEntry With {.FilePath = filePath}
+        End If
+
+        entry.FilePath = filePath
+        entry.GridRow = _transcriptionForm.CurrentPositionRow
+        entry.ScanY = scanY
+
+        ProjectValues.RecentFiles.RemoveAll(Function(item) String.Equals(item.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+        ProjectValues.RecentFiles.Insert(0, entry)
+
+        While ProjectValues.RecentFiles.Count > 10
+            ProjectValues.RecentFiles.RemoveAt(ProjectValues.RecentFiles.Count - 1)
+        End While
+
+        _transcriptionForm.SelectPositionEntry(filePath)
+
+        If scanBelongsToBatch Then _scanPositionEntry = entry
+
+        If _pendingScanY.HasValue AndAlso Object.ReferenceEquals(_pendingScanEntry, previousEntry) Then
+            _pendingScanEntry = entry
+        End If
+
+        ProjectValuesStore.Save()
+    End Sub
     Public Async Function RefreshScanAsync() As Task Implements ICommandExecutor.RefreshScanAsync
 
         If _scanView Is Nothing OrElse _scanView.IsDisposed Then Return
+
+        ' The old scan must not be recorded against a newly loaded batch.
+        _scanPositionEntry = Nothing
+        _pendingScanEntry = Nothing
+        _pendingScanY = Nothing
 
         _scanView.ClearScan()
 

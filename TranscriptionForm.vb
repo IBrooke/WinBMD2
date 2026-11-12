@@ -7,6 +7,7 @@ Public Class TranscriptionForm
     Private ReadOnly _workfile As New Workfile()
     Private ReadOnly _changeState As New ChangeState()
     Public Event CurrentGridRowChanged As EventHandler
+    Public Event VerifyValuesChanged As EventHandler
     Private ReadOnly _commandExecutor As ICommandExecutor
     Private _configuringGrid As Boolean
     Private _refreshingGrid As Boolean
@@ -403,6 +404,8 @@ Public Class TranscriptionForm
 
     Public Function LoadBatchFile(filePath As String) As Boolean
 
+        ProjectValuesStore.Flush()      ' Capture the outgoing batch before loading another one.
+
         SaveFormBounds()
 
         _refreshingGrid = True
@@ -412,6 +415,8 @@ Public Class TranscriptionForm
             _commandExecutor.ResetPreviousGridRow()
 
             If Not LoadSaveFiles.Load(filePath, transcriptionGrid, AddressOf ConfigureGridColumns) Then Return False
+
+            SelectPositionEntry(filePath)
 
             FinishLoadingBatch()
 
@@ -1118,7 +1123,8 @@ Public Class TranscriptionForm
     Private Sub BuildOpenFileMenu()
         _openFileMenu.Items.Clear()
 
-        For Each filePath As String In ProjectValues.RecentFiles
+        For Each entry As RecentFileEntry In ProjectValues.RecentFiles
+            Dim filePath As String = entry.FilePath
 
             If String.IsNullOrWhiteSpace(filePath) Then
                 Continue For
@@ -1149,7 +1155,7 @@ Public Class TranscriptionForm
 
         If Not File.Exists(filePath) Then
 
-            ProjectValues.RecentFiles.Remove(filePath)
+            ProjectValues.RecentFiles.RemoveAll(Function(entry) String.Equals(entry.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
             ProjectValuesStore.Save()
 
             MessageBox.Show(
@@ -1285,10 +1291,26 @@ Public Class TranscriptionForm
 
             ProjectValues.GridColumnWidths.TryGetValue(layoutKey, savedWidths)
 
-            If savedWidths IsNot Nothing AndAlso savedWidths.Count <> fields.Length Then
+            ' Older settings contain only field widths; newer settings also include RowNumber.
+            If savedWidths IsNot Nothing AndAlso
+                   savedWidths.Count <> fields.Length AndAlso
+                   savedWidths.Count <> fields.Length + 1 Then
+
                 ProjectValues.GridColumnWidths.Remove(layoutKey)
                 savedWidths = Nothing
                 DebugLog.WriteAlways("[GRID] Saved column widths for " & layoutKey & " do not match the current layout and have been discarded.")
+
+            End If
+
+            Dim savedWidthOffset As Integer = 0
+
+            If savedWidths IsNot Nothing AndAlso savedWidths.Count = fields.Length + 1 Then
+
+                savedWidthOffset = 1
+
+                Dim rowNumberColumn As DataGridViewColumn = transcriptionGrid.Columns("RowNumber")
+                rowNumberColumn.Width = Math.Max(rowNumberColumn.MinimumWidth, savedWidths(0))
+
             End If
 
             For fieldIndex As Integer = 0 To fields.Length - 1
@@ -1306,7 +1328,7 @@ Public Class TranscriptionForm
                     .Tag = field
                 }
 
-                If savedWidths IsNot Nothing Then column.Width = Math.Max(column.MinimumWidth, savedWidths(fieldIndex))
+                If savedWidths IsNot Nothing Then column.Width = Math.Max(column.MinimumWidth, savedWidths(fieldIndex + savedWidthOffset))
 
                 column.DefaultCellStyle.Alignment = GetGridAlignment(fieldInformation.Align)
                 If column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight Then    ' Add extra padding to the right of right-aligned columns to allow space for the warning triangle
@@ -1437,31 +1459,47 @@ Public Class TranscriptionForm
         Return GridLayout.GetLayoutStartYear().ToString() & "|" & ProjectValues.BatchType
     End Function
     Private Sub transcriptionGrid_ColumnWidthChanged(sender As Object, e As DataGridViewColumnEventArgs) Handles transcriptionGrid.ColumnWidthChanged
+
         If _configuringGrid Then Return
         If e.Column Is Nothing Then Return
-        If e.Column.Name = "RowNumber" Then Return
-        If e.Column.Tag Is Nothing Then Return
 
         Dim layoutKey As String = GetGridLayoutKey()
         Dim savedWidths As New List(Of Integer)
 
         For Each column As DataGridViewColumn In transcriptionGrid.Columns
-            If column.Name <> "RowNumber" Then savedWidths.Add(column.Width)
+            savedWidths.Add(column.Width)
         Next
 
         ProjectValues.GridColumnWidths(layoutKey) = savedWidths
         ProjectValuesStore.Save()
+
     End Sub
     Private Sub transcriptionGrid_CurrentCellChanged(sender As Object, e As EventArgs) Handles transcriptionGrid.CurrentCellChanged
 
         _pickListPopup.Hide()
         UpdateStatusPosition()
 
-        If _refreshingGrid Then Return
-
+        If _refreshingGrid OrElse _configuringGrid Then Return
         If transcriptionGrid.CurrentCell Is Nothing Then Return
 
         Dim rowIndex As Integer = transcriptionGrid.CurrentCell.RowIndex
+        Dim column As DataGridViewColumn = transcriptionGrid.CurrentCell.OwningColumn
+
+        Dim enteringForename As Boolean =
+        column.Tag IsNot Nothing AndAlso
+        DirectCast(column.Tag, GridField) = GridField.Forename
+
+        ' Restore normal validation on the row we have left.
+        If _lastGridRowIndex >= 0 AndAlso
+       _lastGridRowIndex < transcriptionGrid.Rows.Count AndAlso
+       _lastGridRowIndex <> rowIndex Then
+
+            RefreshNameValidationForPosition(_lastGridRowIndex, False)
+
+        End If
+
+        ' This must run even when moving between cells in the same row.
+        RefreshNameValidationForPosition(rowIndex, enteringForename)
 
         If rowIndex = _lastGridRowIndex Then Return
 
@@ -1470,6 +1508,19 @@ Public Class TranscriptionForm
         _workfile.SetCurrentRow(rowIndex, transcriptionGrid, _changeState)
 
         RaiseEvent CurrentGridRowChanged(Me, EventArgs.Empty)
+
+    End Sub
+
+    ' Updates name warnings after navigation, preserving sequence validation.
+    Private Sub RefreshNameValidationForPosition(rowIndex As Integer, deferBlankForename As Boolean)
+
+        Dim row As DataGridViewRow = transcriptionGrid.Rows(rowIndex)
+
+        If TypeOf row.Tag Is Boolean AndAlso CBool(row.Tag) Then Return
+
+        ValidateNamePair(rowIndex, deferBlankForename)
+        ValidateSequence(rowIndex)
+        UpdateRowValidationState(rowIndex)
 
     End Sub
     Private Sub transcriptionGrid_CellValueChanged(sender As Object, e As DataGridViewCellEventArgs) Handles transcriptionGrid.CellValueChanged
@@ -1498,6 +1549,10 @@ Public Class TranscriptionForm
 
         EnsureBlankEntryRow()
         UpdateRowNumbers()
+
+        If isDataColumn Then
+            RaiseEvent VerifyValuesChanged(Me, EventArgs.Empty)
+        End If
     End Sub
     Private Sub EnsureBlankEntryRow()
         If transcriptionGrid.Rows.Count = 0 Then
@@ -1750,11 +1805,11 @@ Public Class TranscriptionForm
                     Return True
 
                 Case Keys.Up
-                    _commandExecutor.MoveScanByRows(0.075F)
+                    _commandExecutor.MoveScanByRows(-0.075F)
                     Return True
 
                 Case Keys.Down
-                    _commandExecutor.MoveScanByRows(-0.075F)
+                    _commandExecutor.MoveScanByRows(0.075F)
                     Return True
 
             End Select
@@ -1768,11 +1823,11 @@ Public Class TranscriptionForm
             Select Case keyCode
 
                 Case Keys.Up
-                    _commandExecutor.MoveScanOneRow(1)
+                    _commandExecutor.MoveScanOneRow(-1)
                     Return True
 
                 Case Keys.Down
-                    _commandExecutor.MoveScanOneRow(-1)
+                    _commandExecutor.MoveScanOneRow(1)
                     Return True
 
             End Select
@@ -3264,7 +3319,9 @@ Public Class TranscriptionForm
 
         If (field = GridField.Surname OrElse field = GridField.Forename) AndAlso (Not TypeOf row.Tag Is Boolean OrElse Not CBool(row.Tag)) Then
 
-            ValidateNamePair(e.RowIndex)
+            ' The destination cell may not yet be current during CellEndEdit.
+            ' CurrentCellChanged will check again once navigation has finished.
+            ValidateNamePair(e.RowIndex, deferBlankForename:=True)
             ValidateSequence(e.RowIndex)
 
             If e.RowIndex + 1 < transcriptionGrid.Rows.Count Then
@@ -3360,7 +3417,7 @@ Public Class TranscriptionForm
     End Sub
     ' Revalidates Surname and Forename as a pair.' A completely blank name pair is allowed, but if either name is present
     ' the other field is validated normally and may therefore report blank.
-    Private Sub ValidateNamePair(rowIndex As Integer)
+    Private Sub ValidateNamePair(rowIndex As Integer, Optional deferBlankForename As Boolean = False)
 
         If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then Return
 
@@ -3402,7 +3459,19 @@ Public Class TranscriptionForm
         Else
 
             ApplyCellValidationResult(rowIndex, surnameColumn, Validator.Validate(GridField.Surname, surname))
-            ApplyCellValidationResult(rowIndex, forenameColumn, Validator.Validate(GridField.Forename, forename))
+
+            If deferBlankForename AndAlso String.IsNullOrWhiteSpace(forename) Then
+
+                ' Give the user time to enter the forename.
+                _cellValidationResults.Remove((rowIndex, forenameColumn))
+                row.Cells(forenameColumn).ErrorText = ""
+                row.Cells(forenameColumn).ToolTipText = ""
+
+            Else
+
+                ApplyCellValidationResult(rowIndex, forenameColumn, Validator.Validate(GridField.Forename, forename))
+
+            End If
 
         End If
 
@@ -3412,32 +3481,28 @@ Public Class TranscriptionForm
     ' the previous populated data row. Directive rows are ignored.
     ' The first surname must match the Page Letter on the Header Form.
     ' Ordinary Surname/Forename validation is handled by ValidateNamePair.
-    '
+    ' Checks alphabetical sequence using the VB6 comparison rules.
     Private Sub ValidateSequence(rowIndex As Integer)
 
         If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then Return
 
         Dim row As DataGridViewRow = transcriptionGrid.Rows(rowIndex)
 
-        ' Directive rows do not participate in sequence checking.
         If TypeOf row.Tag Is Boolean AndAlso CBool(row.Tag) Then Return
 
         Dim surnameColumn As Integer = -1
         Dim forenameColumn As Integer = -1
 
-        For columnIndex As Integer = 0 To transcriptionGrid.Columns.Count - 1
-
-            Dim column As DataGridViewColumn = transcriptionGrid.Columns(columnIndex)
+        For Each column As DataGridViewColumn In transcriptionGrid.Columns
 
             If column.Tag Is Nothing Then Continue For
 
-            Dim field As GridField = DirectCast(column.Tag, GridField)
-
-            If field = GridField.Surname Then
-                surnameColumn = columnIndex
-            ElseIf field = GridField.Forename Then
-                forenameColumn = columnIndex
-            End If
+            Select Case DirectCast(column.Tag, GridField)
+                Case GridField.Surname
+                    surnameColumn = column.Index
+                Case GridField.Forename
+                    forenameColumn = column.Index
+            End Select
 
         Next
 
@@ -3446,73 +3511,192 @@ Public Class TranscriptionForm
         Dim surname As String = If(row.Cells(surnameColumn).Value, "").ToString().Trim()
         Dim forename As String = If(row.Cells(forenameColumn).Value, "").ToString().Trim()
 
-        ' Sequence checking requires both names.
-        If String.IsNullOrWhiteSpace(surname) OrElse String.IsNullOrWhiteSpace(forename) Then Return
+        If surname.Length = 0 OrElse surname.StartsWith("+") OrElse surname.StartsWith("#") Then Return
 
-        ' MALE and FEMALE, with or without brackets, may appear anywhere and are not sequence checked.
-        If String.Equals(forename, "(MALE)", StringComparison.OrdinalIgnoreCase) OrElse
-       String.Equals(forename, "(FEMALE)", StringComparison.OrdinalIgnoreCase) OrElse
-       String.Equals(forename, "MALE", StringComparison.OrdinalIgnoreCase) OrElse
-       String.Equals(forename, "FEMALE", StringComparison.OrdinalIgnoreCase) Then Return
+        ' Find the preceding row, skipping directives and MALE/FEMALE entries.
+        Dim previousIndex As Integer = -1
 
-        For previousIndex As Integer = rowIndex - 1 To 0 Step -1
+        For candidateIndex As Integer = rowIndex - 1 To 0 Step -1
 
-            Dim previousRow As DataGridViewRow = transcriptionGrid.Rows(previousIndex)
+            Dim candidate As DataGridViewRow = transcriptionGrid.Rows(candidateIndex)
 
-            ' Directive rows are invisible to sequence checking.
-            If TypeOf previousRow.Tag Is Boolean AndAlso CBool(previousRow.Tag) Then Continue For
+            If TypeOf candidate.Tag Is Boolean AndAlso CBool(candidate.Tag) Then Continue For
 
-            Dim previousSurname As String = If(previousRow.Cells(surnameColumn).Value, "").ToString().Trim()
+            Dim candidateSurname As String = If(candidate.Cells(surnameColumn).Value, "").ToString().Trim()
 
-            If String.IsNullOrWhiteSpace(previousSurname) Then Continue For
+            If candidateSurname.StartsWith("+") OrElse candidateSurname.StartsWith("#") Then Continue For
 
-            Dim surnameCompare As Integer = String.Compare(surname, previousSurname, StringComparison.OrdinalIgnoreCase)
+            Dim candidateForename As String = NormaliseSequenceName(If(candidate.Cells(forenameColumn).Value, "").ToString())
 
-            If surnameCompare < 0 Then
-                ApplySequenceWarning(rowIndex, surnameColumn, $"Surname '{surname}' is before previous surname '{previousSurname}'.")
+            If IsSequenceSexLabel(candidateForename) Then Continue For
+
+            previousIndex = candidateIndex
+            Exit For
+
+        Next
+
+        If previousIndex < 0 Then
+
+            ' Retain WinBMD2's first-surname/page-letter check.
+            If FirstSequenceWildcard(surname) = 0 Then Return
+
+            Dim expectedLetter As String = If(ProjectValues.PageLetter, "").Trim()
+
+            If expectedLetter.Length > 0 AndAlso Not surname.StartsWith(expectedLetter, StringComparison.OrdinalIgnoreCase) Then
+
+                ApplySequenceWarning(rowIndex, surnameColumn, $"First surname '{surname}' does not match Header Form page letter '{expectedLetter}'.")
                 UpdateRowValidationState(rowIndex)
-                Return
-            End If
-
-            If surnameCompare = 0 Then
-
-                Dim previousForename As String = If(previousRow.Cells(forenameColumn).Value, "").ToString().Trim()
-
-                ' Ignore MALE and FEMALE, with or without brackets, completely when checking Forename sequence.
-                If String.Equals(previousForename, "(MALE)", StringComparison.OrdinalIgnoreCase) OrElse
-               String.Equals(previousForename, "(FEMALE)", StringComparison.OrdinalIgnoreCase) OrElse
-               String.Equals(previousForename, "MALE", StringComparison.OrdinalIgnoreCase) OrElse
-               String.Equals(previousForename, "FEMALE", StringComparison.OrdinalIgnoreCase) Then
-                    Continue For
-                End If
-
-                Dim forenameCompare As Integer = String.Compare(forename, previousForename, StringComparison.OrdinalIgnoreCase)
-
-                If forenameCompare < 0 Then
-                    ApplySequenceWarning(rowIndex, forenameColumn, $"Forename '{forename}' is before previous forename '{previousForename}' for surname '{surname}'.")
-                    UpdateRowValidationState(rowIndex)
-                    Return
-                End If
 
             End If
 
             Return
 
-        Next
+        End If
 
-        ' No preceding surname was found, so this is the first surname on the page.
-        Dim expectedLetter As String = If(ProjectValues.PageLetter, "").Trim()
+        Dim previousRow As DataGridViewRow = transcriptionGrid.Rows(previousIndex)
+        Dim previousSurname As String = If(previousRow.Cells(surnameColumn).Value, "").ToString().Trim()
+        Dim previousForename As String = If(previousRow.Cells(forenameColumn).Value, "").ToString().Trim()
 
-        If Not String.IsNullOrWhiteSpace(expectedLetter) Then
+        Dim surnameWildcard As Integer = FirstSequenceWildcard(surname)
+        Dim previousSurnameWildcard As Integer = FirstSequenceWildcard(previousSurname)
 
-            If Not surname.StartsWith(expectedLetter, StringComparison.OrdinalIgnoreCase) Then
-                ApplySequenceWarning(rowIndex, surnameColumn, $"First surname '{surname}' does not match Header Form page letter '{expectedLetter}'.")
-                UpdateRowValidationState(rowIndex)
-            End If
+        ' No comparison is possible when either surname starts with a wildcard.
+        If surnameWildcard = 0 OrElse previousSurnameWildcard = 0 Then Return
+
+        Dim surnameHasWildcard As Boolean = surnameWildcard >= 0 OrElse previousSurnameWildcard >= 0
+
+        Dim currentSurnameText As String = surname
+        Dim previousSurnameText As String = previousSurname
+
+        If surnameWildcard >= 0 Then currentSurnameText = currentSurnameText.Substring(0, surnameWildcard)
+        If previousSurnameWildcard >= 0 Then previousSurnameText = previousSurnameText.Substring(0, previousSurnameWildcard)
+
+        currentSurnameText = NormaliseSequenceName(currentSurnameText, True)
+        previousSurnameText = NormaliseSequenceName(previousSurnameText, True)
+
+        Dim compareLength As Integer = Math.Min(currentSurnameText.Length, previousSurnameText.Length)
+
+        If compareLength = 0 Then Return
+
+        Dim surnameCompare As Integer = String.Compare(
+        currentSurnameText.Substring(0, compareLength),
+        previousSurnameText.Substring(0, compareLength),
+        StringComparison.OrdinalIgnoreCase)
+
+        Dim surnameOutOfSequence As Boolean = surnameCompare < 0
+
+        ' Matching prefixes: Webb must precede Webbe, unless a wildcard prevents certainty.
+        If surnameCompare = 0 AndAlso currentSurnameText.Length < previousSurnameText.Length AndAlso Not surnameHasWildcard Then
+            surnameOutOfSequence = True
+        End If
+
+        If surnameOutOfSequence Then
+
+            ApplySequenceWarning(rowIndex, surnameColumn, $"Surname '{surname}' is before previous surname '{previousSurname}'.")
+            UpdateRowValidationState(rowIndex)
+            Return
+
+        End If
+
+        ' Compare forenames only when complete, non-wildcard surnames match.
+        If surnameCompare <> 0 OrElse surnameHasWildcard Then Return
+        If currentSurnameText.Length <> previousSurnameText.Length Then Return
+
+        Dim forenameWildcard As Integer = FirstSequenceWildcard(forename)
+        Dim previousForenameWildcard As Integer = FirstSequenceWildcard(previousForename)
+
+        Dim currentForenameText As String = forename
+        Dim previousForenameText As String = previousForename
+
+        If forenameWildcard >= 0 Then currentForenameText = currentForenameText.Substring(0, forenameWildcard)
+        If previousForenameWildcard >= 0 Then previousForenameText = previousForenameText.Substring(0, previousForenameWildcard)
+
+        currentForenameText = NormaliseSequenceName(currentForenameText)
+        previousForenameText = NormaliseSequenceName(previousForenameText)
+
+        If forenameWildcard >= 0 OrElse previousForenameWildcard >= 0 Then
+
+            compareLength = Math.Min(currentForenameText.Length, previousForenameText.Length)
+
+            currentForenameText = currentForenameText.Substring(0, compareLength)
+            previousForenameText = previousForenameText.Substring(0, compareLength)
+
+        End If
+
+        ' VB6 normalises again after shortening the forenames.
+        currentForenameText = NormaliseSequenceName(currentForenameText)
+        previousForenameText = NormaliseSequenceName(previousForenameText)
+
+        If currentForenameText.Length = 0 OrElse previousForenameText.Length = 0 Then Return
+
+        If IsSequenceSexLabel(currentForenameText) OrElse IsSequenceSexLabel(previousForenameText) Then Return
+
+        If String.Compare(currentForenameText, previousForenameText, StringComparison.OrdinalIgnoreCase) < 0 Then
+
+            ApplySequenceWarning(rowIndex, forenameColumn, $"Forename '{forename}' is before previous forename '{previousForename}' for surname '{surname}'.")
+            UpdateRowValidationState(rowIndex)
 
         End If
 
     End Sub
+    ' Returns the zero-based position of the first wildcard, or -1 if absent.
+    Private Shared Function FirstSequenceWildcard(value As String) As Integer
+
+        For index As Integer = 0 To value.Length - 1
+            If coWildChars.IndexOf(value(index)) >= 0 Then Return index
+        Next
+
+        Return -1
+
+    End Function
+
+    ' Normalises names for comparison only; stored transcription text is unchanged.
+    ' Uses Unicode values to avoid dependence on the Windows ANSI code page.
+    Private Shared Function NormaliseSequenceName(value As String, Optional removeSpaces As Boolean = False) As String
+
+        Const replacements As String = "AAAAAAACEEEEIIIIDNOOOOO OUUUUYP aaaaaaaceeeeiiiidnooooo ouuuuypy"
+
+        Dim source As String = If(value, "").Trim(" "c).Replace("  ", " ").Trim(" "c)
+        Dim result As New System.Text.StringBuilder(source.Length)
+
+        For index As Integer = 0 To source.Length - 1
+
+            Dim character As Char = source(index)
+            Dim characterCode As Integer = Convert.ToInt32(character)
+
+            Select Case characterCode
+
+                Case 65 To 90, 97 To 122
+                    result.Append(character)
+
+                Case 32
+                    If Not removeSpaces Then result.Append(character)
+
+                Case 35, 43
+                    If index = 0 Then result.Append(character)
+
+                Case 192 To 255
+                    result.Append(replacements(characterCode - 192))
+
+                Case Else
+                    ' Other characters are omitted from sequence comparison.
+                    ' Character validation is handled separately.
+
+            End Select
+
+        Next
+
+        Return result.ToString()
+
+    End Function
+
+    ' Parentheses have already been removed by NormaliseSequenceName.
+    Private Shared Function IsSequenceSexLabel(value As String) As Boolean
+
+        Return String.Equals(value, "MALE", StringComparison.OrdinalIgnoreCase) OrElse
+           String.Equals(value, "FEMALE", StringComparison.OrdinalIgnoreCase)
+
+    End Function
     Private Sub ValidatePageSequence(rowIndex As Integer)
 
         If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then Return
@@ -3794,6 +3978,7 @@ Public Class TranscriptionForm
 
             DebugLog.WriteAlways("[RECOVERY] Abnormal shutdown - workfile retained for recovery.")
             SaveFormBounds()
+            ProjectValuesStore.Flush()
             _pickListPopup.Dispose()
             Return
 
@@ -3806,6 +3991,7 @@ Public Class TranscriptionForm
 
         _workfile.Delete()
         SaveFormBounds()
+        ProjectValuesStore.Flush()
         _pickListPopup.Dispose()
     End Sub
 
@@ -3912,31 +4098,17 @@ Public Class TranscriptionForm
         UpdateUploadEnabled()
     End Sub
 
-    Friend Function CompleteCurrentVerify(values As Dictionary(Of GridField, String)) As Integer
+    Friend Function CompleteCurrentVerify() As Integer
         If _verifyRowIndex < 0 OrElse _verifyRowIndex >= transcriptionGrid.Rows.Count Then
             Return -1
         End If
 
-        Dim row As DataGridViewRow = transcriptionGrid.Rows(_verifyRowIndex)
-
-        For Each column As DataGridViewColumn In transcriptionGrid.Columns
-
-            If column.Tag Is Nothing Then
-                Continue For
-            End If
-
-            Dim field As GridField = DirectCast(column.Tag, GridField)
-
-            If Not FieldMetaData.Meta(field).IsDataColumn Then
-                Continue For
-            End If
-
-            Dim value As String = ""
-            values.TryGetValue(field, value)
-
-            row.Cells(column.Index).Value = value
-
-        Next
+        ' Verification uses the committed grid values.
+        ' Reject a row which now contains an error after being corrected.
+        If VerifyRowHasError(_verifyRowIndex) Then
+            FocusGridRow(_verifyRowIndex)
+            Return -2
+        End If
 
         MarkRowVerified(_verifyRowIndex)
 
@@ -4153,6 +4325,9 @@ Public Class TranscriptionForm
                 Return False
             End If
 
+            ' Match the recovered batch to its existing MRU entry.
+            SelectPositionEntry(ProjectValues.GetBatchFilePath(ProjectValues.BatchName))
+
             FinishLoadingBatch()
 
             _changeState.SetFileChanged()
@@ -4191,6 +4366,21 @@ Public Class TranscriptionForm
     Private Sub btnClearCell_Click(sender As Object, e As EventArgs) Handles btnClearCell.Click
 
         If transcriptionGrid.CurrentCell Is Nothing Then Return
+
+        ' Clear the whole district name; other fields retain last-word deletion.
+        If CurrentField = GridField.District Then
+
+            Dim editor As TextBox = TryCast(transcriptionGrid.EditingControl, TextBox)
+
+            If transcriptionGrid.IsCurrentCellInEditMode AndAlso editor IsNot Nothing Then
+                editor.Clear()
+            Else
+                transcriptionGrid.CurrentCell.Value = ""
+            End If
+
+            Return
+
+        End If
 
         If transcriptionGrid.IsCurrentCellInEditMode Then
 
@@ -4242,7 +4432,33 @@ Public Class TranscriptionForm
         _commandExecutor.StartNewFile()
 
     End Sub
+    ' Returns the selected grid row, or Nothing while the grid is loading or has no selection.
+    Friend ReadOnly Property CurrentPositionRow As Integer?
+        Get
+            If _refreshingGrid OrElse transcriptionGrid.CurrentCell Is Nothing Then Return Nothing
+            Return transcriptionGrid.CurrentCell.RowIndex
+        End Get
+    End Property
+    ' Identifies the MRU entry belonging to the grid currently displayed.
+    Private _positionEntry As RecentFileEntry
 
+    Friend ReadOnly Property PositionEntry As RecentFileEntry
+        Get
+            Return _positionEntry
+        End Get
+    End Property
+
+    ' Selects the existing MRU entry without changing its saved position.
+    Friend Sub SelectPositionEntry(filePath As String)
+        _positionEntry = ProjectValues.RecentFiles.Find(Function(entry) String.Equals(entry.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+    End Sub
+
+    ' Restores a valid row, falling back to the first row if the batch has become shorter.
+    Friend Sub RestorePositionRow(rowIndex As Integer)
+        If transcriptionGrid.Rows.Count = 0 Then Return
+        If rowIndex < 0 OrElse rowIndex >= transcriptionGrid.Rows.Count Then rowIndex = 0
+        FocusGridRow(rowIndex)
+    End Sub
     Private Sub btnFillDown_Click(sender As Object, e As EventArgs) Handles btnFillDown.Click
 
         If transcriptionGrid.CurrentCell Is Nothing Then Return

@@ -46,7 +46,10 @@ Friend Module Program
 
             Try
 
-                ProjectValuesStore.Initialise()
+                If Not ProjectValuesStore.Initialise() Then
+                    DebugLog.WriteAlways("[STARTUP] User chose to close without loading settings.")
+                    Return
+                End If
                 CapitalisationData.Load()
                 DebugLog.WriteAlways("======= CAPITALISATION =======")
 

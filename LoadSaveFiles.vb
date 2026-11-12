@@ -20,8 +20,27 @@ Public NotInheritable Class LoadSaveFiles
 
             ProjectValues.BatchName = Path.GetFileName(filePath)
 
-            ProjectValues.RecentFiles.RemoveAll(Function(path) String.Equals(path, filePath, StringComparison.OrdinalIgnoreCase))
-            ProjectValues.RecentFiles.Insert(0, filePath)
+            ' Keep the saved position when moving an existing batch to the top.
+            Dim recentEntry As RecentFileEntry =
+    ProjectValues.RecentFiles.Find(
+        Function(entry) String.Equals(
+            entry.FilePath,
+            filePath,
+            StringComparison.OrdinalIgnoreCase))
+
+            If recentEntry Is Nothing Then
+                recentEntry = New RecentFileEntry With {.FilePath = filePath}
+            Else
+                recentEntry.FilePath = filePath
+            End If
+
+            ProjectValues.RecentFiles.RemoveAll(
+    Function(entry) String.Equals(
+        entry.FilePath,
+        filePath,
+        StringComparison.OrdinalIgnoreCase))
+
+            ProjectValues.RecentFiles.Insert(0, recentEntry)
 
             While ProjectValues.RecentFiles.Count > 10
                 ProjectValues.RecentFiles.RemoveAt(ProjectValues.RecentFiles.Count - 1)

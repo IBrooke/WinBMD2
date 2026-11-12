@@ -21,6 +21,9 @@ Public Class VerifyFieldBox
     Private _dragStartMouseScreenX As Integer
     Private _dragStartLeft As Integer
     Private _resizeStartWidth As Integer
+    Private ReadOnly _fullValueToolTip As New ToolTip()
+    Private _combinedName As Boolean
+    Private _forenames As String = ""
 
     Private Const ResizeGripWidth As Integer = 6
     Private Const EM_SETMARGINS As Integer = &HD3
@@ -61,11 +64,9 @@ Public Class VerifyFieldBox
 
             _arrangeMode = value
 
-            Cursor =
-            If(value, Cursors.SizeAll, Cursors.Default)
+            Cursor = If(value, Cursors.SizeAll, Cursors.Default)
 
-            _textBox.Cursor =
-            If(value, Cursors.SizeAll, Cursors.IBeam)
+            _textBox.Cursor = If(value, Cursors.SizeAll, Cursors.Default)
 
         End Set
     End Property
@@ -73,7 +74,6 @@ Public Class VerifyFieldBox
     <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
     Public Property Value As String
         Get
-            If _textBox.Focused Then Return _textBox.Text
             Return _actualValue
         End Get
         Set(value As String)
@@ -98,23 +98,94 @@ Public Class VerifyFieldBox
         SendMessage(_textBox.Handle, EM_SETMARGINS, New IntPtr(EC_LEFTMARGIN Or EC_RIGHTMARGIN), IntPtr.Zero)
 
     End Sub
+    Public Sub SetNameValues(surname As String, forenames As String, previousSurname As String)
+
+        ' Keep the original values separate from their formatted display.
+        _combinedName = True
+        _actualValue = If(surname, "")
+        _forenames = If(forenames, "")
+        _previousSurname = If(previousSurname, "")
+
+        _textBox.PlaceholderText = "Surname, Forenames"
+
+        UpdateDisplayedValue()
+
+    End Sub
+
+    Private Function GetFullValue() As String
+
+        If Not _combinedName Then Return _actualValue
+        If String.IsNullOrEmpty(_actualValue) Then Return _forenames
+        If String.IsNullOrEmpty(_forenames) Then Return _actualValue
+
+        Return _actualValue & ", " & _forenames
+
+    End Function
     Private Sub UpdateDisplayedValue()
 
-        If _textBox.Focused Then Return
+        Dim repeatedSurname As Boolean =
+            _field = GridField.Surname AndAlso
+            Not String.IsNullOrWhiteSpace(_previousSurname) AndAlso
+            String.Equals(_actualValue.Trim(), _previousSurname.Trim(), StringComparison.OrdinalIgnoreCase)
 
-        If _field = GridField.Surname AndAlso
-       Not String.IsNullOrWhiteSpace(_previousSurname) AndAlso
-       String.Equals(_actualValue.Trim(), _previousSurname.Trim(), StringComparison.OrdinalIgnoreCase) Then
+        Dim displayedValue As String = If(repeatedSurname, GetRepeatedSurnameText(), _actualValue)
 
-            _textBox.Text = "------"
+        If _combinedName AndAlso Not String.IsNullOrEmpty(_forenames) Then
 
-        Else
-
-            _textBox.Text = _actualValue
+            If String.IsNullOrEmpty(displayedValue) Then
+                displayedValue = _forenames
+            Else
+                ' Like BMDVerify, omit the comma after repeated-surname hyphens.
+                displayedValue &= If(repeatedSurname, " ", ", ") & _forenames
+            End If
 
         End If
 
+        _textBox.Text = displayedValue
+        ShowFullValueToolTip()
+
     End Sub
+    Protected Overrides Sub Dispose(disposing As Boolean)
+
+        If disposing Then
+            _fullValueToolTip.Dispose()
+        End If
+
+        MyBase.Dispose(disposing)
+
+    End Sub
+    Private Function GetRepeatedSurnameText() As String
+
+        Dim layout As VerifyNameLayout = VerifyNameLayout.GetCurrent()
+        Dim flags As TextFormatFlags = TextFormatFlags.NoPadding Or TextFormatFlags.SingleLine Or TextFormatFlags.NoPrefix
+        Dim targetWidth As Integer
+
+        ' Measure the historical reference at the user's selected size and style.
+        Using referenceFont As New Font(layout.ReferenceFontName, _textBox.Font.Size, _textBox.Font.Style, _textBox.Font.Unit)
+            targetWidth = TextRenderer.MeasureText(layout.ReferenceHyphens, referenceFont, Size.Empty, flags).Width
+        End Using
+
+        Dim bestText As String = "-"
+        Dim bestDifference As Integer = Integer.MaxValue
+
+        For count As Integer = 1 To 100
+
+            Dim candidate As String = New String("-"c, count)
+            Dim candidateWidth As Integer = TextRenderer.MeasureText(candidate, _textBox.Font, Size.Empty, flags).Width
+            Dim difference As Integer = Math.Abs(candidateWidth - targetWidth)
+
+            If difference < bestDifference Then
+                bestDifference = difference
+                bestText = candidate
+            End If
+
+            If candidateWidth >= targetWidth Then Exit For
+
+        Next
+
+        Return bestText
+
+    End Function
     <DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)>
     Public Property TextAlignment As HorizontalAlignment
         Get
@@ -130,8 +201,11 @@ Public Class VerifyFieldBox
         Width = 120
 
         _textBox.Multiline = True
+        _textBox.WordWrap = False
         _textBox.Dock = DockStyle.Fill
         _textBox.BorderStyle = BorderStyle.FixedSingle
+        _textBox.ReadOnly = True     ' Values are edited in the transcription grid, not in the verify bar.
+        _textBox.TabStop = True
 
         Controls.Add(_textBox)
 
@@ -141,6 +215,8 @@ Public Class VerifyFieldBox
         _textBox.ContextMenuStrip = _alignmentMenu
         Me.ContextMenuStrip = _alignmentMenu
 
+        AddHandler _textBox.MouseHover, AddressOf TextBox_MouseHover
+        AddHandler _textBox.MouseLeave, AddressOf TextBox_MouseLeave
         AddHandler _alignmentMenu.Opening, AddressOf AlignmentMenu_Opening
         AddHandler _alignLeftItem.Click, AddressOf AlignLeft_Click
         AddHandler _alignRightItem.Click, AddressOf AlignRight_Click
@@ -158,17 +234,39 @@ Public Class VerifyFieldBox
 
         If _arrangeMode Then Return
 
-        _textBox.Text = _actualValue
-
         RaiseEvent FieldFocused(Me, EventArgs.Empty)
+        ShowFullValueToolTip()
 
     End Sub
+
     Private Sub TextBox_Leave(sender As Object, e As EventArgs)
 
-        If _arrangeMode Then Return
+        _fullValueToolTip.Hide(_textBox)
 
-        _actualValue = _textBox.Text
+        ' The verify bar only displays values supplied by the grid.
         UpdateDisplayedValue()
+
+    End Sub
+    Private Sub ShowFullValueToolTip(Optional mouseHover As Boolean = False)
+
+        If _fullValueToolTip Is Nothing OrElse _textBox Is Nothing Then Return
+
+        _fullValueToolTip.Hide(_textBox)
+
+        If _arrangeMode Then Return
+        If Not mouseHover AndAlso Not _textBox.Focused Then Return
+
+        Dim fullValue As String = GetFullValue()
+        If String.IsNullOrEmpty(fullValue) Then Return
+
+        Dim flags As TextFormatFlags = TextFormatFlags.NoPadding Or TextFormatFlags.SingleLine Or TextFormatFlags.NoPrefix
+        Dim textWidth As Integer = TextRenderer.MeasureText(_textBox.Text, _textBox.Font, Size.Empty, flags).Width
+        Dim availableWidth As Integer = Math.Max(0, _textBox.ClientSize.Width - 4)
+
+        ' Reveal clipped text and the actual surname behind repeated-surname hyphens.
+        If textWidth > availableWidth OrElse _textBox.Text <> fullValue Then
+            _fullValueToolTip.Show(fullValue, _textBox, 0, _textBox.Height + 2, 30000)
+        End If
 
     End Sub
     Protected Overrides Function ProcessCmdKey(ByRef msg As Message, keyData As Keys) As Boolean
@@ -185,7 +283,13 @@ Public Class VerifyFieldBox
 
         MyBase.OnFontChanged(e)
 
-        If _textBox IsNot Nothing Then _textBox.Font = Font
+        If _textBox IsNot Nothing Then
+
+            _textBox.Font = Font
+            RemoveTextMargins()
+            UpdateDisplayedValue()
+
+        End If
 
     End Sub
 
@@ -269,6 +373,18 @@ Public Class VerifyFieldBox
             point.X,
             point.Y,
             e.Delta))
+
+    End Sub
+    Private Sub TextBox_MouseHover(sender As Object, e As EventArgs)
+
+        ShowFullValueToolTip(True)
+
+    End Sub
+
+    Private Sub TextBox_MouseLeave(sender As Object, e As EventArgs)
+
+        ' Keep the tooltip visible if this box still has keyboard focus.
+        If Not _textBox.Focused Then _fullValueToolTip.Hide(_textBox)
 
     End Sub
     Protected Overrides Sub OnMouseMove(e As MouseEventArgs)
